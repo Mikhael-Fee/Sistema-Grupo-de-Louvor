@@ -4,6 +4,8 @@ Aplicação React + TypeScript + Vite para organizar a equipe, as músicas e os 
 
 Site publicado: **[louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app)**. O README é este guia de uso e manutenção; a aplicação é acessada pelo link do site.
 
+Código versionado em [Mikhael-Fee/Sistema-Grupo-de-Louvor](https://github.com/Mikhael-Fee/Sistema-Grupo-de-Louvor), branch `main`. A publicação atual do Netlify usa ZIP; novos commits não atualizam o site automaticamente.
+
 A conta `mikhaelfernandes8@gmail.com` já foi confirmada e aprovada como administrador. Entre com a senha pessoal criada no cadastro. Os próximos integrantes criam e confirmam suas contas; o administrador libera o acesso em **Administração**. A demonstração continua disponível sem conta.
 
 ## Executar

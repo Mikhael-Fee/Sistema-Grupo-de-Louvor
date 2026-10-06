@@ -79,7 +79,7 @@ node scripts/deploy-netlify.mjs --deploy /workspace/scratch/louvor-site-atualiza
 
 O ZIP contém os arquivos da aplicação na raiz, incluindo `index.html`, `_redirects` e `_headers`; não envie a pasta do projeto, `.env.local` ou `node_modules`. O helper retoma um envio pendente e reutiliza o mesmo artefato quando já publicado, sem excluir sites. Confira `state: ready` e a URL retornada. Também é possível enviar os arquivos do build pela interface de deploy manual do site no Netlify.
 
-Para adotar builds automáticos depois, envie e revise o código no GitHub, conecte esse repositório ao mesmo site e configure no Netlify as duas variáveis públicas. Use `npm run build`, diretório `dist` e `netlify.toml`. Variáveis Vite são incorporadas no build: mudar uma variável exige publicar um novo build.
+O código está versionado em [Mikhael-Fee/Sistema-Grupo-de-Louvor](https://github.com/Mikhael-Fee/Sistema-Grupo-de-Louvor), branch `main`. Para adotar builds automáticos depois, conecte esse repositório ao mesmo site e configure no Netlify as duas variáveis públicas. Use `npm run build`, diretório `dist` e `netlify.toml`. Variáveis Vite são incorporadas no build: mudar uma variável exige publicar um novo build.
 
 Valide o fluxo de recuperação no domínio final e a instalação como PWA. O service worker guarda o shell estático; dados autenticados não são armazenados em seu cache. O histórico do navegador e a sessão autenticada continuam sujeitos aos controles normais do dispositivo. Confira limites e preços atuais de Supabase e Netlify; esta configuração não garante planos gratuitos nem custo fixo.
 

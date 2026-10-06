@@ -26,9 +26,11 @@ O site Netlify foi publicado separadamente por ZIP, sem integração Git, com ID
 
 A conta proprietária `mikhaelfernandes8@gmail.com` foi criada e confirmada pelo usuário; o perfil correspondente foi aprovado como `admin`. O usuário confirmou o primeiro acesso. A recuperação foi testada com uma conta temporária: callback público, formulário, autenticação com senha nova e rejeição da anterior. As fixtures foram removidas e a conta proprietária foi preservada.
 
+O código foi enviado ao repositório selecionado, branch `main`; a leitura de refs remotas confirmou o envio. O site continua com deploy por ZIP, sem publicação automática por commit. O workflow de CI foi incluído, mas seu resultado no GitHub não foi consultado. As instruções atualizadas de manutenção e o ID público do site foram salvos no rascunho do ambiente; um novo snapshot depende de salvar/publicar o ambiente pela interface Codex.
+
 ## Etapas externas pendentes
 
-- Versionar/enviar o código ao GitHub e, se desejado, integrar builds automáticos ao site Netlify; o CI está preparado, mas não foi executado no GitHub.
+- Integrar builds automáticos ao site Netlify, se desejado, e consultar o resultado do CI no GitHub.
 - Configurar SMTP próprio para confirmações e recuperação dos demais integrantes; o serviço padrão tem restrições de destinatários. O proprietário recebeu e confirmou sua mensagem, mas entrega para outros endereços não foi testada.
 - Validar a instalação PWA em Android/iPhone reais; a validação desta entrega usou Chromium automatizado.
 
