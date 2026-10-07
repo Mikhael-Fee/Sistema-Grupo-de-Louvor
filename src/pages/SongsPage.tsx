@@ -7,6 +7,7 @@ import { KEYS, normalizeSearch, stripChords } from '../lib/music';
 import { validateSong } from '../lib/validation';
 import { normalizeCifraClubUrl, parseCifraClubText } from '../lib/cifraclub';
 import { useDraft } from '../hooks/useDraft';
+import { detectCifraBrowser, readCifraFromBrowser } from '../lib/cifra-browser';
 import { cifraClubSearchUrl, cifraClubUrlFromNotes, isSafeCifraClubUrl, notesWithCifraClubSource, previewSongSource, searchUnifiedSongSources, sourceKey, type SongSearchResult } from '../lib/song-search';
 import type { Song } from '../types';
 import './songs.css';
@@ -46,6 +47,12 @@ export function SongEditor({ song, onClose }: { song?: Song; onClose: () => void
   const [useSourceMetadata, setUseSourceMetadata] = useState(false);
   const [sourceConfirmReplace, setSourceConfirmReplace] = useState(false);
   const sourceRequest = useRef<AbortController | null>(null);
+  const [browserConnected, setBrowserConnected] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    void detectCifraBrowser(controller.signal).then(setBrowserConnected).catch(() => {});
+    return () => controller.abort();
+  }, []);
   useEffect(() => () => sourceRequest.current?.abort(), []);
   const change = (field: keyof Song, value: string) => setDraft(current => ({ ...current, [field]: value }));
 
@@ -88,7 +95,9 @@ export function SongEditor({ song, onClose }: { song?: Song; onClose: () => void
     sourceRequest.current = controller;
     setPreviewing(result.id); setSearching(false); setSourceError(null); setPreview(null); setPreviewLyricsOnly(false); setImported(false); setUseSourceMetadata(false); setSourceConfirmReplace(false);
     try {
-      const resultPreview = await previewSongSource(result, controller.signal);
+      const connected = result.source === 'Cifra Club' && (browserConnected || await detectCifraBrowser(controller.signal));
+      if (connected) setBrowserConnected(true);
+      const resultPreview = connected ? await readCifraFromBrowser(result, controller.signal) : await previewSongSource(result, controller.signal);
       if ((resultPreview.content?.length || 0) > 100_000) throw new Error('A letra e cifra desta versão excedem 100.000 caracteres. Escolha outra versão.');
       if (!controller.signal.aborted) setPreview(resultPreview);
     }
@@ -139,13 +148,14 @@ export function SongEditor({ song, onClose }: { song?: Song; onClose: () => void
       </div>
       <section className="songs-source-search" aria-label="Busca online de letra e cifra">
         <div className="songs-unified-search-heading">
-          <div><strong>Cifra e letra em uma busca</strong><span>Usaremos o título e o artista preenchidos acima.</span></div>
+          <div><strong>Cifra e letra em uma busca</strong><span>Usaremos o título e o artista preenchidos acima.</span><span>{browserConnected ? 'Importador conectado · cifra automática pelo navegador' : <a href="/conectar-cifra-club" target="_blank" rel="noopener noreferrer">Conectar importador Cifra Club</a>}</span></div>
           <button type="button" className="button button-primary" disabled={searching || Boolean(previewing)} onClick={searchOnline}>{searching ? <LoaderCircle className="songs-spinner" size={15} /> : <Search size={15} />}{searching ? 'Pesquisando…' : 'Pesquisar cifra e letra'}</button>
         </div>
         {sourceOpen && <div className="songs-source-body">
           <div className="songs-source-status"><p>Cifra Club primeiro. O LRCLIB também oferece versões da letra sem acordes. Escolha a música e confira a prévia antes de importar.</p><button type="button" className="button button-ghost" onClick={closeSourceSearch}>Fechar busca<X size={13} /></button></div>
           {sourceWarnings.length > 0 && <div className="songs-source-warnings" role="status">{sourceWarnings.map(warning => <p key={warning}>{warning}</p>)}</div>}
           <FormError error={sourceError} />
+          {previewing && browserConnected && sourceResults.some(result => result.id === previewing && result.source === 'Cifra Club') && <div className="songs-source-empty"><p role="status">Lendo a cifra no seu navegador. A prévia aparecerá aqui; aguarde sem fechar a aba de consulta.</p><button type="button" className="button button-ghost" onClick={() => { sourceRequest.current?.abort(); setPreviewing(null); }}>Cancelar consulta</button></div>}
           {searching && <p className="songs-source-empty" role="status">Procurando versões próximas ao título e ao artista…</p>}
           {searched && !sourceResults.length && <p className="songs-source-empty" role="status">Nenhuma versão encontrada. Tente parte do título ou revise o nome do artista.</p>}
           {sourceResults.length > 0 && <ul className="songs-source-results">{sourceResults.map(result => <li key={`${result.source}:${result.id}`}><div><strong>{result.title}</strong><span>{result.artist || 'Confira o artista na prévia'}{result.album && ` · ${result.album}`}</span><span className={`songs-result-source ${result.source === 'Cifra Club' ? 'songs-result-primary' : ''}`}>{result.source} · {result.kind === 'chords' ? 'Letra e cifra' : 'Letra sem acordes'}</span></div><div className="songs-result-actions"><button type="button" className="button button-ghost" disabled={Boolean(previewing)} aria-label={`Ver prévia de ${result.title}`} onClick={() => openPreview(result)}>{previewing === result.id ? 'Abrindo…' : 'Ver prévia'}<ArrowUpRight size={14} /></button><a href={result.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${result.title} na fonte`}>Fonte<ExternalLink size={11} /></a></div></li>)}</ul>}

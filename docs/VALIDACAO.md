@@ -1,6 +1,33 @@
 # Validação da atualização Candeia — 07/10/2026
 
-## Resultados desta versão
+## Versão atual — importador pelo navegador
+
+Foi implementada uma alternativa automática para Chrome/Edge no computador: depois da instalação inicial, **Ver prévia** abre a versão escolhida em uma aba criada pela extensão, lê somente a cifra que o navegador consegue exibir e retorna a prévia ao Candeia, sem copiar e colar. A aba temporária é fechada no sucesso, erro ou cancelamento. O tom recebido é o tom exibido; o tom na igreja permanece. Importar modifica o rascunho e salvar continua explícito.
+
+| Verificação atual | Resultado |
+| --- | --- |
+| TypeScript e build Vite/PWA/ZIP | Passaram |
+| Vitest | 92 testes passaram, incluindo 13 do canal/validação e 12 da extensão/leitor |
+| Playwright completo | 28/28 passaram: 22 fluxos existentes e 6 com extensão real, em 1 minuto |
+| Rede dos testes da extensão | Zero requisições fora das fixtures; Auth/REST e páginas HTTPS simulados |
+| Empacotamento | 41 arquivos dist; ZIP com seis arquivos correspondentes exatamente ao código inspecionado, sem tokens, .env ou source maps |
+| Publicação Netlify | Deploy `6ac6a36e037b31ffc58a0415`, confirmado `ready` |
+| Site público/PWA atualizado | 17 verificações passaram, incluindo celular, leitura sem edição, transposição e shell offline |
+| Guia e download publicados | Guia público e layout de 390 px verificados; ausência da extensão informada; ZIP baixado com PWA controlando a página corresponde exatamente ao build (9.317 bytes) |
+
+O pacote e as instruções estão em [Conectar importador Cifra Club](https://louvor-grupo-fxebsy.netlify.app/conectar-cifra-club). O build gera `/downloads/candeia-cifraclub.zip`; o arquivo gerado é ignorado pelo Git. A PWA exclui downloads do fallback de navegação e não guarda o ZIP no precache.
+
+A suíte usa a extensão real no Chrome for Testing 153, instalado pelo comando oficial `PLAYWRIGHT_BROWSERS_PATH=/workspace/scratch/playwright-cifra-browsers npx playwright install chromium --no-shell`. O Chromium gerenciado tem política que recusa extensões; nenhuma política foi alterada. A suíte descobre o navegador isolado pela revisão atual do Playwright e usa perfis temporários, sem cookies ou contas reais e sem desabilitar TLS.
+
+Os testes comprovaram o canal completo, extração alinhada com acordes e baixo, F7M/Am7M, tom visível versus metadado original, letra derivada, confirmação de substituição, referência, persistência, cancelamento, resposta tardia, recusa de consulta duplicada e de destinos externos, rejeição de texto acima de 100.000 caracteres, erro explícito de Access Denied e preservação de uma aba Cifra Club comum já aberta. Essas são páginas de teste: **não comprovam importação de uma cifra real no computador do usuário**.
+
+A cifra precisa abrir normalmente no navegador do usuário. Se esse navegador receber bloqueio ou não exibir os acordes, a extensão informa a falha; não modifica requisições, resolve CAPTCHA nem utiliza outro serviço para contornar a proteção. A consulta feita pelo Netlify continua recebendo HTTP 403. A API pública de terceiros [cifraclub-api](https://github.com/adrianohcampos/cifraclub-api) também retornou erro de upstream 403; não encontramos um widget/API oficial documentado que resolvesse essa leitura. Um iframe não permite ao Candeia copiar automaticamente o DOM externo pela política de mesma origem.
+
+Chrome de celular não instala essa extensão. Depois de importar e salvar no computador, a equipe pode consultar e transpor a cifra no Candeia pelo celular. A publicação na Chrome Web Store não foi feita; a instalação inicial é por pasta extraída, seguindo o guia. `install_script` e `start_skill` do ambiente Codex foram atualizados com o empacotamento, navegador de teste e limitações, e salvos com `requires_publish: true`, separadamente da publicação Netlify.
+
+Abaixo permanece o registro da validação anterior de banco, acesso e desempenho; o schema não mudou nesta entrega e os testes reais Supabase dessa validação não foram repetidos.
+
+## Validação anterior — busca e equipe
 
 | Verificação | Resultado |
 | --- | --- |

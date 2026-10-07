@@ -68,6 +68,14 @@ O reconhecimento de acordes e a conversão de marcadores inline receberam regres
 
 Na investigação executada, 40 ciclos produziram memória JavaScript de 4,85 para 5,12 MB após coleta, sem atividade contínua de CPU; a colagem malformada de 50.051 caracteres levou aproximadamente 239 ms. Isso não reproduz nem identifica por si só o episódio de 3 GB informado pelo usuário. Registre navegador, cenário, tamanho do conteúdo e medidas ao avaliar qualquer recorrência; não conclua que o consumo total do Chrome equivale a esses valores.
 
+## Importador automático pelo navegador
+
+1. No computador, abra `/conectar-cifra-club`, baixe e extraia o pacote e carregue a pasta como extensão sem compactação no Chrome/Edge. Atualize o Candeia e confirme **Importador conectado**. Isso é uma instalação inicial; Chrome de celular não instala essa extensão.
+2. Pesquise título/artista, escolha uma versão Cifra Club e use **Ver prévia**. A aba temporária deve abrir, fornecer acordes reais visíveis, fechar e retornar ao editor. Se houver bloqueio no próprio navegador, informe a falha; não conte isso como importação aprovada.
+3. Confira tom exibido na fonte versus tom original recebido. Marque **Ver somente letra na prévia**, confirme a remoção local dos acordes e importe. Conteúdo anterior deve exigir confirmação; tom na igreja permanece. Salvar continua explícito.
+4. Cancele uma consulta e confira que a aba temporária é fechada e nenhuma resposta atrasada modifica o rascunho. Uma aba Cifra Club aberta normalmente antes do teste deve continuar intacta. Verifique destino inválido, conteúdo acima de 100.000 caracteres e falha da fonte.
+5. Para regressão automatizada, a suíte `tests/cifra-browser.spec.ts` carrega a extensão real com respostas HTTPS simuladas e não faz chamadas externas. O Chrome for Testing oficial instalado no cache `/workspace/scratch/playwright-cifra-browsers` permite esses testes; a política do Chromium gerenciado não é alterada. Esses resultados não comprovam acesso a uma cifra real no navegador do usuário.
+
 ## Auth e recuperação
 
 Com `SUPABASE_ACCESS_TOKEN` injetado nas configurações seguras e TLS habilitado, a verificação real pode usar o domínio observado:

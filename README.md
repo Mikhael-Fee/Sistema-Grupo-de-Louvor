@@ -39,7 +39,9 @@ Configure as duas variáveis públicas do Supabase usando `.env.example`: `VITE_
 
 Preencha título/artista e use **Pesquisar cifra e letra**. A busca apresenta versões próximas do **Cifra Club** primeiro e letras do **LRCLIB** na mesma lista, identificadas como conteúdo sem acordes. Cada resultado permite abrir a fonte ou conferir **Ver prévia**. Não há campos de pesquisa separados nem uma opção Worship Together no editor atual.
 
-A pesquisa real do Cifra Club já retornou opções, mas **a importação automática dessa fonte ainda está bloqueada**: suas páginas responderam 403, e a prévia informou a indisponibilidade sem substituir o rascunho. Ter resultados de busca não comprova acesso à cifra. O LRCLIB continua oferecendo importação automática de letras. Confira [VALIDACAO.md](docs/VALIDACAO.md) para o estado observado da publicação.
+A leitura do Cifra Club pelo servidor continua recebendo HTTP 403. Para importar automaticamente, use o [importador pelo navegador](https://louvor-grupo-fxebsy.netlify.app/conectar-cifra-club): instale a extensão uma vez no Chrome/Edge do computador e atualize o Candeia. Quando aparecer **Importador conectado**, **Ver prévia** abre a versão escolhida em uma aba temporária, lê os acordes visíveis e entrega a cifra ao editor sem copiar e colar. A aba criada é fechada ao terminar ou cancelar. O tom recebido é o tom exibido nessa página; o tom na igreja continua preservado.
+
+Isso depende de a cifra abrir normalmente no navegador do usuário. A extensão não contorna bloqueios, e Chrome de celular não instala extensões. Depois de salvar, a equipe pode consultar e transpor a cifra no Candeia pelo celular normalmente. A alternativa foi validada com extensão real e páginas de teste; a cifra real ainda precisa ser conferida no navegador do usuário. LRCLIB oferece importação de letras quando disponível. Veja [VALIDACAO.md](docs/VALIDACAO.md).
 
 Quando a prévia puder ser carregada, **Importar cifra e letra** mantém os acordes e a referência da fonte; **Importar letra sem acordes** aplica uma versão LRCLIB. A visualização **Somente letra** e a opção **Ver somente letra na prévia** retiram os acordes do mesmo conteúdo, sem exigir outra busca nem alterar a cifra armazenada. O tom original acompanha o valor reconhecido na fonte; sem valor reconhecido, confira o tom atual. **Tom na igreja** permanece. Título/artista só mudam se a opção correspondente for marcada. Se houver texto anterior, confirme a substituição ou mantenha o conteúdo atual; o banco só muda ao selecionar **Salvar música**.
 
@@ -75,6 +77,8 @@ node scripts/deploy-netlify.mjs --deploy-dir dist --functions-dir netlify/functi
 ```
 
 O envio antigo de um ZIP contendo somente `dist` não publica `song-search`; use o modo de diretórios acima nesta versão. O [netlify.toml](netlify.toml) define o build e `public/_redirects`/`public/_headers` seguem para `dist`. Alterar o checkout ou publicar o ambiente Codex não atualiza o site. Veja os [passos de manutenção](docs/SUPABASE.md#netlify). Nunca grave tokens em arquivos ou commits.
+
+O build também empacota os seis arquivos públicos de `browser-extension/candeia-cifraclub` em `/downloads/candeia-cifraclub.zip`; esse ZIP gerado é ignorado pelo Git e não contém configuração Supabase. Para os testes da extensão neste ambiente, instale o navegador oficial de testes com `PLAYWRIGHT_BROWSERS_PATH=/workspace/scratch/playwright-cifra-browsers npx playwright install chromium --no-shell`. A suíte usa esse cache para carregar a extensão em perfil isolado; não altera as políticas do Chromium gerenciado.
 
 No celular, abra o site HTTPS e use **Adicionar à tela inicial** no Safari ou a instalação oferecida pelo navegador Android. Se uma instalação antiga ainda mostrar a versão anterior, feche todas as abas/janelas do site e abra o endereço novamente. Nas versões seguintes, use **Atualizar agora** quando o aviso aparecer ou **Depois** para continuar a edição.
 

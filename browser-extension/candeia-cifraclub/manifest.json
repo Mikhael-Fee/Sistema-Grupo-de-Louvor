@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Candeia — Importar do Cifra Club",
+  "version": "1.0.0",
+  "description": "Envia ao rascunho do Candeia a cifra que abre normalmente no seu navegador.",
+  "minimum_chrome_version": "109",
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://louvor-grupo-fxebsy.netlify.app/*"],
+      "js": ["candeia-content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": ["https://www.cifraclub.com.br/*", "https://cifraclub.com.br/*"],
+      "js": ["reader.js", "cifra-content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}
