@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDemoData, DEMO_PROFILE } from './seed';
-import { validateService } from './validation';
+import { validateService } from '../src/lib/validation';
 
 afterEach(() => vi.useRealTimers());
 

@@ -2,24 +2,32 @@
  * Requires NETLIFY_AUTH_TOKEN injected securely into the environment.
  * node scripts/deploy-netlify.mjs --check
  * node scripts/deploy-netlify.mjs --deploy /workspace/scratch/louvor-site.zip
+ * node scripts/deploy-netlify.mjs --deploy-dir dist --functions-dir netlify/functions
  * NETLIFY_SITE_ID optionally selects an existing accessible site.
- * Only --deploy creates/uploads. No site is deleted, and the same release is
+ * Only --deploy/--deploy-dir create/upload. No site is deleted, and the same release is
  * reused when already published or processing. Pending uploads can be resumed
  * by running the same command; polling lasts at most 120 seconds overall.
  * State is nonsecret: /workspace/scratch/louvor-netlify-state.json.
  * Tokens and binary-upload configuration are passed through curl's stdin.
  * Official contract: https://docs.netlify.com/api-and-cli-guides/api-guides/get-started-with-api/
  * OpenAPI: https://open-api.netlify.com/swagger.json
+ * Directory mode uses SHA1 for files and SHA256 for zipped standalone .mjs
+ * functions. API v1's entry point is <function-name>.handler, so each ZIP has
+ * <function-name>.mjs at its root. No dependency bundling is performed.
+ * Entry contract: https://github.com/netlify/zip-it-and-ship-it/blob/main/src/runtimes/node/utils/entry_file.ts
  */
 import { execFile } from 'node:child_process';
 import { createReadStream } from 'node:fs';
-import { mkdir, open, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { dirname } from 'node:path';
+import { basename, dirname, join } from 'node:path';
+import { promisify } from 'node:util';
 
 const args = process.argv.slice(2);
 const check = args.length === 1 && args[0] === '--check';
 const deploy = args.length === 2 && args[0] === '--deploy';
+const deployDirectory = (args.length === 2 || (args.length === 4 && args[2] === '--functions-dir')) && args[0] === '--deploy-dir';
+const runFile = promisify(execFile);
 const token = process.env.NETLIFY_AUTH_TOKEN;
 const explicitSiteId = process.env.NETLIFY_SITE_ID;
 const apiBase = 'https://api.netlify.com/api/v1';
@@ -30,9 +38,10 @@ const curlEnvironment = { ...process.env };
 delete curlEnvironment.NETLIFY_AUTH_TOKEN;
 const safeId = value => typeof value === 'string' && /^[a-z0-9-]{1,128}$/i.test(value);
 let snapshot;
+let bundleDirectory;
 
-if (!check && !deploy) {
-  console.error('Use --check ou --deploy CAMINHO_DO_ZIP. Nenhuma alteração foi feita.');
+if (!check && !deploy && !deployDirectory) {
+  console.error('Use --check, --deploy CAMINHO_DO_ZIP ou --deploy-dir DIST [--functions-dir FUNÇÕES]. Nenhuma alteração foi feita.');
   process.exit(1);
 }
 if (!token || /[\r\n]/.test(token)) {
@@ -44,7 +53,7 @@ if (explicitSiteId && !safeId(explicitSiteId)) {
   process.exit(1);
 }
 
-async function api(path, { method = 'GET', body, binaryFile } = {}) {
+async function api(path, { method = 'GET', body, binaryFile, contentType } = {}) {
   const remaining = deadline - Date.now();
   if (remaining <= 0) throw new Error('O prazo desta execução terminou. Reexecute para retomar o estado salvo.');
   const config = [
@@ -52,7 +61,7 @@ async function api(path, { method = 'GET', body, binaryFile } = {}) {
     `request = ${JSON.stringify(method)}`,
     `header = ${JSON.stringify(`Authorization: Bearer ${token}`)}`,
     'header = "Accept: application/json"',
-    `header = ${JSON.stringify(`Content-Type: ${binaryFile ? 'application/zip' : 'application/json'}`)}`,
+    `header = ${JSON.stringify(`Content-Type: ${contentType || (binaryFile ? 'application/zip' : 'application/json')}`)}`,
     ...(binaryFile ? [`data-binary = ${JSON.stringify('@' + binaryFile)}`]
       : body === undefined ? [] : [`data = ${JSON.stringify(JSON.stringify(body))}`]),
   ].join('\n');
@@ -145,8 +154,91 @@ async function release(path) {
   return { file, title: `Louvor release ${digest.digest('hex')}` };
 }
 
+async function hashFile(file, algorithm) {
+  const digest = createHash(algorithm);
+  for await (const chunk of createReadStream(file)) digest.update(chunk);
+  return digest.digest('hex');
+}
+
+async function directoryRelease(path, functionsPath) {
+  const root = await realpath(path);
+  if (!(await stat(root)).isDirectory()) throw new Error('Informe um diretório local contendo o build revisado.');
+  const files = {};
+  const fileAssets = new Map();
+  const functions = {};
+  const functionAssets = new Map();
+  const functionsConfig = {};
+  async function visit(directory, prefix = '') {
+    const entries = await readdir(directory, { withFileTypes: true });
+    entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    for (const entry of entries) {
+      if (/[\\\r\n]/.test(entry.name)) throw new Error('O build contém um nome de arquivo não suportado.');
+      const file = join(directory, entry.name);
+      const relative = `${prefix}${entry.name}`;
+      if (entry.isDirectory()) await visit(file, `${relative}/`);
+      else if (entry.isFile()) {
+        const sha = await hashFile(file, 'sha1');
+        const asset = { file, path: `/${relative}`, sha };
+        files[asset.path] = sha;
+        if (!fileAssets.has(sha)) fileAssets.set(sha, asset);
+      } else throw new Error('O build contém um link simbólico ou arquivo especial; revise o diretório antes de publicar.');
+    }
+  }
+  await visit(root);
+  if (!Object.hasOwn(files, '/index.html')) throw new Error('O diretório do build deve conter index.html. Nenhuma publicação foi feita.');
+  if (functionsPath) {
+    const sourceRoot = await realpath(functionsPath);
+    if (!(await stat(sourceRoot)).isDirectory()) throw new Error('Informe um diretório de funções válido.');
+    const entries = await readdir(sourceRoot, { withFileTypes: true });
+    entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    bundleDirectory = await mkdtemp('/tmp/louvor-netlify-functions-');
+    for (const entry of entries) {
+      const name = basename(entry.name, '.mjs');
+      if (!entry.isFile() || !entry.name.endsWith('.mjs') || !safeId(name)) throw new Error('Este helper aceita somente funções .mjs independentes, sem dependências, no diretório informado.');
+      const source = await readFile(join(sourceRoot, entry.name));
+      // API v1 expects <function-name>.handler, not index.handler.
+      const staging = join(bundleDirectory, name);
+      await mkdir(staging);
+      const mainFile = join(staging, entry.name);
+      await writeFile(mainFile, source, { mode: 0o600, flag: 'wx' });
+      await utimes(mainFile, new Date('1980-01-01T00:00:00Z'), new Date('1980-01-01T00:00:00Z'));
+      await runFile(process.execPath, ['--check', mainFile], { env: curlEnvironment });
+      const file = join(bundleDirectory, `${name}.zip`);
+      await runFile('zip', ['-X', '-q', file, entry.name], { cwd: staging, env: { ...curlEnvironment, TZ: 'UTC' } });
+      const sha = await hashFile(file, 'sha256');
+      const size = (await stat(file)).size;
+      functions[name] = sha;
+      functionsConfig[name] = { build_data: { runtimeAPIVersion: 1 } };
+      if (!functionAssets.has(sha)) functionAssets.set(sha, { file, name, sha, size });
+    }
+  }
+  const body = { files, functions, functions_config: functionsConfig };
+  const digest = createHash('sha256').update(JSON.stringify(body)).digest('hex');
+  return { body, fileAssets, functionAssets, title: `Louvor directory release ${digest}` };
+}
+
+async function uploadRequired(deployment, archive) {
+  if (!archive.body || ['ready', 'error'].includes(deployment.state)) return;
+  for (const [key, assets, algorithm] of [
+    ['required', archive.fileAssets, 'sha1'],
+    ['required_functions', archive.functionAssets, 'sha256'],
+  ]) {
+    const required = deployment[key] ?? [];
+    if (!Array.isArray(required)) throw new Error('A API retornou uma lista de uploads inválida. O estado foi preservado.');
+    for (const sha of new Set(required)) {
+      const asset = assets.get(sha);
+      if (!asset) throw new Error('O deploy solicita um arquivo ausente deste build. O estado foi preservado.');
+      if (!(await lstat(asset.file)).isFile() || await hashFile(asset.file, algorithm) !== sha) throw new Error('Um arquivo do build mudou durante a preparação. Reexecute com o build final.');
+      const path = key === 'required'
+        ? `/deploys/${deployment.id}/files/${asset.path.slice(1).split('/').map(encodeURIComponent).join('/')}`
+        : `/deploys/${deployment.id}/functions/${encodeURIComponent(asset.name)}?runtime=js&size=${asset.size}`;
+      await api(path, { method: 'PUT', binaryFile: asset.file, contentType: 'application/octet-stream' });
+    }
+  }
+}
+
 try {
-  const archive = deploy ? await release(args[1]) : null;
+  const archive = deploy ? await release(args[1]) : deployDirectory ? await directoryRelease(args[1], args[3]) : null;
   const saved = await savedState();
   const user = await api('/user');
   if (!user?.id && !user?.uid) throw new Error('A autenticação Netlify não retornou uma conta válida.');
@@ -172,10 +264,13 @@ try {
       if (pending?.site_id === site.id && pending.title === archive.title && pending.state !== 'error') deployment = pending;
     }
     if (!deployment) {
-      deployment = await api(`/sites/${site.id}/deploys?title=${encodeURIComponent(archive.title)}`, { method: 'POST', binaryFile: archive.file });
+      deployment = await api(`/sites/${site.id}/deploys?title=${encodeURIComponent(archive.title)}`, {
+        method: 'POST', ...(archive.body ? { body: archive.body } : { binaryFile: archive.file }),
+      });
     }
     if (!safeId(deployment?.id) || deployment.site_id !== site.id) throw new Error('O deploy não retornou IDs válidos para o site selecionado.');
     await saveState(metadata(site, deployment));
+    await uploadRequired(deployment, archive);
     while (!['ready', 'error'].includes(deployment.state) && Date.now() < deadline) {
       const delay = Math.min(3000, Math.max(0, deadline - Date.now()));
       if (delay) await new Promise(resolve => setTimeout(resolve, delay));
@@ -192,4 +287,6 @@ try {
   if (snapshot) console.log(JSON.stringify(snapshot));
   console.error(error instanceof Error ? error.message : 'Falha ao preparar a publicação Netlify.');
   process.exitCode = 1;
+} finally {
+  if (bundleDirectory) await rm(bundleDirectory, { recursive: true, force: true });
 }

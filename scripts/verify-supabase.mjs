@@ -69,6 +69,7 @@ let started = false;
 let verified = 0;
 let failure;
 let cleaned = false;
+let publicReadVerified = false;
 
 function expect(condition, message) {
   if (!condition) throw new Error(`Verificação falhou: ${message}`);
@@ -244,8 +245,33 @@ async function verifyBrowser(admin, musician) {
         expect(await row.count() === 1 && rowText?.includes('Original: C')
           && await row.locator('.songs-key-badge').textContent() === 'D'
           && await page.getByRole('button', { name: 'Nova música', exact: true }).count() === (account.role === 'admin' ? 1 : 0)
-          && await page.locator('.demo-banner').count() === 0,
+          && await page.locator('.public-banner').count() === 0,
         `interface ${account.role} usa músicas e permissões reais do adaptador`);
+
+        if (account.role === 'admin') {
+          stage = 'rascunho ao mudar foco e reabrir edição';
+          await row.getByRole('button', { name: `Editar ${songA.title}`, exact: true }).click();
+          const dialog = page.getByRole('dialog');
+          const draftTitle = `${songA.title} — rascunho sem gravação`;
+          await dialog.getByLabel('Título', { exact: true }).fill(draftTitle);
+          const otherTab = await context.newPage();
+          await otherTab.goto('about:blank');
+          await otherTab.bringToFront();
+          await page.bringToFront();
+          expect(await dialog.getByLabel('Título', { exact: true }).inputValue() === draftTitle,
+            'mudar o foco mantém o formulário e seus campos');
+          await otherTab.close();
+          await dialog.getByRole('button', { name: 'Fechar', exact: true }).click();
+          await page.goto(`${browserOrigin}/pessoas`);
+          await page.getByRole('heading', { name: 'Nossa equipe', exact: true }).waitFor();
+          await page.goto(`${browserOrigin}/musicas`);
+          await row.getByRole('button', { name: `Editar ${songA.title}`, exact: true }).click();
+          expect(await dialog.getByLabel('Título', { exact: true }).inputValue() === draftTitle,
+            'rascunho reaparece após navegar e reabrir a música');
+          await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+          const unchanged = await read(admin, 'songs', `id=eq.${fixtures.songA}`);
+          expect(unchanged[0]?.title === songA.title, 'rascunho cancelado não modifica a música no banco');
+        }
 
         stage = `culto de ${account.role}`;
         await page.goto(`${browserOrigin}/cultos/${fixtures.service}`);
@@ -262,6 +288,62 @@ async function verifyBrowser(admin, musician) {
       } finally {
         await context.close().catch(() => {});
       }
+    }
+
+    stage = 'consulta pública sem sessão';
+    const publicContext = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 844 } });
+    try {
+      const page = await publicContext.newPage();
+      page.setDefaultTimeout(25_000);
+      const writes = [];
+      page.on('request', request => {
+        const path = new URL(request.url()).pathname;
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method()) && /\/rest\/v1\//.test(path)
+          && !/\/rpc\/(read_public_ministry|get_public_access)$/.test(path)) writes.push(path);
+      });
+      await page.goto(browserOrigin);
+      await page.getByRole('button', { name: 'Entrar sem cadastro', exact: true }).click();
+      await page.locator('.public-banner').waitFor();
+      await page.goto(`${browserOrigin}/pessoas`);
+      await page.getByRole('heading', { name: 'Nossa equipe', exact: true }).waitFor();
+      const person = page.getByRole('article').filter({ hasText: marker });
+      await person.waitFor();
+      expect((await person.textContent())?.includes('Voz')
+        && await page.locator('a[href^="mailto:"]').count() === 0
+        && await page.getByRole('button', { name: 'Nova pessoa', exact: true }).count() === 0
+        && !(await page.locator('body').textContent()).includes(`${marker}-person@example.invalid`),
+      'consulta pública mostra equipe e funções sem contatos ou edição');
+      stage = 'repertório e escala da consulta pública';
+      await page.goto(`${browserOrigin}/cultos/${fixtures.service}`);
+      await page.getByRole('heading', { name: 'Especial', exact: true }).waitFor();
+      const setlist = page.locator('.service-setlist > li');
+      await setlist.first().waitFor();
+      expect(await setlist.count() === 2 && (await setlist.first().textContent())?.includes(songB.title)
+        && (await setlist.last().textContent())?.includes('Tom F#')
+        && (await page.locator('.service-team-list').textContent())?.includes(marker)
+        && await page.getByRole('button', { name: 'Editar culto', exact: true }).count() === 0,
+      'consulta pública mantém ordem, tons e equipe do culto sem controles de gravação');
+      stage = 'transposição pública';
+      await page.goto(`${browserOrigin}/musicas/${fixtures.songA}`);
+      const key = page.getByLabel('Tom da visualização', { exact: true });
+      await key.waitFor();
+      await key.selectOption('F');
+      expect(await page.locator('.song-chord').first().textContent() === 'F'
+        && await page.getByRole('button', { name: 'Editar música', exact: true }).count() === 0
+        && await page.getByRole('button', { name: 'Salvar tom no culto', exact: true }).count() === 0,
+      'visitante transpõe acordes sem criar uma conta');
+      const reference = await page.getByRole('link', { name: 'Abrir Cifra Club', exact: true }).getAttribute('href');
+      expect(/^https:\/\/(?:www\.)?cifraclub\.com\.br\//.test(reference || ''), 'visitante pode abrir referência do Cifra Club');
+      await page.reload();
+      await page.locator('.public-banner').waitFor();
+      expect(await key.inputValue() === 'D' && writes.length === 0
+        && await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      'consulta persiste após recarregar, o tom permanece local e o leitor cabe no celular');
+      const unchanged = await read(admin, 'songs', `id=eq.${fixtures.songA}`);
+      expect(unchanged[0]?.church_key === 'D' && unchanged[0]?.content === songA.content,
+        'transposição pública preserva o cadastro original no Supabase');
+    } finally {
+      await publicContext.close().catch(() => {});
     }
 
     stage = 'geração do link de recuperação da conta temporária';
@@ -359,7 +441,11 @@ try {
   serviceKey = Array.isArray(keys) ? keys.find(key => key.name === 'service_role')?.api_key : undefined;
   if (!anonymousKey || !serviceKey) throw new Error('As chaves necessárias à verificação não estão disponíveis.');
 
-  rejected(await rest(null, 'songs?select=id'), '42501', 'anônimo não lê músicas');
+  rejected(await rest(null, 'songs?select=id'), '42501', 'anônimo não lê diretamente a tabela de músicas');
+  rejected(await rest(null, 'people?select=id,email'), '42501', 'anônimo não lê diretamente os contatos');
+  rejected(await rest(null, 'profiles?select=id,role,approved'), '42501', 'anônimo não lê perfis privados');
+  const publicEnabled = success(await rpc(null, 'get_public_access', {}), 'consulta da disponibilidade pública');
+  expect(publicEnabled === true, 'consulta pública está habilitada pelo ministério');
   started = true;
   for (const account of accounts) {
     const response = await request(projectBase, '/auth/v1/admin/users', {
@@ -407,7 +493,7 @@ try {
   }), 'cadastro de etiqueta temporária');
   success(await rest(admin, 'people', {
     method: 'POST', headers: ['Prefer: return=representation'],
-    body: { id: fixtures.person, name: marker, email: '', functions: ['Voz', 'Violão'] },
+    body: { id: fixtures.person, name: marker, email: `${marker}-person@example.invalid`, functions: ['Voz', 'Violão'] },
   }), 'cadastro de pessoa temporária');
   success(await rpc(admin, 'save_song', { p_song: songA }), 'cadastro da música A');
   success(await rpc(admin, 'save_song', { p_song: songB }), 'cadastro da música B');
@@ -426,6 +512,23 @@ try {
   'músico lê repertório ordenado com tons específicos do culto');
   expect(assignments.length === 1 && assignments[0].person_id === fixtures.person && assignments[0].function === 'Voz',
     'músico lê a escala salva pelo líder');
+  const publicData = success(await rpc(null, 'read_public_ministry', {}), 'consulta anônima dos dados públicos');
+  expect(publicData && Object.keys(publicData).sort().join(',') === 'people,services,songs,tags'
+    && Object.values(publicData).every(Array.isArray), 'RPC público expõe somente os quatro agregados permitidos');
+  expect(publicData.people.every(person => person.email === '')
+    && publicData.people.some(person => person.id === fixtures.person && person.name === marker && person.functions.includes('Voz')),
+  'RPC público preserva nomes/funções e remove todos os e-mails');
+  const publicService = publicData.services.find(item => item.id === fixtures.service);
+  expect(publicService?.repertoire.length === 2 && publicService.repertoire[0].songId === fixtures.songB
+    && publicService.repertoire[0].key === 'Eb' && publicService.repertoire[1].songId === fixtures.songA
+    && publicService.repertoire[1].key === 'F#' && publicService.assignments[0]?.personId === fixtures.person,
+  'RPC público preserva a ordem, os tons e a escala do culto');
+  const publicSong = publicData.songs.find(item => item.id === fixtures.songA);
+  expect(publicSong?.content === songA.content && publicSong.originalKey === 'C' && publicSong.churchKey === 'D'
+    && publicSong.tagIds.includes(fixtures.tag), 'RPC público fornece cifra e tons para leitura/transposição');
+  rejected(await rpc(null, 'save_song', { p_song: songA }), '42501', 'visitante não grava músicas');
+  rejected(await rpc(null, 'save_service', { p_service: service }), '42501', 'visitante não grava cultos');
+  publicReadVerified = true;
   const storedSongs = await read(musician, 'songs', `id=in.(${fixtures.songA},${fixtures.songB})`);
   expect(storedSongs.length === 2 && storedSongs.find(song => song.id === fixtures.songA)?.church_key === 'D'
     && storedSongs.find(song => song.id === fixtures.songB)?.church_key === 'A', 'tons do repertório preservam o cadastro das músicas');
@@ -527,5 +630,5 @@ if (failure) {
   console.error(failure);
   process.exitCode = 1;
 } else {
-  console.log(`${verified} verificações do Supabase real passaram. Dados e contas temporários removidos; credenciais não foram gravadas ou exibidas.`);
+  console.log(`${verified} verificações do Supabase real passaram. Consulta pública${publicReadVerified ? ' validada' : ''}. Dados e contas temporários removidos; credenciais não foram gravadas ou exibidas.`);
 }

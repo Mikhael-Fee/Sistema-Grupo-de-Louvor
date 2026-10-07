@@ -1,1 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="30" fill="#234c40"/><path d="M52 79V39l42-8v41" stroke="#e7f0df" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="m52 49 42-8" stroke="#e7f0df" stroke-width="7"/><ellipse cx="42" cy="82" rx="14" ry="10" fill="#e7f0df"/><ellipse cx="84" cy="75" rx="14" ry="10" fill="#e7f0df"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="flame" x1="45" y1="31" x2="81" y2="105" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffd495"/>
+      <stop offset="1" stop-color="#ed7a2d"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="29" fill="#171717"/>
+  <rect x="1" y="1" width="126" height="126" rx="28" fill="none" stroke="#ffffff" stroke-opacity=".08" stroke-width="2"/>
+  <path d="M66 24c-15 11-24 24-20 37 3 9 4 16-2 19-7 3-11-3-11-11-8 10-9 22-3 33 6 11 18 18 34 18 23 0 38-15 38-35 0-12-6-23-18-33-9-8-15-17-18-28Z" fill="url(#flame)" transform="translate(13 9) scale(.79)"/>
+  <path d="M65 65c-1 10-13 16-13 27 0 8 5 13 12 13 8 0 14-6 14-14 0-10-8-15-13-26Z" fill="#fff0d9"/>
+</svg>

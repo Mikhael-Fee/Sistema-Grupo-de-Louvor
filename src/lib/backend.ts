@@ -31,6 +31,28 @@ function profileFromRow(row: ProfileRow): Profile {
 }
 
 export const repository = {
+  async getPublicAccess(): Promise<boolean> {
+    const { data, error } = await client().rpc('get_public_access');
+    check(error);
+    if (typeof data !== 'boolean') throw new Error('Não foi possível consultar a configuração de acesso público.');
+    return data;
+  },
+
+  async setPublicAccess(enabled: boolean): Promise<void> {
+    const { error } = await client().rpc('save_public_access', { p_enabled: enabled });
+    check(error);
+  },
+
+  async loadPublicData(): Promise<MinistryData> {
+    const { data, error } = await client().rpc('read_public_ministry');
+    if (error?.code === '42501') throw new Error('A consulta pública ainda não foi liberada pelo ministério.');
+    check(error);
+    if (!data || !['songs', 'tags', 'people', 'services'].every(key => Array.isArray(data[key]))) {
+      throw new Error('Não foi possível carregar os dados de consulta pública.');
+    }
+    return data as MinistryData;
+  },
+
   async loadData(): Promise<MinistryData> {
     const db = client();
     // Unapproved users may read only their own profile. Do not turn RLS-filtered

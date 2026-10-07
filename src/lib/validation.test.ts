@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { MinistryData, Service } from '../types';
-import { createDemoData } from './seed';
+import { createDemoData } from '../../tests/seed';
 import { isSafeYoutubeUrl, validatePerson, validateService, validateSong, validateTag } from './validation';
 
 let data: MinistryData;

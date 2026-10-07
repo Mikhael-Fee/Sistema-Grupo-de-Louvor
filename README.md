@@ -1,58 +1,51 @@
-# Louvor · Ministério de Louvor
+# Candeia · Ministério de Louvor
 
-Aplicação React + TypeScript + Vite para organizar a equipe, as músicas e os cultos. Interface em português, responsiva e instalável como PWA. Primeira entrega: MVP 1 e MVP 2 da especificação do proprietário.
+Aplicação React + TypeScript + Vite para organizar músicas, pessoas, cultos, escalas e repertórios. Interface em português, responsiva e instalável como PWA, com identidade preto/branco e acentos de chama.
 
-Site publicado: **[louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app)**. O README é este guia de uso e manutenção; a aplicação é acessada pelo link do site.
+Endereço do site: **[louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app)**. O README é este guia de uso e manutenção; a aplicação é acessada pelo link. Esta versão foi publicada no Netlify com a consulta real sem cadastro, identidade Candeia, escala em lote, rascunhos e importação do Cifra Club. Resultados e limites de validação ficam em [VALIDACAO.md](docs/VALIDACAO.md).
 
-Código versionado em [Mikhael-Fee/Sistema-Grupo-de-Louvor](https://github.com/Mikhael-Fee/Sistema-Grupo-de-Louvor), branch `main`. A publicação atual do Netlify usa ZIP; novos commits não atualizam o site automaticamente.
+Código em [Mikhael-Fee/Sistema-Grupo-de-Louvor](https://github.com/Mikhael-Fee/Sistema-Grupo-de-Louvor), branch `main`. O site usa publicação direta no Netlify, sem integração Git; novos commits não atualizam a aplicação automaticamente.
 
-A conta `mikhaelfernandes8@gmail.com` já foi confirmada e aprovada como administrador. Entre com a senha pessoal criada no cadastro. Os próximos integrantes criam e confirmam suas contas; o administrador libera o acesso em **Administração**. A demonstração continua disponível sem conta.
+## Acesso
+
+A conta `mikhaelfernandes8@gmail.com` já foi confirmada e aprovada como administrador. Entre com a senha pessoal criada no cadastro. Os próximos integrantes criam e confirmam suas contas; o administrador aprova o acesso e define o papel em **Administração**.
+
+A **consulta sem cadastro** abre os dados reais do ministério em `/consulta` quando o administrador a libera. Visitantes consultam cultos, repertórios, nomes, funções, letras e cifras, e podem transpor a visualização. E-mails, contatos e perfis de conta permanecem privados; criação e edição exigem um perfil autorizado. Em **Administração**, marque **Permitir consulta sem cadastro**, escolha **Salvar acesso público** e use **Copiar link**. Desmarcar e salvar fecha novas consultas ao banco.
+
+A aplicação não oferece demonstração nem instala dados fictícios no ministério. Sem Supabase configurado, orienta a configurar o serviço; exemplos usados nos testes ficam somente em `tests/`.
 
 ## Executar
 
-Use Node 24 e npm. No checkout existente, sem criar outro worktree:
+Use Node 24 e npm no checkout existente, sem criar outro worktree:
 
 ```sh
 npm ci
 npm run dev -- --port 5173 --strictPort
 ```
 
-Clique em **Entrar na demonstração** para experimentar imediatamente. Os exemplos são composições originais, com pessoas fictícias, e ficam no navegador. É possível simular administrador, líder e músico no seletor do cabeçalho. A demonstração não autentica usuários nem envia dados ao Supabase. Para começar sem exemplos em uso real, configure o Supabase: o banco de produção começa vazio.
+Configure as duas variáveis públicas do Supabase usando `.env.example`: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. Nunca use uma chave `service_role` ou senha do banco no frontend. Reinicie o Vite após mudar as variáveis. O servidor Vite atende a aplicação; a busca de cifras exige também a função Netlify descrita abaixo.
 
 ## Funcionalidades
 
-- Biblioteca: músicas, artista, tom original e da igreja, letra/cifra, vídeo YouTube, observações e várias etiquetas. Pesquisa sem acentos e filtros combinados.
-- Leitura: letra ou letra com cifra, transposição por semitom/tom, tamanho de fonte e modo leitura. Conteúdo ChordPro: `[C]Texto [Am]da canção`. A transposição preserva a letra e reconhece extensões e baixos invertidos.
-- Cultos: data, horário, tipo e observações; escala com pessoas e funções; repertório ordenado por arraste ou botões, com tom e observação próprios de cada culto.
-- Equipe, funções e etiquetas; administração de aprovação, papéis e vínculo de contas.
-- Supabase Auth com login, cadastro e recuperação de senha; RLS no banco limita o que cada perfil pode fazer. Cadastros novos aguardam aprovação.
-- Netlify SPA e manifest/service worker PWA. Fontes hospedadas junto à aplicação; shell estático disponível offline após uma visita online. Sincronização de dados reais offline fica para outra etapa.
+- Biblioteca com artista, tom original e da igreja, letra/cifra ChordPro, vídeo YouTube, observações e etiquetas; pesquisa sem acentos e filtros combinados.
+- Leitura de letra ou cifra, transposição, tamanho de fonte e modo leitura. Trocar o tom altera a visualização; salvar o tom no repertório exige uma ação explícita de um perfil autorizado.
+- Cultos com data, horário, observações, equipe e repertório ordenado; tom e observação próprios por música em cada culto.
+- **Montar escala em lote** seleciona pessoas e funções; **Reutilizar última escala** aproveita a escala anterior, respeitando funções válidas e vínculos já existentes.
+- Rascunhos de música, pessoa, etiqueta, culto e ajustes guardados em `sessionStorage`, separados por conta e aba. Fechar o editor ou mudar de tela permite retomá-los; **Cancelar** descarta, salvar com sucesso limpa o rascunho e sair da conta limpa os rascunhos daquela conta na aba. Eles não são backup nem sincronização entre dispositivos.
+- Supabase Auth com cadastro, confirmação e recuperação de senha; RLS e RPCs protegem os papéis administrador, líder e músico.
+- Consulta pública opcional e PWA com cache do shell estático. Dados reais e consultas às fontes exigem conexão; respostas do Supabase não entram no cache do service worker. Uma versão nova oferece **Atualizar agora** ou **Depois**; atualizar recarrega a página por escolha do usuário e preserva seus rascunhos na mesma aba.
 
-## Conectar Supabase
+## Buscar letra e cifra
 
-Consulte [configuração do Supabase, permissões e publicação](docs/SUPABASE.md). A migração fica em [001_initial.sql](supabase/migrations/001_initial.sql). O projeto indicado pelo proprietário tem ID `fxebsycpbybhzkpnxzoo`.
+**Cifra Club** é a fonte principal no editor de música. Preencha título/artista e abra **Consultar no Cifra Club**. Copie a letra e a cifra juntas, cole em **Texto copiado do Cifra Club**, confira a prévia e escolha **Importar texto do Cifra Club**. O editor converte linhas de acordes em ChordPro para permitir a transposição no Candeia. O campo **Link da cifra no Cifra Club** guarda o endereço da versão escolhida nas observações; o leitor oferece **Abrir Cifra Club** também para visitantes.
 
-O projeto atual já recebeu a migração, as configurações públicas e as URLs de autenticação do site publicado. Não reaplique a migração inicial. Para preparar outro projeto:
+A importação substitui o conteúdo apenas no rascunho e mostra um aviso se já houver texto. Um cabeçalho `Tom:` reconhecido atualiza **Tom original**; sem esse cabeçalho, o tom original atual é mantido e deve ser conferido com a fonte. **Tom na igreja**, título, artista e demais campos são preservados. Revise e escolha **Salvar música** para gravar. O Candeia não baixa automaticamente o conteúdo do Cifra Club; a consulta externa e a colagem são feitas pelo usuário.
 
-1. Aplique a migração no SQL Editor ou use o helper abaixo com acesso seguro à API de gerenciamento.
-2. Configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` usando `.env.example` como modelo. São a URL e a chave **pública** anon/publishable. Nunca use senha do banco ou chave `service_role` no frontend.
-3. Configure URLs de autenticação e entrega de e-mails. Cadastre e confirme sua primeira conta; aprove o administrador no SQL Editor conforme o guia. Reinicie o Vite após mudar variáveis.
+Em **Buscar letra e cifra → Outras fontes**, **Somente letra** consulta automaticamente LRCLIB, que não fornece acordes. **Letra e cifra** consulta páginas públicas em português do Worship Together pela função `netlify/functions/song-search.mjs`. A cobertura depende do catálogo e da disponibilidade da fonte. Abra **Ver prévia** antes de **Importar prévia** ou **Substituir conteúdo pela prévia**. Uma cifra automática precisa de tom original reconhecido; ele atualiza **Tom original**, preservando **Tom na igreja**. Título/artista só mudam se a opção for marcada. A origem fica nas observações e a gravação exige **Salvar música**.
 
-O helper usa `SUPABASE_ACCESS_TOKEN` injetado nas configurações seguras do ambiente, sem valores no código ou na linha de comando. `SUPABASE_PROJECT_REF` pode selecionar outro projeto. Consulte primeiro; a aplicação automática só prossegue se o schema público estiver vazio:
+## Supabase e validação
 
-```sh
-npm run supabase:check
-npm run supabase:setup
-npm run supabase:verify
-```
-
-O helper preserva `.env.local` existente. Quando cria o arquivo, grava somente as duas configurações públicas. O token de gerenciamento é usado somente pela ferramenta de setup, nunca pela aplicação. O modo demo segue disponível mesmo com Supabase configurado.
-
-`supabase:verify` cria três contas temporárias confirmadas e dados identificados de teste, verifica Auth/PostgREST/RLS e remove tudo ao terminar. Não envia e-mails nem cria a conta do proprietário. Com o Vite já iniciado, `npm run supabase:verify -- --browser` também testa login, leitura e recuperação de senha pela interface real. Para o domínio publicado, siga [TESTE-PUBLICO.md](docs/TESTE-PUBLICO.md). Execute somente em um projeto que você controla e com acesso de gerenciamento injetado de forma segura.
-
-Neste ambiente, o teste de navegador com acesso externo precisa conseguir abrir o banco NSS de certificados em `/home/agent/.pki/nssdb`. A sandbox padrão deixa esse diretório somente para leitura e pode provocar `ERR_CERT_AUTHORITY_INVALID`. Execute a verificação com a permissão de filesystem adequada; mantenha a autoridade do proxy fornecida pela plataforma e a verificação TLS. Os testes locais da demonstração não precisam desse acesso.
-
-## Validar
+O projeto `fxebsycpbybhzkpnxzoo` já recebeu a migração inicial; não reaplique `001_initial.sql`. A atualização aditiva [002_public_consultation.sql](supabase/migrations/002_public_consultation.sql) também foi aplicada e a consulta pública está habilitada conforme a escolha do proprietário. Em uma instalação nova, essa migração começa com a consulta desativada. [SUPABASE.md](docs/SUPABASE.md) explica configuração, permissões, acesso público e manutenção. O banco e o site foram atualizados; as verificações executadas estão em [VALIDACAO.md](docs/VALIDACAO.md).
 
 ```sh
 npm run typecheck
@@ -63,20 +56,26 @@ npm run build
 npm run preview -- --port 4173 --strictPort
 ```
 
-Testes de domínio cobrem transposição, busca, validações e integridade dos exemplos. `test:db` executa a migração em PostgreSQL/PGlite com uma simulação de `auth.users` e `auth.uid()`, verificando RLS e transações. Não substitui um teste no Supabase real. Playwright usa `/usr/bin/chromium` neste ambiente; em outro sistema configure `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` ou instale o Chromium do Playwright com `npx playwright install chromium`.
+Os testes de domínio e navegador cobrem transposição, validações, buscas, importação e rascunhos. Os testes de banco usam PostgreSQL/PGlite com Auth simulado; os testes de navegador podem usar fixtures de serviço controladas. Nenhum deles substitui a integração no Supabase real. Consulte [TESTE-PUBLICO.md](docs/TESTE-PUBLICO.md) para verificar login, consulta sem cadastro, fontes e PWA no domínio final.
 
-Os testes E2E cobrem cadastros, persistência local, filtros, transposição, escalas, ordem/tom/observações por culto, permissões da interface e largura de 390 px. A integração real com Auth, e-mails e PostgREST depende do projeto Supabase configurado.
+`npm run supabase:check` consulta o projeto com `SUPABASE_ACCESS_TOKEN` injetado nas configurações seguras. `npm run supabase:verify` cria contas e registros temporários, verifica Auth/PostgREST/RLS e limpa suas fixtures; não envia e-mails nem cria a conta do proprietário. Com a aplicação iniciada, `npm run supabase:verify -- --browser` inclui a interface real. Execute somente no projeto autorizado.
+
+Playwright usa `/usr/bin/chromium` neste ambiente. Em outro sistema configure `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` ou instale o navegador do Playwright. Para HTTPS externo neste ambiente, o Chromium precisa abrir o banco NSS da autoridade do proxy em `/home/agent/.pki/nssdb`; mantenha TLS e a autoridade fornecida pela plataforma.
 
 ## Publicar
 
-O site foi publicado diretamente no Netlify com um ZIP do build, sem integração Git. O [netlify.toml](netlify.toml) define o build; os arquivos em `public/_redirects` e `public/_headers` também levam as regras de SPA e os headers ao ZIP. Alterar arquivos no checkout ou publicar o ambiente Codex não atualiza o site automaticamente.
+O build estático e a função de busca precisam ser publicados juntos. Com `NETLIFY_AUTH_TOKEN` injetado nas configurações seguras e o site selecionado pelo helper:
 
-Para atualizar o site, gere um novo build com as duas variáveis públicas do Supabase e publique o ZIP revisado usando [scripts/deploy-netlify.mjs](scripts/deploy-netlify.mjs). O helper requer `NETLIFY_AUTH_TOKEN` nas configurações seguras do ambiente; nunca grave o token em arquivos. Os [passos de manutenção](docs/SUPABASE.md#netlify) incluem build, criação do ZIP e envio ao mesmo site. A integração com GitHub pode ser configurada posteriormente para automatizar novos builds.
+```sh
+npm run build
+node scripts/deploy-netlify.mjs --check
+node scripts/deploy-netlify.mjs --deploy-dir dist --functions-dir netlify/functions
+```
 
-Para instalar no celular, abra o site HTTPS e use “Adicionar à tela inicial” no Safari ou a opção de instalação no navegador Android. Recursos e limites dos planos gratuitos podem mudar; confira os painéis dos serviços.
+O envio antigo de um ZIP contendo somente `dist` não publica `song-search`; use o modo de diretórios acima nesta versão. O [netlify.toml](netlify.toml) define o build e `public/_redirects`/`public/_headers` seguem para `dist`. Alterar o checkout ou publicar o ambiente Codex não atualiza o site. Veja os [passos de manutenção](docs/SUPABASE.md#netlify). Nunca grave tokens em arquivos ou commits.
 
-## Organização e próximos passos
+No celular, abra o site HTTPS e use **Adicionar à tela inicial** no Safari ou a instalação oferecida pelo navegador Android. Se uma instalação antiga ainda mostrar a versão anterior, feche todas as abas/janelas do site e abra o endereço novamente. Nas versões seguintes, use **Atualizar agora** quando o aviso aparecer ou **Depois** para continuar a edição.
 
-`src/pages`: telas; `src/context`: sessão e operações; `src/lib`: domínio, exemplos, validação e adapter Supabase; `supabase/migrations`: banco; `tests`: navegador e banco. Os requisitos, fluxos, wireframes, modelo, permissões e critérios de aceitação estão em [PROJETO.md](docs/PROJETO.md).
+## Organização
 
-Medleys, disponibilidade, confirmação, histórico, sugestões e sincronização offline são evoluções previstas. O MVP atende a um único ministério por projeto Supabase.
+`src/pages`: telas; `src/context`: sessão e operações reais; `src/hooks`: rascunhos; `src/lib`: domínio, fontes e adapter Supabase; `netlify/functions`: consulta às cifras públicas; `supabase/migrations`: banco; `tests`: fixtures e testes. Os requisitos e critérios de aceitação estão em [PROJETO.md](docs/PROJETO.md). Medleys, disponibilidade, confirmação, histórico e sincronização offline dos dados seguem no roadmap. Uma instalação atende a um ministério.

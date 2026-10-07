@@ -8,13 +8,13 @@ export default defineConfig({
     registerType: 'prompt',
     includeAssets: ['icon.svg', 'pwa-192.png', 'pwa-512.png'],
     manifest: {
-      name: 'Louvor — Ministério de Louvor', short_name: 'Louvor',
+      name: 'Candeia — Ministério de Louvor', short_name: 'Candeia',
       description: 'Cultos, escalas e repertórios do seu ministério.',
-      lang: 'pt-BR', theme_color: '#234c40', background_color: '#f7f8f5',
+      lang: 'pt-BR', theme_color: '#171717', background_color: '#faf9f6',
       display: 'standalone', start_url: '/', scope: '/',
       icons: [{ src: '/pwa-192.png', sizes: '192x192', type: 'image/png' }, { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }],
     },
     workbox: { globPatterns: ['**/*.{js,css,html,png,svg,woff2}'], navigateFallbackDenylist: [/^\/auth\//], cleanupOutdatedCaches: true },
   })],
-  test: { include: ['src/**/*.test.ts'], environment: 'node' },
+  test: { include: ['src/**/*.test.ts', 'tests/*.test.ts'], environment: 'node' },
 } as Parameters<typeof defineConfig>[0]);

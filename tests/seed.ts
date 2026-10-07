@@ -1,4 +1,4 @@
-import type { MinistryData, Profile } from '../types';
+import type { MinistryData, Profile } from '../src/types';
 
 const id = (group: number, item: number) => `10000000-0000-4000-8000-${String(group * 100 + item).padStart(12, '0')}`;
 

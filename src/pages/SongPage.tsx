@@ -5,6 +5,7 @@ import { EmptyState, FormError } from '../components/ui';
 import { useMinistry } from '../context/MinistryContext';
 import { chordSegments, KEYS, stripChords, transposeContent } from '../lib/music';
 import { isSafeYoutubeUrl } from '../lib/validation';
+import { cifraClubUrlFromNotes, cifraClubSearchUrl } from '../lib/song-search';
 import { SongEditor } from './SongsPage';
 import './songs.css';
 
@@ -48,6 +49,7 @@ export default function SongPage() {
   if (!song) return <><Link className="song-back" to="/musicas"><ArrowLeft size={16} />Voltar à biblioteca</Link><div className="card"><EmptyState title="Música não encontrada" description="Ela pode ter sido removida da biblioteca." action={<Link className="button button-primary" to="/musicas">Abrir biblioteca</Link>} /></div></>;
   const songTags = data.tags.filter(tag => song.tagIds.includes(tag.id));
   const hasVideo = Boolean(song.youtubeUrl) && isSafeYoutubeUrl(song.youtubeUrl);
+  const cifraClubUrl = cifraClubUrlFromNotes(song.notes) || cifraClubSearchUrl(song.title, song.artist);
   const serviceLabel = service ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long' }).format(new Date(`${service.date}T12:00:00`)) : '';
 
   return <div className={`song-page ${reading ? 'song-reading' : ''}`}>
@@ -57,6 +59,7 @@ export default function SongPage() {
       <div className="song-meta"><span>Tom original <strong>{song.originalKey}</strong></span><span>Tom na igreja <strong>{song.churchKey}</strong></span>{setlistItem && <span>Tom do culto <strong>{setlistItem.key}</strong></span>}{songTags.map(tag => <span key={tag.id} className="songs-tag"><span className="songs-tag-dot" style={{ backgroundColor: tag.color }} />{tag.name}</span>)}</div>
     </>}
     <section className="card song-reader">
+      {!reading && <div className="song-source-link"><span>Consulte a referência no Cifra Club</span><a className="button button-secondary" href={cifraClubUrl} target="_blank" rel="noopener noreferrer">Abrir Cifra Club<ExternalLink size={15} /></a></div>}
       <div className="song-reader-toolbar">
         <div className="song-content-tabs" role="group" aria-label="Tipo de visualização"><button className={showChords ? 'active' : ''} aria-pressed={showChords} onClick={() => setShowChords(true)}><Music2 size={16} /><span>Letra e cifra</span></button><button className={!showChords ? 'active' : ''} aria-pressed={!showChords} onClick={() => setShowChords(false)}><FileText size={16} /><span>Somente letra</span></button></div>
         <div className="song-reader-controls"><div className="song-key-control"><button className="icon-button" aria-label="Diminuir um semitom" onClick={() => stepKey(-1)}><Minus size={15} /></button><label><span className="sr-only">Tom da visualização</span><select value={viewKey} onChange={e => changeKey(e.target.value)} aria-label="Tom da visualização">{KEYS.map(key => <option key={key}>{key}</option>)}</select></label><button className="icon-button" aria-label="Aumentar um semitom" onClick={() => stepKey(1)}><Plus size={15} /></button></div><div className="song-font-control"><button className="icon-button" aria-label="Diminuir tamanho da letra" disabled={fontSize <= 14} onClick={() => setFontSize(size => Math.max(14, size - 2))}><span className="song-small-a">A</span></button><button className="icon-button" aria-label="Aumentar tamanho da letra" disabled={fontSize >= 28} onClick={() => setFontSize(size => Math.min(28, size + 2))}><span className="song-large-a">A</span></button></div><button className={`icon-button song-reading-button ${reading ? 'active' : ''}`} aria-label={reading ? 'Sair do modo leitura' : 'Entrar no modo leitura'} title={reading ? 'Sair do modo leitura' : 'Modo leitura'} aria-pressed={reading} onClick={() => setReading(value => !value)}>{reading ? <X size={18} /> : <Maximize2 size={18} />}</button></div>

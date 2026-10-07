@@ -1,15 +1,78 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Clock3, ExternalLink, GripVertical, Music2, Pencil, Plus, Trash2, Users, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Clock3, Copy, ExternalLink, GripVertical, Music2, Pencil, Plus, Trash2, Users, X } from 'lucide-react';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
 import { useMinistry } from '../context/MinistryContext';
+import { useDraft } from '../hooks/useDraft';
 import { KEYS } from '../lib/music';
 import { validateService } from '../lib/validation';
-import type { Service, SetlistItem } from '../types';
-import { formatServiceDate, ServiceForm } from './ServicesPage';
+import type { Assignment, Person, Service, SetlistItem, Song } from '../types';
+import { formatServiceDate, mergeTeamAssignments, previousTeamService, selectedTeamAssignments, ServiceForm, TeamPicker, type TeamPickerDraft } from './ServicesPage';
 import './services.css';
 
-type Dialog = 'edit' | 'person' | 'song' | 'delete' | null;
+type Dialog = 'edit' | 'person' | 'team' | 'song' | 'delete' | null;
+
+function BulkTeamForm({ service, services, people, busy, error, onSave, onCancel }: { service: Service; services: Service[]; people: Person[]; busy: boolean; error: string | null; onSave: (assignments: Assignment[]) => Promise<boolean>; onCancel: () => void }) {
+  const { draft, setDraft, discardDraft, hasDraft } = useDraft<TeamPickerDraft>(`service:${service.id}:team`, { selection: {}, search: '' });
+  const assignments = selectedTeamAssignments(draft.selection, service, people);
+  const previousService = previousTeamService(service, services);
+  const canCopy = previousService && mergeTeamAssignments(service.assignments, previousService.assignments, people).length > service.assignments.length;
+  async function apply(additions: Assignment[]) {
+    if (busy || !additions.length) return;
+    if (await onSave(additions)) discardDraft();
+  }
+  return <form onSubmit={event => { event.preventDefault(); void apply(assignments); }}>
+    <p className="muted">Selecione várias pessoas e ajuste a função de cada uma. Todos entram na escala de uma vez.</p>
+    {hasDraft && <p className="service-draft-status" role="status">Sua seleção está guardada nesta aba.</p>}
+    {previousService && <div className="service-batch-copy"><div><strong>Comece pela última escala</strong><span>{previousService.type} · {formatServiceDate(previousService.date)}</span></div><button type="button" className="button button-secondary" disabled={busy || !canCopy} onClick={() => void apply(previousService.assignments)}><Copy size={15} /> Reutilizar última escala</button></div>}
+    <TeamPicker service={service} people={people} value={draft} onChange={setDraft} disabled={busy} />
+    <FormError error={error} />
+    <div className="form-actions"><button type="button" className="button button-secondary" disabled={busy} onClick={() => { discardDraft(); onCancel(); }}>Cancelar</button><button className="button button-primary" disabled={busy || !assignments.length}>{busy ? 'Salvando…' : `Adicionar selecionados (${assignments.length})`}</button></div>
+  </form>;
+}
+
+function RepertoireItemForm({ serviceId, initial, busy, error, onSave, onCancel }: { serviceId: string; initial: SetlistItem; busy: boolean; error: string | null; onSave: (item: SetlistItem) => Promise<boolean>; onCancel: () => void }) {
+  const { draft, setDraft, discardDraft, hasDraft } = useDraft<SetlistItem>(`service:${serviceId}:item:${initial.id}`, initial);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    if (await onSave({ ...draft, notes: draft.notes.trim() })) discardDraft();
+  }
+  return <form onSubmit={submit}><p className="muted">Estes ajustes valem apenas para este culto.</p>{hasDraft && <p className="service-draft-status" role="status">Rascunho guardado nesta aba.</p>}<div className="form-grid"><label className="field service-form-full"><span>Tom neste culto</span><select value={draft.key} disabled={busy} onChange={event => setDraft({ ...draft, key: event.target.value })}>{KEYS.map(key => <option key={key}>{key}</option>)}</select></label><label className="field service-form-full"><span>Observação <span className="muted">(opcional)</span></span><textarea rows={4} placeholder="Introdução, repetições, dinâmica…" value={draft.notes} disabled={busy} onChange={event => setDraft({ ...draft, notes: event.target.value })} /></label></div><FormError error={error} /><div className="form-actions"><button type="button" className="button button-secondary" disabled={busy} onClick={() => { discardDraft(); onCancel(); }}>Cancelar</button><button className="button button-primary" disabled={busy}>{busy ? 'Salvando…' : 'Salvar ajustes'}</button></div></form>;
+}
+
+function AssignmentForm({ service, people, busy, error, onSave, onCancel }: { service: Service; people: Person[]; busy: boolean; error: string | null; onSave: (assignment: Assignment) => Promise<boolean>; onCancel: () => void }) {
+  const { draft, setDraft, discardDraft } = useDraft<{ personId: string; function: string }>(`service:${service.id}:assignment`, { personId: '', function: '' });
+  const [localError, setLocalError] = useState<string | null>(null);
+  const selectedPerson = people.find(person => person.id === draft.personId);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    if (!selectedPerson?.functions.includes(draft.function)) { setLocalError('Selecione uma pessoa e uma das funções cadastradas para ela.'); return; }
+    if (service.assignments.some(item => item.personId === draft.personId && item.function === draft.function)) { setLocalError('Esta pessoa já está escalada nessa função.'); return; }
+    setLocalError(null);
+    if (await onSave({ id: crypto.randomUUID(), personId: draft.personId, function: draft.function })) discardDraft();
+  }
+  if (!people.length) return <EmptyState title="Cadastre a equipe primeiro" description="Pessoas e suas funções precisam estar cadastradas antes de montar a escala." action={<Link className="button button-primary" to="/pessoas">Ir para equipe</Link>} />;
+  return <form onSubmit={submit}><div className="form-grid"><label className="field service-form-full"><span>Pessoa</span><select required disabled={busy} value={draft.personId} onChange={event => { const person = people.find(candidate => candidate.id === event.target.value); setDraft({ personId: event.target.value, function: person?.functions[0] || '' }); }}><option value="">Selecione uma pessoa</option>{[...people].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map(person => <option key={person.id} value={person.id} disabled={!person.functions.length}>{person.name}</option>)}</select></label><label className="field service-form-full"><span>Função neste culto</span><select required value={draft.function} disabled={busy || !selectedPerson} onChange={event => setDraft({ ...draft, function: event.target.value })}><option value="">Selecione uma função</option>{selectedPerson?.functions.map(item => <option key={item}>{item}</option>)}</select></label></div><FormError error={localError || error} /><div className="form-actions"><button type="button" className="button button-secondary" disabled={busy} onClick={() => { discardDraft(); onCancel(); }}>Cancelar</button><button className="button button-primary" disabled={busy || !draft.personId || !draft.function}>{busy ? 'Salvando…' : 'Adicionar à escala'}</button></div></form>;
+}
+
+function AddSongForm({ service, songs, busy, error, onSave, onCancel }: { service: Service; songs: Song[]; busy: boolean; error: string | null; onSave: (item: SetlistItem) => Promise<boolean>; onCancel: () => void }) {
+  const { draft, setDraft, discardDraft } = useDraft<{ songId: string; search: string }>(`service:${service.id}:song`, { songId: '', search: '' });
+  const [localError, setLocalError] = useState<string | null>(null);
+  const remainingSongs = songs.filter(song => !service.repertoire.some(item => item.songId === song.id));
+  const availableSongs = remainingSongs.filter(song => `${song.title} ${song.artist}`.toLocaleLowerCase('pt-BR').includes(draft.search.trim().toLocaleLowerCase('pt-BR')));
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    const song = remainingSongs.find(item => item.id === draft.songId);
+    if (!song) { setLocalError('Selecione uma música que ainda não esteja no repertório.'); return; }
+    setLocalError(null);
+    if (await onSave({ id: crypto.randomUUID(), songId: song.id, key: song.churchKey || song.originalKey, notes: '' })) discardDraft();
+  }
+  if (!remainingSongs.length) return <EmptyState title={songs.length ? 'Todas as músicas já foram adicionadas' : 'Sua biblioteca ainda está vazia'} description={songs.length ? 'Uma música aparece apenas uma vez neste repertório.' : 'Cadastre uma música para começar o repertório.'} action={<Link className="button button-secondary" to="/musicas">Ver biblioteca</Link>} />;
+  return <form onSubmit={submit}><label className="field"><span>Buscar na biblioteca</span><input placeholder="Título ou artista" value={draft.search} disabled={busy} onChange={event => setDraft({ songId: '', search: event.target.value })} /></label><div className="service-song-options">{availableSongs.map(song => <label key={song.id} className={`service-song-option ${draft.songId === song.id ? 'service-song-selected' : ''}`}><input type="radio" name="song" value={song.id} checked={draft.songId === song.id} disabled={busy} onChange={() => setDraft({ ...draft, songId: song.id })} required /><span><strong>{song.title}</strong><small>{song.artist}</small></span><span className="service-key">{song.churchKey || song.originalKey}</span></label>)}{!availableSongs.length && <p className="muted">Nenhuma música corresponde à busca.</p>}</div><FormError error={localError || error} /><div className="form-actions"><button type="button" className="button button-secondary" disabled={busy} onClick={() => { discardDraft(); onCancel(); }}>Cancelar</button><button className="button button-primary" disabled={busy || !availableSongs.some(song => song.id === draft.songId)}>{busy ? 'Salvando…' : 'Adicionar música'}</button></div></form>;
+}
 
 export default function ServicePage() {
   const { id } = useParams();
@@ -20,16 +83,10 @@ export default function ServicePage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const lock = useRef(false);
-  const [personId, setPersonId] = useState('');
-  const [personFunction, setPersonFunction] = useState('');
-  const [songId, setSongId] = useState('');
-  const [songSearch, setSongSearch] = useState('');
   const [editingItem, setEditingItem] = useState<SetlistItem | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const disabled = busy || saving;
-  const selectedPerson = data.people.find(person => person.id === personId);
-  const availableSongs = data.songs.filter(song => !service?.repertoire.some(item => item.songId === song.id) && `${song.title} ${song.artist}`.toLocaleLowerCase('pt-BR').includes(songSearch.trim().toLocaleLowerCase('pt-BR')));
 
   if (!service) return <><Link to="/cultos" className="service-back"><ArrowLeft size={17} /> Voltar aos cultos</Link><EmptyState title="Culto não encontrado" description="Este culto pode ter sido removido. Consulte a lista de cultos." action={<Link to="/cultos" className="button button-primary">Ver cultos</Link>} /></>;
 
@@ -50,10 +107,6 @@ export default function ServicePage() {
   }
   function open(next: Dialog) {
     setActionError(null);
-    setPersonId('');
-    setPersonFunction('');
-    setSongId('');
-    setSongSearch('');
     setDialog(next);
   }
   function close() {
@@ -61,18 +114,6 @@ export default function ServicePage() {
     setDialog(null);
     setEditingItem(null);
     setActionError(null);
-  }
-  async function addPerson(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedPerson || !selectedPerson.functions.includes(personFunction)) { setActionError('Selecione uma pessoa e uma das funções cadastradas para ela.'); return; }
-    if (currentService.assignments.some(item => item.personId === personId && item.function === personFunction)) { setActionError('Esta pessoa já está escalada nessa função.'); return; }
-    await save({ ...currentService, assignments: [...currentService.assignments, { id: crypto.randomUUID(), personId, function: personFunction }] }, true);
-  }
-  async function addSong(event: FormEvent) {
-    event.preventDefault();
-    const song = data.songs.find(item => item.id === songId);
-    if (!song || currentService.repertoire.some(item => item.songId === songId)) { setActionError('Selecione uma música que ainda não esteja no repertório.'); return; }
-    await save({ ...currentService, repertoire: [...currentService.repertoire, { id: crypto.randomUUID(), songId, key: song.churchKey || song.originalKey, notes: '' }] }, true);
   }
   async function reorder(itemId: string, targetIndex: number) {
     const index = currentService.repertoire.findIndex(item => item.id === itemId);
@@ -110,12 +151,14 @@ export default function ServicePage() {
           const person = data.people.find(candidate => candidate.id === assignment.personId);
           return <li key={assignment.id}><span className="service-avatar">{(person?.name || '?').split(' ').filter(Boolean).slice(0, 2).map(part => part[0]).join('')}</span><div><strong>{person?.name || 'Pessoa indisponível'}</strong><span>{assignment.function}</span></div>{canPlan && <button className="icon-button" disabled={disabled} aria-label={`Remover ${person?.name || 'pessoa'} da função ${assignment.function}`} onClick={() => void save({ ...currentService, assignments: currentService.assignments.filter(candidate => candidate.id !== assignment.id) })}><X size={17} /></button>}</li>;
         })}</ul>{canPlan && <button className="button button-ghost service-team-add" onClick={() => open('person')} disabled={disabled}><Plus size={16} /> Adicionar pessoa</button>}</> : <EmptyState title="Vamos reunir a equipe" description={canPlan ? 'Escale cada pessoa na sua função para este culto.' : 'A escala aparecerá aqui quando estiver pronta.'} action={canPlan && <button className="button button-secondary" onClick={() => open('person')} disabled={disabled}><Plus size={16} /> Montar escala</button>} />}
+        {canPlan && <button className="button button-secondary service-team-batch" onClick={() => open('team')} disabled={disabled || !data.people.length}><Users size={16} /> Montar escala em lote</button>}
       </section>
     </div>
-    {dialog === 'edit' && <Modal title="Editar culto" onClose={close}><ServiceForm initial={service} busy={disabled} onCancel={close} onSave={async next => { await saveService(next); setDialog(null); }} /></Modal>}
-    {dialog === 'person' && <Modal title="Adicionar pessoa à escala" onClose={close}>{data.people.length ? <form onSubmit={addPerson}><div className="form-grid"><label className="field service-form-full"><span>Pessoa</span><select required value={personId} onChange={event => { setPersonId(event.target.value); const person = data.people.find(candidate => candidate.id === event.target.value); setPersonFunction(person?.functions[0] || ''); }}><option value="">Selecione uma pessoa</option>{[...data.people].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map(person => <option key={person.id} value={person.id} disabled={!person.functions.length}>{person.name}</option>)}</select></label><label className="field service-form-full"><span>Função neste culto</span><select required value={personFunction} disabled={!selectedPerson} onChange={event => setPersonFunction(event.target.value)}><option value="">Selecione uma função</option>{selectedPerson?.functions.map(item => <option key={item}>{item}</option>)}</select></label></div><FormError error={actionError} /><div className="form-actions"><button type="button" className="button button-secondary" onClick={close} disabled={disabled}>Cancelar</button><button className="button button-primary" disabled={disabled || !personId || !personFunction}>{saving ? 'Salvando…' : 'Adicionar à escala'}</button></div></form> : <EmptyState title="Cadastre a equipe primeiro" description="Pessoas e suas funções precisam estar cadastradas antes de montar a escala." action={<Link className="button button-primary" to="/pessoas">Ir para equipe</Link>} />}</Modal>}
-    {dialog === 'song' && <Modal title="Adicionar música ao repertório" onClose={close}>{data.songs.some(song => !service.repertoire.some(item => item.songId === song.id)) ? <form onSubmit={addSong}><label className="field"><span>Buscar na biblioteca</span><input placeholder="Título ou artista" value={songSearch} onChange={event => { setSongSearch(event.target.value); setSongId(''); }} /></label><div className="service-song-options">{availableSongs.map(song => <label key={song.id} className={`service-song-option ${songId === song.id ? 'service-song-selected' : ''}`}><input type="radio" name="song" value={song.id} checked={songId === song.id} onChange={() => setSongId(song.id)} required /><span><strong>{song.title}</strong><small>{song.artist}</small></span><span className="service-key">{song.churchKey || song.originalKey}</span></label>)}{!availableSongs.length && <p className="muted">Nenhuma música corresponde à busca.</p>}</div><FormError error={actionError} /><div className="form-actions"><button type="button" className="button button-secondary" disabled={disabled} onClick={close}>Cancelar</button><button className="button button-primary" disabled={disabled || !songId}>{saving ? 'Salvando…' : 'Adicionar música'}</button></div></form> : <EmptyState title={data.songs.length ? 'Todas as músicas já foram adicionadas' : 'Sua biblioteca ainda está vazia'} description={data.songs.length ? 'Uma música aparece apenas uma vez neste repertório.' : 'Cadastre uma música para começar o repertório.'} action={<Link className="button button-secondary" to="/musicas">Ver biblioteca</Link>} />}</Modal>}
-    {editingItem && <Modal title="Tom e observação do repertório" onClose={close}><form onSubmit={event => { event.preventDefault(); void save({ ...currentService, repertoire: currentService.repertoire.map(item => item.id === editingItem.id ? { ...editingItem, notes: editingItem.notes.trim() } : item) }, true); }}><p className="muted">Estes ajustes valem apenas para este culto. O cadastro da música será preservado.</p><div className="form-grid"><label className="field service-form-full"><span>Tom neste culto</span><select value={editingItem.key} onChange={event => setEditingItem({ ...editingItem, key: event.target.value })}>{KEYS.map(key => <option key={key}>{key}</option>)}</select></label><label className="field service-form-full"><span>Observação <span className="muted">(opcional)</span></span><textarea rows={4} placeholder="Introdução, repetições, dinâmica…" value={editingItem.notes} onChange={event => setEditingItem({ ...editingItem, notes: event.target.value })} /></label></div><FormError error={actionError} /><div className="form-actions"><button type="button" className="button button-secondary" disabled={disabled} onClick={close}>Cancelar</button><button className="button button-primary" disabled={disabled}>{saving ? 'Salvando…' : 'Salvar ajustes'}</button></div></form></Modal>}
+    {dialog === 'edit' && <Modal wide title="Editar culto" onClose={close}><ServiceForm initial={service} busy={disabled} onCancel={close} onSave={async next => { await saveService(next); setDialog(null); }} /></Modal>}
+    {dialog === 'person' && <Modal title="Adicionar pessoa à escala" onClose={close}><AssignmentForm service={service} people={data.people} busy={disabled} error={actionError} onCancel={close} onSave={assignment => save({ ...currentService, assignments: [...currentService.assignments, assignment] }, true)} /></Modal>}
+    {dialog === 'song' && <Modal title="Adicionar música ao repertório" onClose={close}><AddSongForm service={service} songs={data.songs} busy={disabled} error={actionError} onCancel={close} onSave={item => save({ ...currentService, repertoire: [...currentService.repertoire, item] }, true)} /></Modal>}
+    {editingItem && <Modal title="Tom e observação do repertório" onClose={close}><RepertoireItemForm serviceId={service.id} initial={editingItem} busy={disabled} error={actionError} onCancel={close} onSave={edited => save({ ...currentService, repertoire: currentService.repertoire.map(item => item.id === edited.id ? edited : item) }, true)} /></Modal>}
+    {dialog === 'team' && <Modal wide title="Escala em lote" onClose={close}><BulkTeamForm service={service} services={data.services} people={data.people} busy={disabled} error={actionError} onCancel={close} onSave={additions => save({ ...currentService, assignments: mergeTeamAssignments(currentService.assignments, additions, data.people) }, true)} /></Modal>}
     {dialog === 'delete' && <Modal title="Excluir este culto?" onClose={close}><p>A escala e o repertório de <strong>{service.type}</strong>, em {formatServiceDate(service.date)}, serão removidos. As músicas e as pessoas continuam cadastradas.</p><FormError error={actionError} /><div className="form-actions"><button className="button button-secondary" disabled={disabled} onClick={close}>Cancelar</button><button className="button button-primary service-delete-confirm" disabled={disabled} onClick={() => void removeService()}>{saving ? 'Excluindo…' : 'Excluir culto'}</button></div></Modal>}
   </>;
 }
