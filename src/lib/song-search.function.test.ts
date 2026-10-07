@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 const functionModulePath = '../../netlify/functions/song-search.mjs';
-const { allowedSongUrl, handler, parseSongPage } = await import(functionModulePath);
+const { allowedSongUrl, convertCifraClubRows, handler, parseCifraClubPage, parseCifraClubSearch, parseSongPage } = await import(functionModulePath);
+afterEach(() => vi.unstubAllGlobals());
 
 describe('consulta restrita à fonte pública de cifras', () => {
   it('encontra títulos com pequenas diferenças no endereço oficial e limita resultados', async () => {
@@ -31,5 +32,58 @@ describe('consulta restrita à fonte pública de cifras', () => {
     expect((await handler({ httpMethod: 'GET', queryStringParameters: { url: 'https://127.0.0.1/private' } })).statusCode).toBe(400);
     expect((await handler({ httpMethod: 'POST', queryStringParameters: {} })).statusCode).toBe(405);
     expect(() => parseSongPage('<h1>Conteúdo protegido</h1>', 'https://www.worshiptogether.com/songs/test/')).toThrow('cifra pública reconhecida');
+  });
+});
+
+describe('Cifra Club público', () => {
+  it('seleciona versões com acordes e retorna metadata, sem copiar a letra da busca', () => {
+    const song = { t: '2', txt: 'Canção da equipe', art: 'Equipe local', dns: 'equipe-local', url: 'cancao-da-equipe', vci: 2, block: 0, letra: 'Texto do índice não importado' };
+    const results = parseCifraClubSearch(`suggest_callback(${JSON.stringify({ response: { docs: [song, song, { ...song, url: 'outra', block: 1 }, { ...song, url: 'sem-cifra', vci: 0 }, { ...song, dns: '../private' }] } })})`);
+    expect(results).toHaveLength(1);
+    expect(results[0]).toEqual({ id: 'https://www.cifraclub.com.br/equipe-local/cancao-da-equipe/', title: 'Canção da equipe', artist: 'Equipe local', source: 'Cifra Club', sourceUrl: 'https://www.cifraclub.com.br/equipe-local/cancao-da-equipe/', kind: 'chords' });
+    expect(() => parseCifraClubSearch('unknown_callback({});alert(1)')).toThrow();
+  });
+
+  it('consulta somente o autocomplete público com uma consulta de texto limitada', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response('suggest_callback({"response":{"docs":[]}})', { status: 200 }));
+    vi.stubGlobal('fetch', fetcher);
+    const response = await handler({ httpMethod: 'GET', queryStringParameters: { source: 'cifraclub', title: 'Canção & paz', artist: 'Equipe local' } });
+    expect(response.statusCode).toBe(200);
+    const url = new URL(fetcher.mock.calls[0][0]);
+    expect(url.origin).toBe('https://solr.sscdn.co');
+    expect(url.pathname).toBe('/cc/select/');
+    expect(url.searchParams.get('q')).toBe('cancao paz equipe local');
+    expect(fetcher.mock.calls[0][1].redirect).toBe('error');
+  });
+
+  it('lê apenas a cifra pública, preservando acordes alinhados, seções e metadata', () => {
+    const html = '<h1 class="t1">Canção da equipe</h1><h2 class="t3"><a href="/equipe-local/">Equipe local</a></h2><span id="cifra_tom">Tom: <a href="#">Bb</a></span><div class="cifra_cnt"><pre>[Intro] <b>Bb</b> <b>F/A</b>\n\n<b>Bb</b>      <b>F/A</b>\nA luz nos guia\n<b>Gm7</b>       <b>Eb9</b>\nSeguimos em paz</pre></div>';
+    const song = parseCifraClubPage(html, 'https://www.cifraclub.com.br/equipe-local/cancao-da-equipe/?v=1');
+    expect(song.title).toBe('Canção da equipe');
+    expect(song.artist).toBe('Equipe local');
+    expect(song.originalKey).toBe('Bb');
+    expect(song.content).toBe('[Intro] [Bb] [F/A]\n\n[Bb]A luz no[F/A]s guia\n[Gm7]Seguimos e[Eb9]m paz');
+    expect(song.sourceUrl).toBe('https://www.cifraclub.com.br/equipe-local/cancao-da-equipe/');
+    expect(song.source).toBe('Cifra Club');
+  });
+
+  it('não inventa cifras nem tom e recusa URLs fora de páginas públicas', () => {
+    const html = '<h1>Canção</h1><h2>Equipe</h2><pre><b>C</b>\nNossa luz</pre>';
+    expect(parseCifraClubPage(html, 'https://www.cifraclub.com.br/equipe/cancao/').originalKey).toBeUndefined();
+    expect(() => parseCifraClubPage('<h1>Canção</h1><h2>Equipe</h2><p>Sem acordes</p>', 'https://www.cifraclub.com.br/equipe/cancao/')).toThrow('cifra pública reconhecida');
+    for (const unsafe of ['https://www.cifraclub.com.br/login/', 'https://user@www.cifraclub.com.br/equipe/cancao/', 'https://www.cifraclub.com.br.evil.test/equipe/cancao/', 'http://www.cifraclub.com.br/equipe/cancao/', 'https://www.cifraclub.com.br:8443/equipe/cancao/']) expect(allowedSongUrl(unsafe)).toBeNull();
+  });
+
+  it('preserva acordes malformados extensos sem executar regex exponencial', () => {
+    const invalid = `C${'1'.repeat(26)}x`;
+    expect(convertCifraClubRows(`${invalid}\nNossa luz`)).toBe(`${invalid}\nNossa luz`);
+    expect(() => convertCifraClubRows('C'.repeat(100_001))).toThrow('limite de tamanho');
+  });
+
+  it('informa um bloqueio da fonte e não segue redirecionamentos', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Access denied', { status: 403 })));
+    const response = await handler({ httpMethod: 'GET', queryStringParameters: { url: 'https://www.cifraclub.com.br/equipe/cancao/' } });
+    expect(response.statusCode).toBe(502);
+    expect(JSON.parse(response.body).error).toContain('O Cifra Club bloqueou a consulta automática');
   });
 });

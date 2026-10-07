@@ -56,4 +56,22 @@ describe('musical chord notation', () => {
     expect(normalizeSearch(title).includes(normalizeSearch('Canção'))).toBe(true);
     expect(title).toBe('  Nossa CANÇÃO de Gratidão  ');
   });
+
+  it('handles long malformed pasted chord markers without exponential backtracking', () => {
+    const marker = `[C${'1'.repeat(50_000)}x]`;
+    const content = `${marker} Palavra [C7(b9,#11)/E]final`;
+    expect(stripChords(content)).toBe(`${marker} Palavra final`);
+    expect(transposeContent(content, 'C', 'D')).toBe(`${marker} Palavra [D7(b9,#11)/F#]final`);
+    expect(chordSegments(content)).toEqual([
+      { chord: '', text: `${marker} Palavra ` }, { chord: 'C7(b9,#11)/E', text: 'final' },
+    ]);
+  });
+
+  it('scans unclosed and nested markers without repeated scans of the rest of a line', () => {
+    const openMarkers = '['.repeat(50_000);
+    const content = `${openMarkers}\r\n[[C]não é acorde [G]paz`;
+    expect(stripChords(content)).toBe(`${openMarkers}\r\n[[C]não é acorde paz`);
+    expect(transposeContent(content, 'C', 'D')).toBe(`${openMarkers}\r\n[[C]não é acorde [A]paz`);
+    expect(chordSegments(openMarkers)).toEqual([{ chord: '', text: openMarkers }]);
+  });
 });

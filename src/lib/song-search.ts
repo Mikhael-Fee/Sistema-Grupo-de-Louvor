@@ -6,7 +6,7 @@ export interface SongSearchResult {
   id: string;
   title: string;
   artist: string;
-  source: 'LRCLIB' | 'Worship Together';
+  source: 'LRCLIB' | 'Worship Together' | 'Cifra Club';
   sourceUrl: string;
   kind: SongImportKind;
   content?: string;
@@ -94,9 +94,54 @@ export async function searchSongSources(title: string, artist: string, kind: Son
   return body.results;
 }
 
+export interface UnifiedSongSearch {
+  results: SongSearchResult[];
+  warnings: string[];
+}
+
+async function searchCifraClub(title: string, artist: string, signal?: AbortSignal): Promise<SongSearchResult[]> {
+  const params = new URLSearchParams({ source: 'cifraclub', title: title.trim() });
+  if (artist.trim()) params.set('artist', artist.trim());
+  let response: Response;
+  try { response = await fetch(`/.netlify/functions/song-search?${params}`, { signal, headers: { Accept: 'application/json' } }); }
+  catch (cause) { if (signal?.aborted) throw cause; throw new Error('Não foi possível acessar a busca do Cifra Club.'); }
+  const body = await response.json().catch(() => null);
+  if (!response.ok || !Array.isArray(body?.results)) throw new Error(body?.error || 'A busca do Cifra Club está indisponível agora.');
+  return body.results.filter((item: SongSearchResult) => item?.source === 'Cifra Club' && item.kind === 'chords'
+    && typeof item.title === 'string' && typeof item.artist === 'string' && typeof item.sourceUrl === 'string' && isSafeCifraClubUrl(item.sourceUrl)).slice(0, 12);
+}
+
+/** One search, Cifra Club versions first; a failed source does not hide the other one. */
+export async function searchUnifiedSongSources(title: string, artist: string, signal?: AbortSignal): Promise<UnifiedSongSearch> {
+  if (title.trim().length < 2) throw new Error('Informe pelo menos dois caracteres do título para buscar.');
+  const timeout = AbortSignal.timeout(10_000);
+  const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
+  const outcomes = await Promise.allSettled([
+    searchCifraClub(title, artist, requestSignal),
+    searchSongSources(title, artist, 'lyrics', requestSignal),
+  ]);
+  if (signal?.aborted) throw signal.reason || new DOMException('Consulta cancelada.', 'AbortError');
+  const results: SongSearchResult[] = [];
+  const warnings: string[] = [];
+  outcomes.forEach((outcome, index) => {
+    if (outcome.status === 'fulfilled') results.push(...outcome.value);
+    else warnings.push(`${index === 0 ? 'Cifra Club' : 'LRCLIB'}: ${timeout.aborted ? 'a consulta demorou demais.' : outcome.reason instanceof Error ? outcome.reason.message : 'a consulta está indisponível agora.'}`);
+  });
+  return { results, warnings };
+}
+
+export const searchAllSongSources = searchUnifiedSongSources;
+
 export async function previewSongSource(result: SongSearchResult, signal?: AbortSignal): Promise<SongSearchResult> {
   if (result.kind === 'lyrics' && result.content) return result;
-  const response = await fetch(`/.netlify/functions/song-search?${new URLSearchParams({ url: result.sourceUrl })}`, { signal, headers: { Accept: 'application/json' } });
+  const timeout = AbortSignal.timeout(10_000);
+  const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
+  let response: Response;
+  try { response = await fetch(`/.netlify/functions/song-search?${new URLSearchParams({ url: result.sourceUrl })}`, { signal: requestSignal, headers: { Accept: 'application/json' } }); }
+  catch (cause) {
+    if (signal?.aborted) throw cause;
+    throw new Error(timeout.aborted ? 'A consulta à cifra demorou demais. Tente novamente.' : `Não foi possível abrir a cifra do ${result.source}. Confira sua conexão e tente novamente.`);
+  }
   const body = await response.json().catch(() => null);
   if (!response.ok || !body?.song || typeof body.song.content !== 'string') throw new Error(body?.error || 'Não foi possível abrir a prévia desta cifra.');
   return body.song;

@@ -47,19 +47,26 @@ Use contas temporárias autorizadas, separadas da conta do proprietário:
 - Preencha uma música/culto ou ajuste sem salvar. Feche o editor, navegue e retorne, ou recarregue a mesma aba: o rascunho da mesma conta deve reaparecer, sem alteração no banco.
 - Escolha **Cancelar**: descarte o rascunho. Salve uma versão válida: confirme a persistência no banco e a limpeza do rascunho. Um erro deve preservar os campos para correção.
 - Entre com outra conta e abra outra aba: elas não devem receber os rascunhos da primeira. Sair da conta deve limpar os rascunhos dessa conta naquela aba.
-- Em **Montar escala em lote**, selecione várias pessoas e funções válidas e confirme. No editor de culto, confira que a seleção só chega ao banco ao salvar o culto. No detalhe de culto, confira a gravação pela confirmação explícita da seleção.
+- Abra **Selecionar equipe** ou **Editar equipe**: deve ser o único fluxo da escala. Selecione várias pessoas e funções válidas, incluindo funções adicionais; desmarque alguém para retirar e confirme **Salvar equipe**. No formulário de culto, a seleção só chega ao banco ao salvar o culto, inclusive se o seletor estiver aberto. Fechar preserva o rascunho; Cancelar o descarta. A equipe pode ficar vazia sem reinstalar os integrantes antigos.
 - Use **Reutilizar última escala** e confira vínculos existentes, funções válidas e ausência de duplicação. Revise tom/observações por culto e ordem do repertório; alterações devem respeitar o papel da conta.
 
 ## Fontes de letras e cifras
 
 Com uma conta administradora temporária, abra uma música em rascunho:
 
-1. Confira **Cifra Club** como primeira opção. **Consultar no Cifra Club** deve abrir uma consulta externa com título/artista. Cole um exemplo de letra com linhas de acordes e um cabeçalho `Tom:` em **Texto copiado do Cifra Club**, guardando o link HTTPS da música. Confira a prévia e **Importar texto do Cifra Club**: os acordes devem virar ChordPro, o tom original deve acompanhar o cabeçalho, e o tom na igreja deve permanecer. Sem cabeçalho reconhecido, o tom original atual deve ser mantido.
-2. A importação deve afetar somente o rascunho, com aviso se substituir texto existente. Título/artista não devem mudar; a fonte/link deve aparecer nas observações. Salve somente uma fixture temporária e confira **Abrir Cifra Club** no leitor, inclusive na consulta pública. Não espere download automático do Cifra Club.
-3. Em **Buscar letra e cifra → Outras fontes**, consulte **Somente letra**. LRCLIB deve oferecer letras sem acordes; confira a versão na prévia. Nenhum resultado é um estado permitido e deve preservar o conteúdo existente.
-4. Consulte **Letra e cifra** para uma música disponível no catálogo público em português do Worship Together. Abra **Ver prévia** e confira acordes/tom original na fonte. Confirme **Importar prévia** ou **Substituir conteúdo pela prévia**: o banco fica inalterado até **Salvar música**, o tom na igreja e demais campos permanecem, título/artista só mudam com a opção marcada e as observações recebem a origem.
-5. Uma cifra automática sem tom original reconhecido deve ser recusada. Falha de rede, timeout, limite ou bloqueio da fonte deve preservar o rascunho e explicar a situação. Não exija que a cobertura encontre qualquer título.
-6. Cancele o formulário ou remova somente as fixtures criadas para esse teste. Não use músicas do proprietário como alvo de substituição.
+1. Preencha título/artista e escolha **Pesquisar cifra e letra** uma vez. A lista deve oferecer versões Cifra Club primeiro, seguidas de letras LRCLIB quando disponíveis, com origem e tipo de conteúdo. Não deve exigir pesquisa separada de letra/cifra nem oferecer a seleção Worship Together.
+2. Abra uma opção Cifra Club na fonte e use **Ver prévia**. A busca de metadados real já retornou opções, mas a prévia real continua bloqueada pelo 403 da fonte e informa 502 no endpoint. Esse resultado deve preservar os campos. Não registre importação Cifra Club como aprovada enquanto uma prévia real não tiver sido carregada; os testes com mocks verificam o fluxo e a conversão, não a disponibilidade remota.
+3. Se uma fonte permitir a prévia, confira a origem, o conteúdo e **Ver somente letra na prévia**. Importar a cifra com essa opção marcada ainda deve manter os acordes completos, pois a opção altera somente a visualização. Uma versão LRCLIB usa **Importar letra sem acordes** e não cria acordes.
+4. A importação só altera o rascunho, preserva **Tom na igreja** e registra a fonte. O tom original só acompanha um valor reconhecido; sem ele, mantenha e confira o tom atual. Título/artista só mudam com a opção marcada. Conteúdo anterior exige confirmar **Substituir letra e cifra**; **Manter conteúdo atual** deve preservar o texto. O banco permanece inalterado até **Salvar música**.
+5. **Importar texto manualmente** começa recolhido. Abra, cole um exemplo próprio com linhas de acordes e `Tom:`, informe opcionalmente o link da música e confira a prévia ChordPro. Importar deve preservar título/artista e tom na igreja. Salve somente uma fixture, confira transposição e **Somente letra** no leitor, e a referência Cifra Club inclusive na consulta pública.
+6. Confira resultado vazio, falha de uma fonte mantendo resultados da outra, timeout, erro de prévia e cancelamento. Fechar a busca, alterar o título e pesquisar novamente não pode reapresentar a resposta da consulta antiga. Conteúdo acima de 100.000 caracteres deve ser recusado; a prévia deve exibir no máximo 12.000, preservando o texto completo da importação aceita.
+7. Cancele o formulário ou remova somente as fixtures criadas para esse teste. Não use músicas do proprietário como alvo de substituição.
+
+## Desempenho
+
+O reconhecimento de acordes e a conversão de marcadores inline receberam regressões para texto malformado. Com conteúdo próprio temporário, verifique a resposta do editor ao colar cerca de 50 mil caracteres e trocar de tela; repita abrir/fechar editores, leitura, navegação e transposição. Compare memória JavaScript após coleta de lixo e atividade de CPU, separando-as da RAM total dos processos do Chrome. Use uma execução sem screenshots/traces acumulados para a medição.
+
+Na investigação executada, 40 ciclos produziram memória JavaScript de 4,85 para 5,12 MB após coleta, sem atividade contínua de CPU; a colagem malformada de 50.051 caracteres levou aproximadamente 239 ms. Isso não reproduz nem identifica por si só o episódio de 3 GB informado pelo usuário. Registre navegador, cenário, tamanho do conteúdo e medidas ao avaliar qualquer recorrência; não conclua que o consumo total do Chrome equivale a esses valores.
 
 ## Auth e recuperação
 
@@ -70,6 +77,8 @@ LOUVOR_BROWSER_URL=https://louvor-grupo-fxebsy.netlify.app npm run supabase:veri
 ```
 
 O helper cria contas e registros temporários, testa administrador/músico e usa um link de recuperação da conta temporária sem enviar e-mail. O navegador segue `/redefinir-senha`, salva uma senha aleatória e verifica a autenticação. Links, tokens e senhas ficam em memória; não gere screenshots ou traces das sessões de autenticação. Confirme a remoção de todas as contas e fixtures ao terminar. A entrega real de confirmação e recuperação deve ser conferida também com um destinatário autorizado e o SMTP configurado.
+
+Adicione `--song-sources` para verificar também as fontes externas no editor. Esse teste exige disponibilidade real dos provedores: a busca Cifra Club deve retornar versões, o bloqueio de prévia atualmente observado deve preservar o rascunho, e a importação LRCLIB deve alterar somente o formulário antes de cancelar. O teste principal de Auth/RLS não depende dessas fontes. No último teste separado de fontes, LRCLIB respondeu HTTP 503; não conte esse resultado como importação real aprovada.
 
 Neste ambiente, o Chromium precisa abrir o banco NSS da autoridade do proxy em `/home/agent/.pki/nssdb`, conforme o README. Mantenha TLS habilitado e a autoridade fornecida pela plataforma.
 

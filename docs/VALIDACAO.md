@@ -4,50 +4,76 @@
 
 | Verificação | Resultado |
 | --- | --- |
-| TypeScript e build Vite/PWA | Passaram |
-| Vitest: domínio, fontes e conversão de cifra colada | 55 testes passaram |
+| TypeScript e build Vite/PWA | Passaram, inclusive após o último ajuste da equipe |
+| Vitest: domínio, fontes, conversão e texto malformado | 67 testes passaram |
 | PostgreSQL/PGlite: RLS, transações, integridade e consulta pública | 153 verificações passaram: 98 existentes + 55 da consulta pública |
-| Playwright: interface, permissões, rascunhos, escala em lote, importação e celular 390 px | 18 cenários passaram, usando Auth/API simulados e fixtures de teste |
-| Supabase real no domínio publicado: Auth, RLS, consulta pública, interface e recuperação | 52 verificações passaram; contas e registros temporários removidos com limpeza confirmada |
-| Site público/PWA em Chromium, celular 390 px e shell offline | 15 verificações passaram; service worker controlando a página e 33 entradas estáticas, sem respostas de API no cache |
-| Função de cifras no Netlify real | 4 verificações passaram: busca e prévia 200, URL de fonte inválida 400 e POST 405 |
-| Artefato de produção | 37 arquivos revisados; nenhuma credencial privada, `.env` ou source map; somente uma chave pública `anon` |
-| Publicação Netlify com arquivos estáticos e função `.mjs` | API confirmou deploy `6ac61ee795786016c1d9a837` como `ready` |
-| Domínio HTTPS e rota direta `/consulta` | HTML Candeia e arquivo de entrada corresponderam ao build publicado |
+| Playwright: interface, permissões, rascunhos, equipe, importação e celular | 22 cenários verificados com Auth/API/fontes simulados: 20 passaram na execução inicial; um seletor antigo foi corrigido e o cenário passou na execução específica; o novo cenário de preservação da seleção passou separadamente |
+| Supabase real e interface no domínio publicado | 52 verificações passaram; contas e registros temporários removidos com limpeza confirmada |
+| Site público/PWA em Chromium, celular 390 px e shell offline | 17 verificações passaram, incluindo transposição local; cache somente estático |
+| Função de busca no Netlify real | 4 verificações: busca Cifra Club 200 com três versões, prévia 502 informando o bloqueio 403 da fonte, URL externa 400 e POST 405 |
+| Artefato final de produção | 37 arquivos revisados; nenhuma credencial privada, `.env` ou source map |
+| Publicação Netlify com arquivos estáticos e função `.mjs` | Deploy `6ac693f5149e1c7eff6a70b8` confirmado como `ready` |
+| Domínio HTTPS e rota direta `/consulta` | HTML Candeia e arquivo de entrada correspondem ao build publicado |
 
-O endereço publicado é [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app), no mesmo site `93f0134d-7c6f-414a-b86a-1c4c9bdcb477`. O helper usou `--deploy-dir dist --functions-dir netlify/functions`: o site e a função foram publicados juntos. O envio de um ZIP contendo somente `dist` não atende esta versão. A publicação é direta, sem integração Git; enviar código ao repositório não dispara outro deploy.
+O endereço publicado é [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app), no mesmo site `93f0134d-7c6f-414a-b86a-1c4c9bdcb477`. O helper publicou `dist` e `netlify/functions` juntos. Publicar somente um ZIP de `dist` não instala a função. A publicação é direta, sem integração Git: enviar código ao repositório não dispara outro deploy.
 
-## Banco e acesso
+## Cifra Club e busca única
 
-No Supabase `fxebsycpbybhzkpnxzoo`, a migração aditiva `002_public_consultation.sql` foi aplicada sem reaplicar a migração inicial nem substituir os registros existentes. A leitura posterior confirmou a consulta pública habilitada conforme a escolha do proprietário, as funções públicas instaladas, RLS e ausência de acesso anônimo direto às tabelas privadas.
+**Pesquisar cifra e letra** usa os campos de título e artista uma vez e reúne versões Cifra Club primeiro e letras LRCLIB na mesma lista. O editor identifica as fontes e deixa abrir o link da versão. Worship Together saiu da interface; o endpoint antigo permanece no backend por compatibilidade com instalações anteriores.
 
-O RPC público retorna músicas, etiquetas, cultos, repertórios, nomes e funções, com e-mails vazios e sem perfis de conta. Os testes PostgreSQL verificaram ativação/desativação, campos permitidos, ordem, tons e observações, além de rejeição de escrita e consultas diretas não autorizadas. Esses testes usam PostgreSQL/PGlite com Auth simulado; não equivalem por si só à validação real de Auth.
+A busca real de “Me Atraiu”, de Gabriela Rocha, retornou três versões do Cifra Club: original, Reimagined e Me Atraiu / Quem É Esse. A consulta usa o índice público Solr e lê sua resposta JSONP como dados, sem executar código. Esse índice fornece metadados, não o conteúdo dos acordes.
 
-A validação no Supabase e domínio publicados passou em 52 verificações, incluindo perfis autorizados, restrições de escrita, consulta anônima sem contatos/perfis, repertório, transposição local, manutenção do editor/rascunho e recuperação de senha de uma conta temporária. O helper não enviou e-mails: gerou em memória um link de recuperação para sua fixture, testou senha nova e rejeição da anterior. As contas e registros temporários foram removidos, com limpeza confirmada; os registros do proprietário foram preservados.
+**A importação automática de cifras do Cifra Club continua bloqueada externamente.** A leitura da página pública respondeu HTTP 403 com Access Denied no ambiente, no Netlify e no Chromium comum. A função de prévia respondeu 502 com aviso compreensível. O parser de HTML público está implementado e testado com fixtures; esses testes não comprovam acesso real à cifra. Não foi usado CAPTCHA, alteração de TLS ou extração de credenciais para contornar o bloqueio.
 
-A conta proprietária `mikhaelfernandes8@gmail.com` já foi criada e confirmada pelo usuário, aprovada como `admin` e preservada. A aprovação inicial e o primeiro acesso pertencem à entrega anterior; esta atualização não redefiniu a senha nem enviou mensagens para o proprietário.
+A verificação do editor publicado com Auth/PostgREST simulados e fontes reais confirmou três resultados Cifra Club, aviso de bloqueio, conteúdo original preservado e botão de pesquisa habilitado depois da falha. Nessa execução, LRCLIB respondeu HTTP 503 tanto no navegador quanto em uma consulta HTTPS independente; a importação real de letra não pôde ser concluída. A integração LRCLIB permanece implementada, mas depende da disponibilidade do provedor. Os testes simulados verificaram a prévia, a confirmação explícita de substituição, a preservação do tom da igreja e a gravação somente após salvar.
 
-## Cifras, edição e interface
+As tentativas iniciais de ampliar o helper real com fontes externas falharam na etapa de fontes e confirmaram a limpeza de suas fixtures. Os testes principais de Auth/RLS foram executados separadamente e passaram em 52 verificações. `--browser --song-sources` habilita as verificações adicionais de fontes no helper; uma falha ou indisponibilidade externa deve ser reportada, sem ser contada como importação aprovada. Se o Cifra Club voltar a fornecer a página, será preciso validar uma prévia e uma importação reais e atualizar o cenário que hoje verifica seu bloqueio.
 
-Cifra Club é a primeira opção de consulta e importação por colagem, com link externo e referência guardada nas observações. A conversão de linhas de acordes para ChordPro e a transposição foram testadas com exemplos próprios, incluindo acordes com baixo, extensões, tabs e acidentes Unicode. Um cabeçalho `Tom:` reconhecido atualiza somente o tom original; o tom na igreja permanece. Sem cabeçalho reconhecido, mantém-se o tom original atual para revisão. Importar altera o rascunho; salvar é a ação que grava no banco.
+**Importar texto manualmente** fica recolhido como alternativa, com link opcional. O texto alinhado é convertido em ChordPro; o cabeçalho `Tom:` reconhecido altera somente o tom original. Importar modifica o rascunho; salvar grava no banco. A visualização **Somente letra** remove os acordes da mesma cifra e não precisa de outra pesquisa.
 
-Não há download automático de conteúdo do Cifra Club: as tentativas de consulta HTTP feitas neste ambiente receberam 403, e o fluxo implementado abre a fonte para consulta e permite colar o texto escolhido pelo usuário. LRCLIB oferece busca automática secundária de letras, e Worship Together oferece cifras públicas pelo endpoint Netlify. A cobertura depende dos catálogos e da disponibilidade dessas fontes.
+## Travamento e memória
 
-Na validação real da função Netlify, a busca por “Quão lindo esse nome é” retornou uma página pública do Worship Together; a prévia respondeu com tom original D e 66 acordes reconhecidos. Nenhum conteúdo musical foi incorporado ao catálogo do ministério por esse teste. A função aceita apenas a fonte e os caminhos previstos, e rejeitou uma URL externa e um método de escrita.
+Dois casos malformados podiam bloquear o processamento: um acorde com sequência numérica longa seguido de caractere inválido e texto com muitos marcadores `[` sem fechamento. O parser agora percorre os sufixos e marcadores sem a repetição ambígua da expressão regular anterior. A conversão manual usa o mesmo scanner. Testes preservam a transposição de acordes válidos e o texto que não é acorde.
 
-Os cenários Playwright verificaram consulta sem cadastro, ocultação de edição e contatos, transposição local, importação explícita e preservação do tom na igreja, rascunhos ao navegar/fechar, persistência após salvar e recarregar, renovação de sessão e troca de foco sem desmontar o editor, seleção de várias pessoas e deduplicação de funções na escala. Dados fictícios existem apenas nos testes; a demonstração foi removida do produto.
+A prévia manual só é calculada quando a seção está aberta e usa entrada deferida. Campos e importações têm limite de 100.000 caracteres; prévias mostram até 12.000, mantendo o texto completo para importar. Conteúdo acima do limite é rejeitado, sem truncamento silencioso.
 
-## PWA e ambiente
+Em Chromium com build de produção, 40 ciclos de edição, navegação e mudança de foco produziram os seguintes valores após coleta de memória JavaScript:
 
-O manifest publicado usa Candeia, ícones de chama, fundo branco e tema preto. No domínio real, o helper público passou em 15 verificações: leitura sem cadastro e sem escrita/contatos, layout 390 px, manifest, service worker ativo/controlando a página, 33 entradas estáticas sem respostas de Auth/PostgREST/fontes, e shell de login abrindo offline. O catálogo estava vazio após a limpeza das fixtures, portanto esse helper não repetiu a transposição; o teste de integração real com fixtures já a havia verificado entre suas 52 verificações. Os dados reais continuam exigindo conexão. A aplicação oferece **Atualizar agora** ou **Depois** para versões novas e mantém rascunhos na mesma aba após a atualização escolhida. Uma instalação da versão antiga, ainda sem esse aviso, pode precisar fechar todas as abas/janelas do site e reabrir o link para ativar a nova versão.
+| Ciclos | Memória JavaScript retida |
+| --- | --- |
+| 10 | 4,85 MB |
+| 20 | 5,08 MB |
+| 30 | 5,29 MB |
+| 40 | 5,12 MB |
 
-TLS permanece habilitado. Neste ambiente, browsers externos precisam abrir o banco NSS da autoridade já fornecida pela plataforma em `/home/agent/.pki/nssdb`; testes locais e testes externos não devem desabilitar a verificação de certificados.
+O retorno ao mesmo estado manteve 495 nós DOM, 200 listeners e 11 chamadas de API. Em cinco segundos de ociosidade não houve novas chamadas, erros ou atividade contínua de CPU. Uma colagem malformada de 50.051 caracteres levou aproximadamente 239 ms para prévia/importação, manteve o editor responsivo e não gravou no banco.
 
-As instruções completas de instalação e manutenção foram atualizadas e salvas no rascunho do ambiente Codex. A API confirmou que essa configuração ainda requer publicação (`requires_publish: true`). Ela é separada da publicação Netlify: o site já está publicado, e a configuração reutilizável depende de revisar, salvar e publicar o ambiente pela interface Codex. O rascunho não comprova uma nova restauração completa do ambiente.
+Essas medidas são da memória JavaScript, não da RAM total do Chrome. **O episódio de 3 GB relatado pelo usuário não foi reproduzido nem teve sua causa exata confirmada.** As correções eliminam os casos concretos de processamento lento encontrados; uma recorrência ainda precisa de diagnóstico no cenário afetado. O botão antigo de colagem só habilitava após receber texto, o que também foi substituído pela busca única visível e pela alternativa manual recolhida.
 
-## Limites e etapas externas
+## Equipe e rascunhos
 
-- SMTP próprio continua pendente para confirmação e recuperação dos demais integrantes; a entrega para outros endereços não foi validada nesta atualização.
-- A instalação PWA em Android/iPhone reais ainda deve ser verificada; o navegador automatizado é Chromium.
-- O resultado do workflow no GitHub não foi consultado nesta atualização; não há integração automática de builds com o site Netlify.
-- Disponibilidade, confirmações, medleys, estatísticas, repertório em lote e sincronização offline de dados compartilhados continuam no roadmap.
+A inclusão e edição da equipe usam somente a seleção em lote. O mesmo formulário permite marcar/desmarcar pessoas, ajustar funções, preservar funções múltiplas, copiar a escala anterior e salvar a equipe inteira. A escolha de uma única pessoa continua possível nesse formulário.
+
+O último ajuste faz resumo, remoção, reutilização e salvamento usarem a seleção ativa. O novo E2E verificou mudança de função e novas pessoas preservadas ao remover alguém do resumo e reutilizar a última escala; salvar e recarregar manteve as quatro atribuições esperadas. Rascunhos antigos contendo apenas inclusões são restaurados preservando a equipe já salva.
+
+Os demais cenários verificaram consulta sem cadastro e sem edição/contatos, transposição local, importação explícita, rascunhos ao navegar/fechar, persistência depois de salvar, renovação de sessão e troca de foco sem desmontar o editor. Dados fictícios existem apenas nos testes; não há demonstração no produto.
+
+## Banco, PWA e ambiente
+
+O Supabase `fxebsycpbybhzkpnxzoo` mantém as migrações `001_initial.sql` e `002_public_consultation.sql`. Esta atualização não alterou o schema. A consulta pública habilitada retorna músicas, etiquetas, cultos, repertórios, nomes e funções, com e-mails vazios e sem perfis de conta. RLS continua negando leitura anônima direta das tabelas privadas e escrita sem permissão.
+
+Os 52 testes reais incluíram perfis autorizados, restrições de escrita, consulta anônima sem contatos/perfis, repertório, transposição local, rascunhos e recuperação de senha de conta temporária. O helper gerou o link em memória sem enviar e-mail, testou uma senha nova e a rejeição da anterior. Todas as fixtures foram removidas; conta, senha e registros do proprietário foram preservados.
+
+O manifest usa Candeia, ícones de chama e tema preto. No domínio publicado, a consulta pública, layout de 390 px, transposição, service worker ativo, cache estático e shell de login offline foram verificados. Respostas de Auth/PostgREST/fontes não ficam no cache. Dados compartilhados continuam exigindo conexão. Use **Atualizar agora** quando o aplicativo oferecer uma nova versão; rascunhos permanecem na mesma aba. Uma instalação antiga sem esse aviso pode precisar fechar todas as abas do site e reabrir o endereço.
+
+TLS permanece habilitado. Neste ambiente, browsers externos precisam acessar o banco NSS da autoridade fornecida pela plataforma em `/home/agent/.pki/nssdb`; os testes não desabilitam certificados.
+
+`install_script` e `start_skill` completos foram salvos no rascunho do ambiente Codex, com instalação, inicialização, testes, publicação da função, diagnóstico de fontes e deploy isolado `--draft`. O modo draft foi testado com uma URL própria e a produção permaneceu inalterada. A API confirmou `requires_publish: true`: revisar, salvar e publicar essa configuração no Codex é separado do site Netlify, que já está publicado. Não foi validada uma nova restauração completa do ambiente.
+
+## Limites externos
+
+- Cifra Club: busca de versões disponível; importação automática da cifra pendente pelo bloqueio HTTP 403.
+- LRCLIB: indisponibilidade HTTP 503 observada na verificação final das fontes; importação real não foi aprovada nesse teste.
+- SMTP próprio e entrega de confirmação/recuperação para outros integrantes continuam pendentes.
+- Instalação PWA em Android/iPhone reais e execução do workflow GitHub não foram verificadas nesta atualização.
+- Disponibilidade, confirmações, medleys, estatísticas, repertório em lote e sincronização offline de dados continuam no roadmap.

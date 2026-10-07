@@ -41,6 +41,13 @@ describe('importação de texto do Cifra Club', () => {
     expect(() => parseCifraClubText('  ')).toThrow('Cole a letra');
     expect(() => parseCifraClubText('a'.repeat(100_001))).toThrow('100.000');
   });
+
+  it('preserva texto colado com acordes malformados ou colchetes abertos sem travar a conversão', () => {
+    const malformed = `C${'1'.repeat(26)}x`;
+    expect(parseCifraClubText(`${malformed}\nPalavra`).content).toBe(`${malformed}\nPalavra`);
+    const markers = '['.repeat(50_000);
+    expect(parseCifraClubText(`${markers}\n[C♯]Paz`).content).toBe(`${markers}\n[C#]Paz`);
+  });
 });
 
 describe('referências do Cifra Club', () => {

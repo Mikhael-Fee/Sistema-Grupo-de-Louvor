@@ -30,6 +30,9 @@ async function verifiedBrowserOrigin(value) {
 const projectRef = process.env.SUPABASE_PROJECT_REF || 'fxebsycpbybhzkpnxzoo';
 const managementToken = process.env.SUPABASE_ACCESS_TOKEN;
 const checkBrowser = process.argv.includes('--browser');
+// Public song providers are independent external dependencies. Keep their live
+// checks opt-in so an outage does not interrupt Auth/RLS and cleanup coverage.
+const checkSongSources = process.argv.includes('--song-sources');
 let browserOrigin;
 if (checkBrowser) {
   try {
@@ -271,6 +274,42 @@ async function verifyBrowser(admin, musician) {
           await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
           const unchanged = await read(admin, 'songs', `id=eq.${fixtures.songA}`);
           expect(unchanged[0]?.title === songA.title, 'rascunho cancelado não modifica a música no banco');
+
+          if (checkSongSources) {
+            stage = 'pesquisa unificada real com Cifra Club e LRCLIB';
+            await row.getByRole('button', { name: `Editar ${songA.title}`, exact: true }).click();
+            await dialog.getByLabel('Título', { exact: true }).fill('Me Atraiu');
+            await dialog.getByLabel('Artista / compositor', { exact: true }).fill('Gabriela Rocha');
+            await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+            const versions = dialog.locator('.songs-source-results > li');
+            await versions.first().waitFor();
+            const cifraVersion = versions.filter({ hasText: 'Cifra Club' }).first();
+            expect(await cifraVersion.count() === 1 && (await versions.first().textContent())?.includes('Cifra Club'),
+              'pesquisa real apresenta versões do Cifra Club antes das letras');
+            stage = 'resposta real de bloqueio da prévia Cifra Club';
+            await cifraVersion.getByRole('button').click();
+            const cifraError = dialog.getByRole('alert').filter({ hasText: 'Cifra Club' });
+            await cifraError.waitFor();
+            stage = 'preservação do formulário após bloqueio Cifra Club';
+            expect((await cifraError.textContent())?.includes('bloqueou')
+              && await dialog.getByRole('textbox', { name: /^Letra e cifra/ }).inputValue() === songA.content
+              && await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).isEnabled(),
+              'bloqueio real da cifra é informado sem travar o botão ou alterar o rascunho');
+            stage = 'disponibilidade e importação real LRCLIB';
+            const lyricsVersion = versions.filter({ hasText: 'LRCLIB' }).first();
+            await lyricsVersion.waitFor();
+            await lyricsVersion.getByRole('button').click();
+            await dialog.locator('.songs-source-preview').waitFor();
+            await dialog.getByRole('button', { name: 'Importar letra sem acordes', exact: true }).click();
+            await dialog.getByRole('button', { name: 'Substituir letra e cifra', exact: true }).click();
+            expect((await dialog.getByRole('textbox', { name: /^Letra e cifra/ }).inputValue()).length > 100
+              && await dialog.getByLabel('Tom na igreja', { exact: true }).inputValue() === 'D',
+              'letra real do LRCLIB importa no rascunho sem modificar o tom da igreja');
+            await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+            const sourceUnchanged = await read(admin, 'songs', `id=eq.${fixtures.songA}`);
+            expect(sourceUnchanged[0]?.content === songA.content && sourceUnchanged[0]?.title === songA.title,
+              'consulta e importação cancelada não incorporam conteúdo musical no banco');
+          }
         }
 
         stage = `culto de ${account.role}`;

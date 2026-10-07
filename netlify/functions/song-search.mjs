@@ -1,5 +1,7 @@
 // Read only public song pages. No authentication, protected charts, or arbitrary proxy URLs.
 const SOURCE_ORIGIN = 'https://www.worshiptogether.com';
+const CIFRA_ORIGIN = 'https://www.cifraclub.com.br';
+const CIFRA_SEARCH = 'https://solr.sscdn.co/cc/select/';
 const MAX_SOURCE_BYTES = 2_000_000;
 // Public catalog URLs verified from sitemap-pt.xml on 2026-10-06; no song content is bundled.
 const PUBLIC_CATALOG_URLS = [
@@ -199,6 +201,10 @@ export function normalize(value) {
 export function allowedSongUrl(value) {
   try {
     const url = new URL(value);
+    if (url.protocol === 'https:' && ['cifraclub.com.br', 'www.cifraclub.com.br'].includes(url.hostname)
+      && !url.username && !url.password && !url.port && /^\/[a-z0-9][a-z0-9_-]*\/[a-z0-9][a-z0-9_-]*\/?$/i.test(url.pathname)) {
+      return `${CIFRA_ORIGIN}${url.pathname.replace(/\/?$/, '/')}`;
+    }
     if (url.origin !== SOURCE_ORIGIN || url.username || url.password || url.port) return null;
     if (!/^\/(?:pt\/cancoes|songs)\/[a-z0-9-]+\/?$/.test(url.pathname)) return null;
     return `${SOURCE_ORIGIN}${url.pathname.replace(/\/?$/, '/')}`;
@@ -213,6 +219,155 @@ function decode(value) {
 }
 
 function text(value) { return decode(value.replace(/<[^>]*>/g, '')); }
+
+/** The public autocomplete returns JSONP. Parse the JSON payload; never evaluate script. */
+export function parseCifraClubSearch(body) {
+  const payload = body.trim().replace(/^suggest_callback\(\s*/, '').replace(/\s*\);?\s*$/, '');
+  let docs;
+  try { docs = JSON.parse(payload)?.response?.docs; }
+  catch { throw new Error('O Cifra Club retornou uma busca inválida.'); }
+  if (!Array.isArray(docs)) throw new Error('O Cifra Club retornou uma busca inválida.');
+  const seen = new Set();
+  const results = [];
+  for (const item of docs) {
+    if (String(item?.t) !== '2' || item.block || !(Number(item.vci) > 0)
+      || typeof item.txt !== 'string' || typeof item.art !== 'string'
+      || !/^[a-z0-9][a-z0-9_-]*$/i.test(item.dns || '') || !/^[a-z0-9][a-z0-9_-]*$/i.test(item.url || '')) continue;
+    const url = allowedSongUrl(`${CIFRA_ORIGIN}/${item.dns}/${item.url}/`);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    // Return only metadata. The search index also contains lyrics; those are not imported here.
+    results.push({ id: url, title: item.txt.slice(0, 300), artist: item.art.slice(0, 300), source: 'Cifra Club', sourceUrl: url, kind: 'chords' });
+    if (results.length === 12) break;
+  }
+  return results;
+}
+
+// Consume suffixes once. Repeating a numeric regex inside another repetition
+// makes malformed pasted chords (for example C111…x) block the browser.
+const QUALITIES = ['maj', 'Maj', 'min', 'Min', 'dim', 'Dim', 'aug', 'Aug', 'sus', 'Sus', 'add', 'Add', 'omit', 'no', 'm', 'M', 'Δ', '°', 'ø'];
+const PAREN_QUALITIES = ['maj', 'Maj', 'min', 'm', 'M'];
+
+function validSuffix(value) {
+  if (value.length > 80) return false;
+  let cursor = 0;
+  const digits = () => {
+    const start = cursor;
+    while (cursor < value.length && value[cursor] >= '0' && value[cursor] <= '9') cursor++;
+    return cursor > start;
+  };
+  const quality = (names) => {
+    const name = names.find(item => value.startsWith(item, cursor));
+    if (!name) return false;
+    cursor += name.length;
+    return true;
+  };
+  const signedNumber = () => {
+    if (['#', 'b', '+', '-'].includes(value[cursor])) cursor++;
+    return digits();
+  };
+  while (cursor < value.length) {
+    const token = value[cursor];
+    if (token === '(') {
+      cursor++;
+      quality(PAREN_QUALITIES);
+      if (!signedNumber()) return false;
+      while (value[cursor] === ',' || value[cursor] === '/') {
+        cursor++;
+        if (!signedNumber()) return false;
+      }
+      if (value[cursor++] !== ')') return false;
+    } else if (token === '/') {
+      cursor++;
+      if (!digits()) return false;
+    } else if (quality(QUALITIES)) digits();
+    else if (token === '+' || token === '-') { cursor++; digits(); }
+    else if (!signedNumber()) return false;
+  }
+  return true;
+}
+
+function chord(value) {
+  if (value.length > 84) return null;
+  const normalized = value.replace(/♯/g, '#').replace(/♭/g, 'b');
+  const match = /^([A-G](?:#|b)?)(.*?)(?:\/([A-G](?:#|b)?))?$/.exec(normalized);
+  return match && validSuffix(match[2]) ? normalized : null;
+}
+
+function chordRow(line) {
+  const label = /^\s*(\[[^\]\r\n]+\])\s*/.exec(line);
+  const offset = label && !chord(label[1].slice(1, -1)) ? label[0].length : 0;
+  let standalone = Boolean(offset);
+  const chords = [];
+  for (const token of line.slice(offset).matchAll(/\S+/g)) {
+    const value = chord(token[0]);
+    if (value) chords.push({ position: offset + token.index, end: offset + token.index + token[0].length, chord: value });
+    else if (/^(?:[|:()]+|\(?\d+x\)?|\(?x\d+\)?)$/i.test(token[0])) standalone = true;
+    else return null;
+  }
+  return chords.length ? { chords, standalone } : null;
+}
+
+/** Preserve the alignment of the chords actually present in the public page. */
+export function convertCifraClubRows(value) {
+  if (!value.trim() || value.length > 100_000) throw new Error('Não foi possível reconhecer uma cifra pública dentro do limite de tamanho.');
+  const lines = value.replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ').split('\n').map(line => {
+    let result = '';
+    for (const character of line) result += character === '\t' ? ' '.repeat(8 - result.length % 8) : character;
+    return result;
+  });
+  const output = [];
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const row = chordRow(line);
+    const next = lines[index + 1];
+    if (!row) { output.push(line); continue; }
+    const align = !row.standalone && next?.trim() && !chordRow(next) && !/\[[^\]\r\n]+\]/.test(next);
+    let result = '';
+    let cursor = 0;
+    if (align) {
+      const characters = Array.from(next);
+      for (const note of row.chords) {
+        result += characters.slice(cursor, note.position).join('');
+        if (note.position > characters.length) result += ' '.repeat(note.position - Math.max(cursor, characters.length));
+        result += `[${note.chord}]`;
+        cursor = note.position;
+      }
+      output.push(result + characters.slice(cursor).join(''));
+      index++;
+    } else {
+      for (const note of row.chords) {
+        result += `${line.slice(cursor, note.position)}[${note.chord}]`;
+        cursor = note.end;
+      }
+      output.push(result + line.slice(cursor));
+    }
+  }
+  return output.join('\n').trim();
+}
+
+export function parseCifraClubPage(html, url) {
+  const canonical = allowedSongUrl(url);
+  if (!canonical?.startsWith(CIFRA_ORIGIN)) throw new Error('Informe uma página pública de música do Cifra Club.');
+  const pre = [...html.matchAll(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi)].find(match => /<(?:b|strong)\b/i.test(match[1]));
+  if (!pre) throw new Error('O Cifra Club não forneceu uma cifra pública reconhecida para esta versão.');
+  const raw = text(pre[1].replace(/<br\s*\/?\s*>/gi, '\n'));
+  const content = convertCifraClubRows(raw);
+  if (!/\[[A-G](?:#|b)?[^\]\r\n]*\]/.test(content)) throw new Error('Não foi possível reconhecer os acordes públicos desta versão no Cifra Club.');
+  const ogTitle = [...html.matchAll(/<meta\b[^>]*>/gi)].map(match => {
+    const tag = match[0];
+    return /\bproperty=["']og:title["']/i.test(tag) ? decode(/\bcontent=["']([^"']*)["']/i.exec(tag)?.[1] || '') : '';
+  }).find(Boolean) || '';
+  const metadata = /^(.*?)\s+-\s+(.*?)\s+-\s+Cifra Club\s*$/i.exec(ogTitle);
+  const title = text(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1] || '').trim() || metadata?.[1]?.trim();
+  const artist = text(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i.exec(html)?.[1] || '').trim() || metadata?.[2]?.trim();
+  if (!title || !artist) throw new Error('O Cifra Club retornou uma versão sem título ou artista reconhecidos.');
+  const keyArea = /(?:id|class)=["'][^"']*\bcifra_tom\b[^"']*["'][^>]*>([\s\S]{0,1200})/i.exec(html)?.[1] || '';
+  const keyLabel = text(keyArea.split(/<\/(?:a|span|div)>/i)[0]).trim();
+  const originalKey = /^(?:tom\s*:\s*)?([A-G](?:#|b)?(?:m|maj|min)?)(?=\s|$)/i.exec(keyLabel)?.[1]
+    || /\bdata-original-key=["']([A-G](?:#|b)?(?:m|maj|min)?)["']/i.exec(html)?.[1];
+  return { id: canonical, title: title.slice(0, 300), artist: artist.slice(0, 300), content, ...(originalKey ? { originalKey } : {}), source: 'Cifra Club', sourceUrl: canonical, kind: 'chords' };
+}
 
 export function parseSongPage(html, url) {
   const headline = /<h1\b[^>]*class="[^"]*t-song-details__marquee__headline[^"]*"[^>]*>([\s\S]*?)<\/h1>/i.exec(html);
@@ -237,9 +392,9 @@ export function parseSongPage(html, url) {
   return { id: url, title, artist, originalKey, content, source: 'Worship Together', sourceUrl: url, kind: 'chords' };
 }
 
-async function fetchPublic(url) {
+async function fetchPublic(url, source = 'A fonte') {
   const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(8_000), headers: { Accept: 'text/html, application/xml;q=0.9', 'User-Agent': 'Candeia/1.0 (+public-song-reference)' } });
-  if (!response.ok) throw new Error(response.status === 403 || response.status === 429 ? 'A fonte não permitiu a consulta neste momento. Tente novamente mais tarde ou cole uma cifra que você tenha autorização para usar.' : 'A fonte de cifras está indisponível. Tente novamente mais tarde.');
+  if (!response.ok) throw new Error(response.status === 403 || response.status === 429 ? `${source} bloqueou a consulta automática neste momento. Você pode abrir o link e usar a importação manual.` : `${source} está indisponível agora (HTTP ${response.status}). Tente novamente mais tarde.`);
   if (Number(response.headers.get('content-length') || 0) > MAX_SOURCE_BYTES) throw new Error('A resposta da fonte excedeu o tamanho permitido.');
   const reader = response.body.getReader();
   let total = 0;
@@ -278,12 +433,19 @@ export async function handler(event) {
   try {
     if (params.url) {
       const url = allowedSongUrl(params.url);
-      if (!url) return json(400, { error: 'Informe uma página pública de música do Worship Together.' });
-      return json(200, { song: parseSongPage(await fetchPublic(url), url) });
+      if (!url) return json(400, { error: 'Informe uma página pública de música do Cifra Club ou Worship Together.' });
+      const isCifra = url.startsWith(CIFRA_ORIGIN);
+      const html = await fetchPublic(url, isCifra ? 'O Cifra Club' : 'O Worship Together');
+      return json(200, { song: isCifra ? parseCifraClubPage(html, url) : parseSongPage(html, url) });
     }
     const title = normalize((params.title || '').slice(0, 200));
     const artist = normalize((params.artist || '').slice(0, 200));
     if (title.length < 2) return json(400, { error: 'Informe pelo menos dois caracteres do título.' });
+    if (params.source === 'cifraclub') {
+      const query = [title, artist].filter(Boolean).join(' ');
+      const body = await fetchPublic(`${CIFRA_SEARCH}?${new URLSearchParams({ q: query, rows: '12', wt: 'json' })}`, 'O Cifra Club');
+      return json(200, { results: parseCifraClubSearch(body) });
+    }
     const allTerms = title.split(' ').filter(Boolean);
     const keywords = allTerms.filter(term => term.length > 2 && !['de', 'do', 'da', 'das', 'dos', 'the', 'and', 'com', 'uma', 'para', 'por'].includes(term));
     const terms = keywords.length ? keywords : allTerms;

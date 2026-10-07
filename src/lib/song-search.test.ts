@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cifraClubSearchUrl, cifraClubUrlFromNotes, isSafeCifraClubUrl, mapLyricsResults, notesWithCifraClubSource, previewSongSource, searchSongSources, sourceKey } from './song-search';
+import { cifraClubSearchUrl, cifraClubUrlFromNotes, isSafeCifraClubUrl, mapLyricsResults, notesWithCifraClubSource, previewSongSource, searchSongSources, searchUnifiedSongSources, sourceKey } from './song-search';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -52,5 +52,34 @@ describe('busca de fontes de músicas', () => {
     await expect(searchSongSources('Canção', '', 'chords')).rejects.toThrow('função de consulta publicada');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'Fonte indisponível.' }), { status: 502 })));
     await expect(previewSongSource({ id: '1', title: 'Canção', artist: '', kind: 'chords', source: 'Worship Together', sourceUrl: 'https://www.worshiptogether.com/pt/cancoes/cancao/' })).rejects.toThrow('Fonte indisponível.');
+  });
+
+  it('faz uma única busca com cifras do Cifra Club antes das letras do LRCLIB', async () => {
+    const cifra = { id: 'cifra', title: 'Canção', artist: 'Equipe', source: 'Cifra Club', sourceUrl: 'https://www.cifraclub.com.br/equipe/cancao/', kind: 'chords' };
+    const fetcher = vi.fn(async (url: string) => url.startsWith('/.netlify/')
+      ? new Response(JSON.stringify({ results: [cifra] }), { status: 200 })
+      : new Response(JSON.stringify([{ id: 1, trackName: 'Canção', artistName: 'Equipe', plainLyrics: 'Nossa luz' }]), { status: 200 }));
+    vi.stubGlobal('fetch', fetcher);
+    const result = await searchUnifiedSongSources('Canção', 'Equipe');
+    expect(result.results.map(song => song.source)).toEqual(['Cifra Club', 'LRCLIB']);
+    expect(result.warnings).toEqual([]);
+    expect(new URL(fetcher.mock.calls[0][0], 'https://candeia.test').searchParams.get('source')).toBe('cifraclub');
+  });
+
+  it('mantém o LRCLIB acessível e apresenta o erro específico se o Cifra Club falhar', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.startsWith('/.netlify/')
+      ? new Response(JSON.stringify({ error: 'O Cifra Club bloqueou a consulta automática.' }), { status: 502 })
+      : new Response(JSON.stringify([{ id: 1, trackName: 'Canção', artistName: 'Equipe', plainLyrics: 'Nossa luz' }]), { status: 200 })));
+    const result = await searchUnifiedSongSources('Canção', 'Equipe');
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].source).toBe('LRCLIB');
+    expect(result.warnings).toEqual(['Cifra Club: O Cifra Club bloqueou a consulta automática.']);
+  });
+
+  it('cancelar a busca não transforma cancelamento em aviso de indisponibilidade', async () => {
+    const controller = new AbortController();
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url, options) => Promise.reject(options.signal.reason)));
+    controller.abort();
+    await expect(searchUnifiedSongSources('Canção', 'Equipe', controller.signal)).rejects.toHaveProperty('name', 'AbortError');
   });
 });

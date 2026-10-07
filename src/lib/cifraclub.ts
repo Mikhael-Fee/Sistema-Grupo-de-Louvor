@@ -1,4 +1,4 @@
-import { KEYS, stripChords } from './music';
+import { chordMarkers, KEYS, stripChords } from './music';
 
 export interface ParsedCifraClubText {
   content: string;
@@ -97,6 +97,23 @@ function alignChords(lyrics: string, row: ChordRow): string {
   return result + characters.slice(cursor).join('');
 }
 
+function containsMarker(line: string): boolean {
+  for (const marker of chordMarkers(line)) if (marker.value) return true;
+  return false;
+}
+
+function normalizeInlineMarkers(line: string): string {
+  let result = '';
+  let cursor = 0;
+  for (const marker of chordMarkers(line)) {
+    const normalized = normalizedChord(marker.value);
+    if (!normalized) continue;
+    result += `${line.slice(cursor, marker.start)}[${normalized}]`;
+    cursor = marker.end;
+  }
+  return result + line.slice(cursor);
+}
+
 /** Convert user-pasted chord rows to the inline markers understood by transposition. */
 export function parseCifraClubText(value: string): ParsedCifraClubText {
   if (value.length > 100_000) throw new Error('A cifra é muito longa. Cole somente a letra e os acordes, até 100.000 caracteres.');
@@ -111,15 +128,12 @@ export function parseCifraClubText(value: string): ParsedCifraClubText {
     const row = readChordRow(line);
     const next = lines[index + 1];
     const canAlign = row && !row.standalone && next?.trim() && !detectedKey(next)
-      && !readChordRow(next) && !/^\s*\[[^\]]+\]\s*$/.test(next) && !/\[[^\]\r\n]+\]/.test(next);
+      && !readChordRow(next) && !/^\s*\[[^\]]+\]\s*$/.test(next) && !containsMarker(next);
     if (row && canAlign) {
       output.push(alignChords(next, row));
       index++;
     } else if (row) output.push(standaloneChordLine(line, row));
-    else output.push(line.replace(/\[([^\]\r\n]+)\]/g, (marker, chord: string) => {
-      const normalized = normalizedChord(chord);
-      return normalized ? `[${normalized}]` : marker;
-    }));
+    else output.push(normalizeInlineMarkers(line));
   }
   return { content: output.join('\n').trim(), ...(originalKey ? { originalKey } : {}) };
 }

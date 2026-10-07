@@ -3,6 +3,8 @@
  * node scripts/deploy-netlify.mjs --check
  * node scripts/deploy-netlify.mjs --deploy /workspace/scratch/louvor-site.zip
  * node scripts/deploy-netlify.mjs --deploy-dir dist --functions-dir netlify/functions
+ * node scripts/deploy-netlify.mjs --draft --deploy-dir dist --functions-dir netlify/functions
+ * --draft tests an isolated deploy URL without changing the published site.
  * NETLIFY_SITE_ID optionally selects an existing accessible site.
  * Only --deploy/--deploy-dir create/upload. No site is deleted, and the same release is
  * reused when already published or processing. Pending uploads can be resumed
@@ -23,7 +25,9 @@ import { createHash } from 'node:crypto';
 import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 
-const args = process.argv.slice(2);
+const rawArgs = process.argv.slice(2);
+const draft = rawArgs[0] === '--draft';
+const args = draft ? rawArgs.slice(1) : rawArgs;
 const check = args.length === 1 && args[0] === '--check';
 const deploy = args.length === 2 && args[0] === '--deploy';
 const deployDirectory = (args.length === 2 || (args.length === 4 && args[2] === '--functions-dir')) && args[0] === '--deploy-dir';
@@ -32,7 +36,7 @@ const token = process.env.NETLIFY_AUTH_TOKEN;
 const explicitSiteId = process.env.NETLIFY_SITE_ID;
 const apiBase = 'https://api.netlify.com/api/v1';
 const siteName = 'louvor-grupo-fxebsy';
-const statePath = '/workspace/scratch/louvor-netlify-state.json';
+const statePath = draft ? '/workspace/scratch/candeia-netlify-draft-state.json' : '/workspace/scratch/louvor-netlify-state.json';
 const deadline = Date.now() + 120_000;
 const curlEnvironment = { ...process.env };
 delete curlEnvironment.NETLIFY_AUTH_TOKEN;
@@ -40,8 +44,8 @@ const safeId = value => typeof value === 'string' && /^[a-z0-9-]{1,128}$/i.test(
 let snapshot;
 let bundleDirectory;
 
-if (!check && !deploy && !deployDirectory) {
-  console.error('Use --check, --deploy CAMINHO_DO_ZIP ou --deploy-dir DIST [--functions-dir FUNÇÕES]. Nenhuma alteração foi feita.');
+if ((!check && !deploy && !deployDirectory) || (draft && !deployDirectory)) {
+  console.error('Use --check, --deploy CAMINHO_DO_ZIP ou [--draft] --deploy-dir DIST [--functions-dir FUNÇÕES]. Nenhuma alteração foi feita.');
   process.exit(1);
 }
 if (!token || /[\r\n]/.test(token)) {
@@ -100,9 +104,11 @@ function metadata(site, deployment, state = 'created') {
   const observedState = deployment?.state ?? state;
   return {
     site_id: site.id,
-    url: observedHttps(site.ssl_url, deployment?.ssl_url, site.url, deployment?.url, deployment?.deploy_ssl_url),
+    url: draft ? observedHttps(deployment?.deploy_ssl_url, deployment?.deploy_url, deployment?.ssl_url, deployment?.url)
+      : observedHttps(site.ssl_url, deployment?.ssl_url, site.url, deployment?.url, deployment?.deploy_ssl_url),
     deploy_id: deployment?.id ?? null,
     state: typeof observedState === 'string' && /^[a-z_-]{1,40}$/i.test(observedState) ? observedState : 'unknown',
+    ...(draft ? { draft: true } : {}),
   };
 }
 
@@ -212,7 +218,7 @@ async function directoryRelease(path, functionsPath) {
       if (!functionAssets.has(sha)) functionAssets.set(sha, { file, name, sha, size });
     }
   }
-  const body = { files, functions, functions_config: functionsConfig };
+  const body = { files, functions, functions_config: functionsConfig, ...(draft ? { draft: true } : {}) };
   const digest = createHash('sha256').update(JSON.stringify(body)).digest('hex');
   return { body, fileAssets, functionAssets, title: `Louvor directory release ${digest}` };
 }
@@ -251,10 +257,12 @@ try {
     console.log(JSON.stringify(site ? metadata(site, existing, 'existing') : { site_id: null, url: null, deploy_id: null, state: 'not_found' }));
   } else {
     if (!site) {
+      if (draft) throw new Error('Selecione um site existente para testar um deploy isolado. Nenhum site foi criado.');
       site = await api('/sites', { method: 'POST', body: { name: siteName, force_ssl: true } });
       if (!safeId(site?.id)) throw new Error('A criação não retornou um ID válido. Confira os sites antes de repetir.');
       await saveState(metadata(site));
     }
+    const publishedBefore = site.published_deploy?.id;
     const recent = await api(`/sites/${site.id}/deploys?per_page=100`);
     if (!Array.isArray(recent)) throw new Error('A listagem de deploys retornou um formato inesperado.');
     let deployment = recent.find(candidate => candidate.title === archive.title && candidate.state !== 'error'
@@ -269,6 +277,10 @@ try {
       });
     }
     if (!safeId(deployment?.id) || deployment.site_id !== site.id) throw new Error('O deploy não retornou IDs válidos para o site selecionado.');
+    // Netlify omits `draft` from live responses despite accepting it in the
+    // documented request body. Reject an explicit false and verify the site's
+    // published deploy again after readiness, keeping separate local state.
+    if (draft && deployment.draft === false) throw new Error('A API recusou o deploy isolado. Nenhum arquivo foi enviado.');
     await saveState(metadata(site, deployment));
     await uploadRequired(deployment, archive);
     while (!['ready', 'error'].includes(deployment.state) && Date.now() < deadline) {
@@ -279,6 +291,10 @@ try {
       catch (error) { if (Date.now() >= deadline) break; throw error; }
       if (!safeId(deployment?.id) || deployment.site_id !== site.id) throw new Error('A consulta de deploy retornou IDs inesperados.');
       await saveState(metadata(site, deployment));
+    }
+    if (draft && deployment.state === 'ready') {
+      const verifiedSite = await api(`/sites/${site.id}`);
+      if (verifiedSite.published_deploy?.id !== publishedBefore) throw new Error('A verificação do site publicado mudou durante o teste isolado. Revise os deploys antes de continuar.');
     }
     console.log(JSON.stringify(snapshot));
     if (deployment.state === 'error') process.exitCode = 1;
