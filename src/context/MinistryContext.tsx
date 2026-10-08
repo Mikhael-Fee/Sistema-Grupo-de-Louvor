@@ -11,10 +11,11 @@ interface MinistryContextValue {
   busy: boolean; error: string | null; canEditLibrary: boolean; canPlan: boolean;
   enterPublic(): Promise<void>; signOut(): Promise<void>; refresh(): Promise<void>;
   saveSong(song: Song): Promise<void>; deleteSong(id: string): Promise<void>;
-  savePerson(person: Person): Promise<void>; deletePerson(id: string): Promise<void>;
+  savePerson(person: Person, photoChange?: Blob | null): Promise<void>; deletePerson(id: string): Promise<void>;
   saveTag(tag: Tag): Promise<void>; deleteTag(id: string): Promise<void>;
   saveService(service: Service): Promise<void>; deleteService(id: string): Promise<void>;
   listProfiles(): Promise<Profile[]>; updateProfile(profile: Profile): Promise<void>;
+  updateProfilePhoto(photo: Blob | null): Promise<void>;
 }
 const Context = createContext<MinistryContextValue | null>(null);
 const check = (message: string | null) => { if (message) throw new Error(message); };
@@ -141,14 +142,33 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
       if (data.services.some(s => s.repertoire.some(i => i.songId === id))) throw new Error('Esta música está em um repertório. Remova-a do culto antes de excluir.');
       await mutate('library', () => repository.deleteSong(id));
     },
-    async savePerson(person) {
+    async savePerson(person, photoChange) {
       check(validatePerson(person));
       if (data.services.some(s => s.assignments.some(a => a.personId === person.id && !person.functions.includes(a.function)))) throw new Error('Uma função removida está em uso numa escala. Ajuste a escala primeiro.');
-      await mutate('library', () => repository.savePerson(person));
+      await mutate('library', async () => {
+        const previous = data.people.find(p => p.id === person.id)?.photoUrl;
+        const uploaded = photoChange instanceof Blob ? await repository.uploadAvatar(photoChange) : undefined;
+        const photoUrl = photoChange === undefined ? person.photoUrl : uploaded ?? '';
+        try {
+          await repository.savePerson({ ...person, photoUrl });
+        } catch (e) {
+          if (uploaded) await repository.deleteAvatar(uploaded).catch(() => {});
+          throw e;
+        }
+        // The write has committed. A later refresh error must not delete the
+        // new photograph. Old objects are best-effort cleanup after commit.
+        if (photoChange !== undefined && previous && previous !== photoUrl) {
+          await repository.deleteAvatar(previous).catch(() => {});
+        }
+      });
     },
     async deletePerson(id) {
       if (data.services.some(s => s.assignments.some(a => a.personId === id))) throw new Error('Esta pessoa está em uma escala ou vinculada a um perfil. Remova os vínculos antes de excluir.');
-      await mutate('library', () => repository.deletePerson(id));
+      await mutate('library', async () => {
+        const previous = data.people.find(p => p.id === id)?.photoUrl;
+        await repository.deletePerson(id);
+        if (previous) await repository.deleteAvatar(previous).catch(() => {});
+      });
     },
     async saveTag(tag) {
       check(validateTag(tag));
@@ -162,6 +182,27 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
     async updateProfile(nextProfile) {
       authorize('admin');
       await repository.updateProfile(nextProfile); await loadUser(profile?.id, false);
+    },
+    async updateProfilePhoto(photo) {
+      if (mode !== 'supabase' || !profile || !supabase) throw new Error('Entre na sua conta para alterar a foto.');
+      if (lock.current) throw new Error('Aguarde a alteração em andamento.');
+      const actor = profile.id;
+      const previous = profile.photoUrl;
+      lock.current = true; setBusy(true); setError(null);
+      try {
+        const uploaded = photo ? await repository.uploadAvatar(photo) : undefined;
+        const nextUrl = uploaded ?? '';
+        try {
+          await repository.updateMyProfilePhoto(nextUrl);
+        } catch (e) {
+          if (uploaded) await repository.deleteAvatar(uploaded).catch(() => {});
+          throw e;
+        }
+        if (modeRef.current === 'supabase' && sessionUser.current === actor) {
+          setProfile(current => current?.id === actor ? { ...current, photoUrl: nextUrl || undefined } : current);
+        }
+        if (previous && previous !== nextUrl) await repository.deleteAvatar(previous).catch(() => {});
+      } finally { lock.current = false; setBusy(false); }
     },
   };
   return <Context.Provider value={value}>{children}</Context.Provider>;

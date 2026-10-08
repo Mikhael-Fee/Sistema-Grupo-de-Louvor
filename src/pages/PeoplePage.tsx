@@ -3,12 +3,13 @@ import { Mail, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import { useMinistry } from '../context/MinistryContext';
 import { useDraft } from '../hooks/useDraft';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
+import ProfileAvatar from '../components/ProfileAvatar';
+import PhotoPicker, { type PhotoChange } from '../components/PhotoPicker';
 import { validatePerson } from '../lib/validation';
 import { normalizeSearch } from '../lib/music';
 import { FUNCTIONS, type Person } from '../types';
 import './people.css';
 
-const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 2).join('').toUpperCase();
 const readableError = (error: unknown) => error instanceof Error ? error.message : 'Não foi possível concluir a operação. Tente novamente.';
 
 function PersonForm({ initial, onSaved, onCancel }: { initial: Person; onSaved: () => void; onCancel: () => void }) {
@@ -17,18 +18,20 @@ function PersonForm({ initial, onSaved, onCancel }: { initial: Person; onSaved: 
   const { draft, setDraft, discardDraft, hasDraft } = useDraft<Person>(`person:${existing ? initial.id : 'new'}`, initial);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [photo, setPhoto] = useState<PhotoChange>(undefined);
+  const [photoProcessing, setPhotoProcessing] = useState(false);
   const lock = useRef(false);
-  const disabled = saving || busy;
+  const disabled = saving || busy || photoProcessing;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canEditLibrary || lock.current || busy) return;
+    if (!canEditLibrary || lock.current || busy || photoProcessing) return;
     const person = { ...draft, name: draft.name.trim(), email: draft.email.trim() };
     const validation = validatePerson(person);
     if (validation) { setError(validation); return; }
     lock.current = true;
     setSaving(true);
     setError(null);
-    try { await savePerson(person); discardDraft(); onSaved(); }
+    try { await savePerson(person, photo); discardDraft(); onSaved(); }
     catch (err) { setError(readableError(err)); }
     finally { lock.current = false; setSaving(false); }
   }
@@ -36,6 +39,7 @@ function PersonForm({ initial, onSaved, onCancel }: { initial: Person; onSaved: 
     {hasDraft && <p className="muted" role="status" style={{ gridColumn: '1 / -1', fontSize: 12 }}>Rascunho guardado nesta aba. Você pode sair e continuar depois.</p>}
     <label className="field">Nome<input autoFocus required maxLength={120} disabled={disabled} value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} placeholder="Nome e sobrenome" autoComplete="name" /></label>
     <label className="field">E-mail <span className="muted">(opcional)</span><input type="email" maxLength={254} disabled={disabled} value={draft.email} onChange={event => setDraft({ ...draft, email: event.target.value })} placeholder="pessoa@exemplo.com" autoComplete="email" /></label>
+    <PhotoPicker name={draft.name || 'nova pessoa'} currentPhotoUrl={initial.photoUrl} value={photo} onChange={setPhoto} onBusyChange={setPhotoProcessing} disabled={saving || busy} />
     <fieldset className="people-functions-field"><legend>Funções no ministério</legend><p className="muted">Selecione uma ou mais funções. A função de cada culto será definida na escala.</p><div className="people-function-options">{FUNCTIONS.map(fn => <label key={fn} className={`people-function-option ${draft.functions.includes(fn) ? 'active' : ''}`}><input type="checkbox" disabled={disabled} checked={draft.functions.includes(fn)} onChange={event => setDraft({ ...draft, functions: event.target.checked ? [...draft.functions, fn] : draft.functions.filter(value => value !== fn) })} />{fn}</label>)}</div></fieldset>
     <FormError error={error} /><div className="form-actions"><button type="button" className="button button-secondary" disabled={disabled} onClick={() => { discardDraft(); onCancel(); }}>Cancelar</button><button className="button button-primary" disabled={disabled}>{saving ? 'Salvando…' : 'Salvar pessoa'}</button></div>
   </form>;
@@ -77,7 +81,7 @@ export default function PeoplePage() {
     {people.length ? <div className="people-grid">{people.map((person, index) => {
       const inUse = data.services.some(service => service.assignments.some(assignment => assignment.personId === person.id));
       return <article className="people-person card" key={person.id}>
-        <div className="people-person-heading"><span className={`people-avatar people-avatar-${index % 4}`} aria-hidden="true">{initials(person.name)}</span>{canEditLibrary && <div className="people-person-actions"><button className="icon-button" aria-label={`Editar ${person.name}`} onClick={() => openEditor(person)}><Pencil size={16} /></button><button className="icon-button" aria-label={`Excluir ${person.name}`} disabled={inUse} title={inUse ? 'Esta pessoa está na escala de um culto.' : 'Excluir pessoa'} onClick={() => { setError(null); setRemoving(person); }}><Trash2 size={16} /></button></div>}</div>
+        <div className="people-person-heading"><ProfileAvatar name={person.name} photoUrl={person.photoUrl} size={44} className={`people-avatar people-avatar-${index % 4}`} decorative />{canEditLibrary && <div className="people-person-actions"><button className="icon-button" aria-label={`Editar ${person.name}`} onClick={() => openEditor(person)}><Pencil size={16} /></button><button className="icon-button" aria-label={`Excluir ${person.name}`} disabled={inUse} title={inUse ? 'Esta pessoa está na escala de um culto.' : 'Excluir pessoa'} onClick={() => { setError(null); setRemoving(person); }}><Trash2 size={16} /></button></div>}</div>
         <h2>{person.name}</h2><div className="people-functions">{person.functions.map(fn => <span className="badge people-function" key={fn}>{fn}</span>)}</div>
         {mode !== 'public' && <div className="people-contact">{person.email ? <a href={`mailto:${person.email}`}><Mail size={15} />{person.email}</a> : <span className="muted">Sem e-mail cadastrado</span>}</div>}
       </article>;

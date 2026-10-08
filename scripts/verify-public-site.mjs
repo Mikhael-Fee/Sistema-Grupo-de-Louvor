@@ -1,5 +1,5 @@
 /** Read-only production guest/PWA/mobile checks. No accounts or demo records. */
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
 
@@ -28,7 +28,7 @@ try {
   page.on('request', request => {
     const path = new URL(request.url()).pathname;
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method())
-      && /\/rest\/v1\//.test(path) && !/\/rpc\/(read_public_ministry|get_public_access)$/.test(path)) writes.push(path);
+      && /\/(?:rest|storage)\/v1\//.test(path) && !/\/rpc\/(read_public_ministry|get_public_access)$/.test(path)) writes.push(path);
   });
   page.setDefaultTimeout(25000);
   await page.goto(origin);
@@ -80,6 +80,18 @@ try {
     transpositionChecked = true;
   }
   expect(writes.length === 0, 'Consulta não envia gravações ao banco');
+  stage = 'gráficos públicos';
+  await page.goto(`${origin}/graficos`);
+  await page.getByRole('heading', { name: 'Gráficos', exact: true }).waitFor();
+  expect(await page.getByLabel('Período das análises', { exact: true }).isVisible(), 'Gráficos publicados com filtros');
+  await page.getByLabel('Período das análises', { exact: true }).selectOption('30');
+  expect(await page.getByRole('region', { name: 'Resumo das análises', exact: true }).isVisible(), 'Filtros mantêm o resumo público');
+  await page.setViewportSize({ width: 320, height: 800 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Gráficos cabem em320px');
+  expect(await page.locator('a[href^="mailto:"]').count() === 0
+    && await page.getByRole('link', { name: 'Meu perfil', exact: true }).count() === 0, 'Consulta mantém contatos e edição do perfil privados');
+  expect(writes.length === 0, 'Gráficos não enviam gravações');
+  await page.setViewportSize({ width: 390, height: 844 });
   stage = 'manifest e service worker';
   const manifest = await page.evaluate(async () => {
     const response = await fetch('/manifest.webmanifest');
@@ -121,20 +133,12 @@ try {
   await page.goto(`${origin}/conectar-cifra-club`);
   await page.getByRole('heading', { name: 'Importar do Cifra Club sem copiar e colar', exact: true }).waitFor();
   expect(await page.getByRole('heading', { name: 'Importar do Cifra Club sem copiar e colar', exact: true }).isVisible(), 'Guia publicado');
-  expect(await page.getByRole('heading', { name: 'Importar pelo celular', exact: true }).isVisible(), 'Guia abre na opção de celular');
-  await page.getByRole('button', { name: 'Copiar favorito de importação', exact: true }).waitFor({ state: 'visible' });
-  await page.waitForFunction(() => !Array.from(document.querySelectorAll('button')).find(button => button.textContent.includes('Copiar favorito de importação'))?.disabled);
-  expect(await page.getByRole('button', { name: 'Copiar favorito de importação', exact: true }).isEnabled(), 'Favorito Android disponível');
+  expect(await page.getByRole('heading', { name: 'Importar PDF pelo celular', exact: true }).isVisible(), 'Guia abre na importaçãoPDF');
+  expect(await page.getByText('Salvar como PDF', { exact: true }).isVisible(), 'Android orienta salvarPDF');
+  expect(await page.getByRole('button', { name: /Copiar favorito|Copiar script/ }).count() === 0, 'Guia móvel simplificado');
   await page.getByRole('button', { name: 'iPhone / iPad', exact: true }).click();
-  expect(await page.getByRole('heading', { name: 'Configurar no app Atalhos do iPhone', exact: true }).isVisible(), 'Instruções iPhone disponíveis');
-  for (const name of ['candeia-cifra-celular.txt', 'candeia-cifra-iphone.js']) {
-    const downloadedScript = await page.evaluate(async name => {
-      const response = await fetch(`/downloads/${name}`);
-      return { status: response.status, text: await response.text() };
-    }, name);
-    const builtScript = await readFile(new URL(`../dist/downloads/${name}`, import.meta.url), 'utf8');
-    expect(downloadedScript.status === 200 && downloadedScript.text === builtScript, `Importador móvel publicado corresponde ao build: ${name}`);
-  }
+  expect(await page.getByText('Compartilhar → Salvar em Arquivos', { exact: true }).isVisible(), 'iPhone orienta salvarPDF');
+  expect(await page.getByRole('link', { name: 'Abrir biblioteca para importar', exact: true }).getAttribute('href') === '/musicas', 'Guia aponta para biblioteca');
   await page.getByRole('tab', { name: 'Computador', exact: true }).click();
   expect(await page.getByText('Atualização 1.1.1:', { exact: true }).isVisible(), 'Guia orienta atualização do importador');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Guia cabe no celular');
@@ -145,6 +149,20 @@ try {
   const downloaded = await readFile(await download.path());
   const built = await readFile(new URL('../dist/downloads/candeia-cifraclub.zip', import.meta.url));
   expect(createHash('sha256').update(downloaded).digest('hex') === createHash('sha256').update(built).digest('hex'), 'Download publicado corresponde ao pacote 1.1.1 do build');
+  stage = 'leitor PDF publicado';
+  const pdfAsset = (await readdir(new URL('../dist/assets/', import.meta.url))).filter(name => /^cifra-pdf-[\w-]+\.js$/.test(name) && !name.startsWith('cifra-pdf-worker-'));
+  expect(pdfAsset.length === 1, 'Build tem um módulo de importação PDF');
+  const pdf = await readFile(new URL('../tests/fixtures/cifra-chart.pdf', import.meta.url));
+  const parsed = await page.evaluate(async ({ asset, bytes }) => {
+    const { readCifraPdf } = await import(asset);
+    const source = await readCifraPdf(new File([new Uint8Array(bytes)], 'verificacao-local.pdf', { type: 'application/pdf' }));
+    return { content: source.content, key: source.originalKey, title: source.title };
+  }, { asset: `${origin}/assets/${pdfAsset[0]}`, bytes: [...pdf] });
+  expect(parsed.key === 'G' && parsed.content.includes('[G]') && parsed.content.includes('[F#7(b9)]'), 'PDF e worker publicados extraem acordes reais');
+  const workerClosedDeadline = Date.now() + 5000;
+  while (page.workers().length && Date.now() < workerClosedDeadline) await new Promise(resolve => setTimeout(resolve, 50));
+  expect(page.workers().length === 0, 'Leitura publicada encerra o worker');
+  expect(writes.length === 0, 'Leitura PDF local não envia arquivo ou gravações');
   stage = 'shell offline';
   // Shared ministry data remains online-only. Test the cached login shell.
   await page.evaluate(() => sessionStorage.removeItem('candeia.public.session'));

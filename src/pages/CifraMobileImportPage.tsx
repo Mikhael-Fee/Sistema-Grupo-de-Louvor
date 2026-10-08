@@ -24,7 +24,7 @@ export default function CifraMobileImportPage() {
         {canEditLibrary ? <button className="button button-primary" onClick={() => setEditing(true)}><Download size={16} />Revisar e salvar na biblioteca</button>
           : <p>Uma conta administradora pode salvar esta cifra na biblioteca. A transferência não altera os dados do ministério.</p>}
         <div className="form-actions"><button className="button button-secondary" onClick={discard}>Descartar importação</button></div>
-      </> : <><p>Nenhuma cifra está pendente. Abra a música no navegador e execute o importador do celular.</p><Link className="button button-primary" to="/conectar-cifra-club">Configurar importação no celular</Link></>}
+      </> : <><p>Nenhuma cifra está pendente. Para importar pelo celular, salve a cifra como PDF e escolha o arquivo em Biblioteca → Nova música.</p><Link className="button button-primary" to="/conectar-cifra-club">Ver guia de importação</Link></>}
     </section>
     {pending && editing && <SongEditor incomingSource={pending.song} incomingDraftId={pending.id} onClose={() => setEditing(false)} onSaved={discard} />}
   </>;

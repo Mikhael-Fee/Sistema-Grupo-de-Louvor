@@ -1,6 +1,48 @@
 # Validação da atualização Candeia — 08/10/2026
 
-## Versão atual — artista, temáticas livres e importação móvel
+## Versão atual — PDF no celular, gráficos e fotos
+
+Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app) com deploy `6ac7e22149737a81462e075b`, confirmado `ready` pela API Netlify. A aplicação e a função foram publicadas juntas no mesmo site. Esta versão acrescenta importação de cifra por PDF, gráficos do planejamento e fotos de perfil/integrantes. As verificações locais, de fotos no Supabase real e as 41 verificações públicas do deploy final foram concluídas, incluindo o ajuste de cancelamento da leitura do arquivo.
+
+O usuário relatou que o favorito de importação não funcionou no Chrome/Xiaomi. Os guias de favorito JavaScript e Atalhos foram retirados do fluxo atual. Testes anteriores de navegação/fixtures não validaram esses controles em aparelhos físicos. O receptor e artefatos antigos continuam somente por compatibilidade, e seu histórico permanece abaixo.
+
+O fluxo atual de celular é **abrir a cifra normalmente → Imprimir/Salvar como PDF → Biblioteca/Nova música/Escolher PDF da cifra → revisar/importar/salvar**. PDF.js 6 e worker são carregados sob demanda e leem o texto localmente, com limites de 8 MiB, 20 páginas, 100.000 caracteres, 30.000 itens e 25 segundos. Cada página é liberada e o worker destruído no término ou cancelamento. Não há OCR, renderização ou upload do PDF. PDFs sem texto selecionável, com senha, inválidos ou excessivos são recusados. A prévia reconstrói alinhamento/colunas, limpa tablaturas e preserva tom-base/capotraste; metadados e endereço canônico são usados quando presentes e completados pelo usuário quando ausentes. O único campo editável de letra e cifra e o salvamento explícito continuam.
+
+Sete cenários com leitura real de PDFs controlados passaram, incluindo a ausência de `Promise.withResolvers` na página e no worker. A compatibilidade é instalada nos dois contextos antes de PDF.js; o Vite pré-otimiza seus módulos para evitar recarregamento do editor em desenvolvimento. A PWA exclui bundles PDF/worker do precache, mantendo o download sob demanda, e falha de inicialização do worker recebe orientação em português. No domínio final, o build publicado também leu um PDF controlado com worker real, preservou os acordes `F#7(b9)` e `G` e terminou sem worker remanescente.
+
+A verificação repetiu 23 leituras: três de aquecimento e 20 para comparação de heap após coleta de lixo via CDP. Houve também cancelamento com a inicialização do worker controlada pelo teste. Depois de cada leitura/cancelamento restaram **zero workers**, e a diferença de heap após aquecimento foi **572 KiB na rodada específica e 576 KiB na suíte completa**. O conteúdo ficou no rascunho, sem criação de registro no banco. Essa é memória JavaScript da página no Chromium de teste, **não a RAM total do Chrome nem uma medição de aparelho físico**; não reproduz por si só o episódio de 3 GB relatado anteriormente.
+
+O ajuste final também verifica cancelamento durante `File.arrayBuffer()`: o sinal é conferido após a leitura do cabeçalho e dos bytes completos, para não iniciar o worker caso o sistema entregue os dados depois de cancelar. Os sete cenários PDF passaram novamente em 23 segundos, com zero workers remanescentes e delta de heap de 572 KiB. Essa rodada específica não repete todos os 70 cenários da interface.
+
+`/graficos` oferece período, datas, temática, evolução e rankings de planejamento para acessos aprovados e consulta pública liberada. Pessoas e músicas contam uma vez por culto; funções contam atribuições e etiquetas podem somar mais de 100%, com nota sobre sobreposição. Os totais de cadastro mostram o estado atual e não mudam pelo período. Uma escala não comprova presença. Os dados são derivados do recorte já autorizado, sem novos registros de análises ou ações de escrita.
+
+`/perfil` permite escolher ou remover a foto própria, e administradores editam fotos dos integrantes em **Equipe**. As fotos são independentes. PNG/JPEG/WebP de até 10 MiB são preparados localmente para até 512 px e 300 KiB, com envio somente ao salvar. A migração `004_profile_photos.sql` foi aplicada no Supabase real e verificada como idempotente, preservando registros e permissões: URLs limitadas ao projeto, bucket público `avatars` de 2 MiB, objetos novos sob UID/UUID, RLS de Storage e RPC que altera apenas a foto própria. Imagens referenciadas não podem ser excluídas; perfis e e-mails continuam fora da consulta pública. O helper `scripts/verify-profile-photos.mjs` concluiu separadamente 10 verificações reais de Storage/Auth/RPC, cobrindo limites, isolamento, fotos públicas e uso por perfil/equipe. Todas as contas, a pessoa e as imagens descartáveis foram removidas; a conta proprietária permaneceu intacta.
+
+| Verificação desta atualização | Resultado registrado |
+| --- | --- |
+| Vitest | 184 testes passaram |
+| PostgreSQL/PGlite | 248 verificações passaram: 111 de domínio/RLS, 55 de consulta pública e 82 de fotos/Storage, com Auth simulado |
+| TypeScript e build Vite/PWA | Passaram, incluindo PDF.js/worker sob demanda |
+| Leitura PDF real em navegador de teste | 7 cenários passaram, incluindo compatibilidade na página/worker, cancelamento e repetição; zero workers remanescentes |
+| Memória da leitura PDF | 23 leituras; delta de heap JavaScript de 572 KiB na rodada específica e 576 KiB na completa após aquecimento/GC; nenhuma gravação no banco |
+| Supabase real, migração 004 | Aplicada e idempotência confirmada; configuração de bucket/RLS/RPC verificada, sem alteração dos registros existentes |
+| Playwright | 70 cenários distintos verificados: 63 passaram na rodada completa, e os 7 da extensão passaram depois em execução isolada de 11,1 s |
+| Fotos no Supabase real | 10 verificações de Storage/Auth/RPC passaram; contas, pessoa e arquivos temporários removidos; proprietário preservado |
+| Artefato local | 175 arquivos revisados, sem credenciais privadas ou source maps; os seis arquivos do ZIP correspondem exatamente ao código |
+| Precache PWA final | 46 entradas, 932,30 KiB; bundles PDF/worker excluídos e carregados ao escolher arquivo |
+| Configuração reutilizável Codex | `start_skill` atualizado para PDF, gráficos e fotos; `install_script` e demais configurações preservados; rascunho com `requires_publish: true` |
+| Domínio final em Chromium HTTPS | 41 verificações reais passaram no deploy final: consulta sem cadastro e sem gravação, transposição, gráficos/filtros em 320 px, PDF no build com worker real e término confirmado, guias Android/iPhone, hash do ZIP, manifest, service worker/cache estático e shell offline |
+| Publicação Netlify | Deploy `6ac7e22149737a81462e075b` confirmado `ready`; aplicação e função no mesmo site existente |
+
+A rodada completa do Playwright teve 63 aprovações, um timeout de 25 segundos na primeira leitura da extensão e seis casos posteriores dessa suíte serial sem execução. Sem mudar a implementação da extensão, os sete casos passaram na rodada isolada, incluindo a primeira leitura em 953 ms. Isso verifica os 70 cenários distintos em duas execuções; **não é uma aprovação de 70/70 em uma única rodada**. A causa do timeout não foi confirmada e não foi atribuída a CPU ou consumo de memória sem evidência. Os sete cenários PDF também tinham passado separadamente antes da rodada completa.
+
+O rascunho de configuração do ambiente Codex exige publicação pelo próprio produto e é separado do deploy Netlify. Não foi validada uma nova restauração completa do ambiente.
+
+A primeira execução pública extraiu o PDF corretamente, mas o teste contou workers antes de receber o evento de encerramento. O helper passou a aguardar esse evento por até cinco segundos; a rodada final concluiu as 41 verificações. Esse ajuste foi no teste, sem alterar o código de produção. Nenhum cadastro ou senha do proprietário foi alterado; os testes públicos não gravaram dados do ministério.
+
+Limites: PDFs controlados e viewports móveis do Chromium não validam os menus de impressão em aparelhos Android/Safari físicos. A cifra precisa abrir normalmente no navegador para gerar o PDF; a leitura direta pelo servidor continua sujeita ao HTTP 403 da fonte. Fotos salvas têm URLs públicas; desativar a consulta não torna o bucket privado. Medições anteriores de memória permanecem históricas e não foram repetidas nesta entrega; a medição nova de heap PDF descrita acima não equivale à RAM total do Chrome.
+
+## Versão anterior — artista, temáticas livres e importação móvel
 
 Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app) com deploy `6ac78b9df6e6f2d4a9b22aac`, confirmado `ready` pelo helper `--check`. Esta versão corrige o artista identificado como **Menu principal** e inclui a extensão **1.1.1**, temáticas livres de cultos e importadores de celular.
 

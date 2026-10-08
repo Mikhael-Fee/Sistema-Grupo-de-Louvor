@@ -1,6 +1,6 @@
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Copy, Download, ExternalLink, LoaderCircle, Monitor, Smartphone } from 'lucide-react';
+import { Check, Download, FileText, LoaderCircle, Monitor, Smartphone } from 'lucide-react';
 import Brand from '../components/Brand';
 import { cifraBrowserStatus } from '../lib/cifra-browser';
 import './cifra-browser.css';
@@ -14,95 +14,23 @@ function initialDevice(): MobileDevice {
 
 function MobileImporter() {
   const [device, setDevice] = useState<MobileDevice>(initialDevice);
-  const [script, setScript] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [manualCopy, setManualCopy] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [retry, setRetry] = useState(0);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setScript('');
-    setLoading(true);
-    setLoadError(false);
-    setManualCopy(false);
-    setCopied(false);
-    const path = device === 'android' ? '/downloads/candeia-cifra-celular.txt' : '/downloads/candeia-cifra-iphone.js';
-    void fetch(path, { signal: controller.signal }).then(async (response) => {
-      if (!response.ok) throw new Error('Importador indisponível.');
-      const value = await response.text();
-      if (!value || value.length > 100_000
-        || (device === 'android' ? !value.startsWith('javascript:') : !value.includes('completion('))) {
-        throw new Error('Importador inválido.');
-      }
-      if (!controller.signal.aborted) setScript(value);
-    }).catch(() => {
-      if (!controller.signal.aborted) setLoadError(true);
-    }).finally(() => {
-      if (!controller.signal.aborted) setLoading(false);
-    });
-    return () => controller.abort();
-  }, [device, retry]);
-
-  async function copyScript() {
-    if (!script) return;
-    try {
-      // The artifact is already loaded so Safari retains this click's
-      // activation when clipboard.writeText is invoked.
-      await navigator.clipboard.writeText(script);
-      setCopied(true);
-      setManualCopy(false);
-    } catch {
-      setCopied(false);
-      setManualCopy(true);
-    }
-  }
-
   return <section id="cifra-guide-mobile" role="tabpanel" aria-labelledby="cifra-tab-mobile" className="cifra-guide-panel">
-    <h2>Importar pelo celular</h2>
-    <p>Configure uma vez. Depois, abra a cifra no navegador, acione o importador e receba a prévia no Candeia, sem copiar o texto da música.</p>
+    <h2>Importar PDF pelo celular</h2>
+    <p>Salve a cifra como PDF no navegador e escolha o arquivo no Candeia. O programa extrai a letra e os acordes para você revisar e ajustar o tom.</p>
     <div className="cifra-device-choice" role="group" aria-label="Seu celular">
       <button className={`button ${device === 'android' ? 'button-primary' : 'button-secondary'}`} aria-pressed={device === 'android'} onClick={() => setDevice('android')}>Android</button>
       <button className={`button ${device === 'iphone' ? 'button-primary' : 'button-secondary'}`} aria-pressed={device === 'iphone'} onClick={() => setDevice('iphone')}>iPhone / iPad</button>
     </div>
-
-    <button className="button button-primary cifra-copy-button" disabled={loading || !script} onClick={() => void copyScript()}>
-      {loading ? <LoaderCircle size={17} className="spin" /> : copied ? <Check size={17} /> : <Copy size={17} />}
-      {device === 'android' ? 'Copiar favorito de importação' : 'Copiar script para iPhone'}
-    </button>
-    {copied && <p role="status">Copiado. Cole {device === 'android' ? 'no endereço do favorito' : 'na ação de JavaScript do Atalho'} seguindo os passos abaixo.</p>}
-    {loadError && <p role="alert">Não foi possível carregar o importador. <button className="button button-secondary" onClick={() => setRetry((value) => value + 1)}>Tentar novamente</button></p>}
-    {manualCopy && <div className="cifra-copy-fallback">
-      <label htmlFor="cifra-install-code">{device === 'android' ? 'Endereço do favorito' : 'Script do Atalho'}</label>
-      <p>Seu navegador não permitiu a cópia pelo botão. Toque no campo para selecionar o código e use Copiar. Isso é necessário apenas na configuração.</p>
-      <textarea id="cifra-install-code" value={script} readOnly rows={4} spellCheck={false} onFocus={(event) => event.currentTarget.select()} onClick={(event) => event.currentTarget.select()} />
-    </div>}
-
-    {device === 'android' ? <>
-      <h3>Configurar no Chrome do Android</h3>
-      <ol>
-        <li>Copie o favorito pelo botão acima. No menu do Chrome, toque na estrela para salvar esta página nos favoritos.</li>
-        <li>Edite esse favorito. Use o nome <strong>Importar para Candeia</strong> e substitua todo o endereço pelo conteúdo copiado, que começa com <strong>javascript:</strong>. Salve.</li>
-        <li>Abra a versão desejada da música no site do Cifra Club e aguarde os acordes aparecerem.</li>
-        <li>Toque na barra de endereço, digite <strong>Importar para Candeia</strong> e selecione o favorito sugerido. Use a sugestão do favorito; o menu de favoritos pode não executar o importador.</li>
-        <li>O Candeia abrirá com a prévia. Confira título, artista e tom, importe e salve.</li>
-      </ol>
-      <p>O navegador precisa aceitar favoritos com JavaScript. Se ele remover o endereço ou não executar o favorito, use um navegador compatível ou o importador do computador.</p>
-    </> : <>
-      <h3>Configurar no app Atalhos do iPhone</h3>
-      <ol>
-        <li>Copie o script pelo botão acima. Abra o app <strong>Atalhos</strong>, crie um atalho e dê o nome <strong>Importar para Candeia</strong>.</li>
-        <li>Nos detalhes do atalho, ative <strong>Mostrar na Folha de Compartilhamento</strong> e deixe-o receber <strong>Páginas Web do Safari</strong>.</li>
-        <li>Adicione a ação <strong>Executar JavaScript na Página Web</strong>. Use <strong>Entrada de Atalho</strong> como página e substitua o código da ação pelo script copiado.</li>
-        <li>Em seguida, adicione a ação <strong>Abrir URLs</strong>, usando o resultado da ação de JavaScript. Salve o atalho.</li>
-        <li>Abra a cifra no <strong>Safari</strong>, espere os acordes carregarem, toque em Compartilhar e escolha <strong>Importar para Candeia</strong>. Autorize a execução quando o iPhone solicitar.</li>
-        <li>O Candeia abrirá com a prévia. Confira título, artista e tom, importe e salve.</li>
-      </ol>
-      <a className="cifra-help-link" href="https://support.apple.com/guide/shortcuts/run-javascript-on-a-webpage-apd218e2187d/ios" target="_blank" rel="noreferrer">Instruções da Apple para JavaScript em páginas web <ExternalLink size={15} /></a>
-    </>}
-    <p>A cifra precisa estar aberta e visível no site do Cifra Club. Faça a importação pelo navegador; o aplicativo do Cifra Club e o Candeia instalado como aplicativo não executam esse leitor.</p>
-    <p>A música chega como uma prévia. Entre com uma conta autorizada para importar e salvar; consultar músicas e trocar o tom continua disponível sem cadastro.</p>
+    <ol>
+      <li>Abra a versão desejada da música no site do <strong>Cifra Club</strong> usando {device === 'android' ? 'o Chrome do Android, inclusive no Xiaomi' : 'o Safari'} e espere os acordes aparecerem.</li>
+      {device === 'android'
+        ? <li>Toque no menu <strong>⋮ → Compartilhar → Imprimir</strong>. Na opção de impressora, escolha <strong>Salvar como PDF</strong>, toque no ícone de PDF e salve o arquivo em Downloads.</li>
+        : <li>Toque em <strong>Compartilhar → Imprimir</strong>. Amplie a prévia com dois dedos para abrir o PDF; toque em <strong>Compartilhar → Salvar em Arquivos</strong>.</li>}
+      <li>No Candeia, entre com sua conta e abra <strong>Biblioteca → Nova música → Escolher PDF da cifra</strong>. Confira a prévia, título, artista e tom antes de importar e salvar.</li>
+    </ol>
+    <Link className="button button-primary cifra-pdf-guide-link" to="/musicas"><FileText size={17} />Abrir biblioteca para importar</Link>
+    <p>Use um PDF com texto selecionável, de até 8 MB. Fotos e PDFs digitalizados não podem ser lidos por esta opção. A leitura acontece no seu navegador.</p>
+    <p>A cifra precisa abrir normalmente no Cifra Club para você salvá-la. Uma conta administradora pode importar e salvar; consultar músicas e trocar o tom continua disponível sem cadastro.</p>
   </section>;
 }
 

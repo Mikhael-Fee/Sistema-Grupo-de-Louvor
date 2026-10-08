@@ -8,6 +8,8 @@ Execute `npm run typecheck`, `npm test`, `npm run test:db`, `npm run test:e2e` e
 
 Verifique que as migrações `002_public_consultation.sql` e `003_custom_service_types.sql` estão presentes no banco escolhido; não reaplique `001_initial.sql`. A consulta nasce desativada. A terceira migração permite temáticas obrigatórias de até 100 caracteres e preserva os tipos existentes. O helper `node scripts/configure-service-types.mjs` verifica o estado e desfaz sua inserção temporária; `--apply` aplica apenas a restrição ausente no schema conhecido. Aplique atualizações somente no projeto autorizado, preservando registros existentes.
 
+Confira também `004_profile_photos.sql` com `node scripts/configure-profile-photos.mjs`: colunas opcionais, RPC de foto própria, bucket público `avatars` de 2 MiB e políticas RLS de Storage. `--apply` instala somente a migração ausente no schema conhecido. Verificação de schema não comprova upload real, leitura pública ou rejeição de escrita de outra conta.
+
 A busca de cifras precisa da função Netlify, além do build estático. Vite e `vite preview` sozinhos não atendem `/.netlify/functions/song-search`; nesse ambiente, valide seu contrato nos testes e o fluxo completo quando houver um servidor de funções compatível ou o deploy Netlify.
 
 ## Confirmar o artefato publicado
@@ -21,7 +23,7 @@ node scripts/deploy-netlify.mjs --deploy-dir dist --functions-dir netlify/functi
 
 O deploy deve estar `ready` em `/workspace/scratch/louvor-netlify-state.json`, salvo pelo helper a partir da API Netlify. Use a origem HTTPS observada nesse arquivo; neste site, o endereço existente é `https://louvor-grupo-fxebsy.netlify.app`. O ZIP antigo contendo somente `dist` não publica a função de busca.
 
-1. Confira HTTP 200 na página inicial, `/consulta`, `/musicas`, `/conectar-cifra-club`, `/importar-cifra`, `/manifest.webmanifest` e `/sw.js`. As rotas de página devem retornar o shell da SPA, sem 404 ao recarregar diretamente.
+1. Confira HTTP 200 na página inicial, `/consulta`, `/musicas`, `/graficos`, `/perfil`, `/conectar-cifra-club`, `/importar-cifra`, `/manifest.webmanifest` e `/sw.js`. As rotas de página devem retornar o shell da SPA, sem 404 ao recarregar diretamente.
 2. Confira título/brand **Candeia**, favicon de chama, manifest com `short_name: Candeia`, `display: standalone`, ícones 192/512 e cores coerentes com o tema. Manifest e service worker devem ter tipos de conteúdo apropriados.
 3. Confirme que `/.netlify/functions/song-search` responde como função JSON, e não como `index.html` da SPA. Uma consulta sem título pode retornar 400; isso é diferente de uma função ausente.
 4. O build pode conter somente as duas configurações públicas do Supabase. Não inclua `.env.local`, tokens de Netlify/Supabase, senha do banco, chave `service_role` ou dados de contas no artefato.
@@ -85,13 +87,31 @@ Na investigação executada, 40 ciclos produziram memória JavaScript de 4,85 pa
 
 ## Importação pelo celular
 
-1. Em `/conectar-cifra-club`, selecione **Celular** e o sistema usado. Confira o layout em 350/390 px, a cópia do código de instalação e a alternativa de seleção manual caso o navegador negue acesso à área de transferência. Copiar código serve somente para configurar o leitor, sem criar um campo extra de letra/cifra no editor.
-2. No **Android**, salve e edite o favorito **Importar para Candeia**, substituindo seu endereço pelo código que começa com `javascript:`. Abra uma cifra no Chrome, espere os acordes e selecione o favorito sugerido ao digitar seu nome na barra de endereço. O menu de favoritos pode não executar JavaScript; registre navegador e versão caso ele remova ou recuse esse endereço.
-3. No **iPhone/iPad**, configure o app Atalhos conforme o guia: receba **Páginas Web do Safari**, execute o script com **Executar JavaScript na Página Web** e passe o resultado a **Abrir URLs**. Abra a cifra no Safari e execute o atalho pela folha de compartilhamento. Registre as permissões de JavaScript pedidas pelo sistema. O aplicativo do Cifra Club e a PWA do Candeia não executam o leitor.
-4. Confira a abertura de `/importar-cifra` com título, artista, origem e prévia; o fragmento da importação deve desaparecer da barra de endereço antes de Auth. Sem login, entre na mesma aba e confira a prévia preservada; recarregue sem perder a importação pendente. Links de recuperação de senha devem continuar usando seu próprio fragmento.
-5. Como administrador aprovado, escolha **Revisar e salvar na biblioteca**. Confira limpeza de tablaturas e conversão G/capo3/somBb→tecladoBb uma única vez, com leitura Bb→C correta. Tom escrito desconhecido exige confirmação. Não deve haver gravação antes de **Salvar música**; fechar a revisão permite retomá-la e um rascunho comum de música nova deve continuar independente. **Descartar importação** limpa somente essa pendência.
-6. Músico/visitante não deve receber ação de salvamento ou escrever no banco. URL de fonte externa, payload inválido e fragmento acima de 100.000 caracteres codificados devem ser recusados sem truncar conteúdo; o limite do fragmento pode recusar cifras cujo texto esteja abaixo do limite geral de 100.000 caracteres.
-7. Confirme que `/downloads/candeia-cifra-celular.txt` e `/downloads/candeia-cifra-iphone.js` retornam código correspondente ao build, sem virar `index.html`, e ficam fora do precache junto com o ZIP. A suíte móvel usa páginas de teste e navegação em Chromium; não substitui essas verificações no menu nativo Android ou Atalhos/Safari em aparelhos reais.
+1. Em `/conectar-cifra-club`, selecione **Celular** e o sistema usado. Confira instruções de impressão em 350/390 px e a ação de abrir a biblioteca. O guia não deve recomendar favoritos JavaScript ou Atalhos, retirados após a falha relatada no Chrome/Xiaomi.
+2. No **Android**, abra uma cifra no navegador e use **⋮ → Compartilhar → Imprimir → Salvar como PDF**. No **iPhone/iPad**, use **Safari → Compartilhar → Imprimir**, amplie a prévia com dois dedos e escolha **Compartilhar → Salvar em Arquivos**. Os nomes e posições desses menus precisam ser conferidos no aparelho; teste com uma música temporária própria.
+3. Como administrador aprovado, abra **Biblioteca → Nova música → Escolher PDF da cifra**. Escolha o PDF e confira título, artista, referência e prévia. Complete metadados ausentes. A leitura deve carregar PDF.js/worker somente nesse momento e não enviar o PDF a um servidor.
+4. Confira limpeza de tablaturas/diagramas, alinhamento e colunas. Posições G/capo3/somBb devem virar tecladoBb uma única vez, com leitura Bb→C correta. Tom-base desconhecido exige confirmação. Importar modifica somente o rascunho e o único campo **Letra e cifra**; **Salvar música** grava. Conteúdo anterior continua exigindo confirmação de substituição.
+5. Recuse arquivo acima de 8 MiB, mais de 20 páginas, acima de 100.000 caracteres ou 30.000 itens de texto, inválido, com senha, foto ou PDF digitalizado sem texto selecionável. A leitura deve terminar ou ser interrompida após 25 segundos, sem truncar ou inventar conteúdo. Cancele ou feche o editor durante a leitura e confira liberação dos recursos e ausência de resposta tardia.
+6. Músico e visitante não devem receber ações de importação/salvamento. Ao cancelar, nenhum PDF ou música deve ter sido gravado; remova somente a fixture salva pelo teste. Consulta e transposição pelo celular continuam funcionando normalmente.
+7. Testes automatizados usam arquivos PDF controlados e Chromium com viewport móvel. Não conte isso como teste de menus de impressão Android/Safari físicos. O receptor e códigos do fluxo anterior mantidos por compatibilidade têm regressões próprias; seu histórico de fixtures não comprova funcionamento no aparelho do usuário.
+8. Confira leitura real quando `Promise.withResolvers` estiver ausente na página e no worker; ambos precisam da compatibilidade antes de inicializar PDF.js. Os bundles PDF e workers devem ficar fora do precache PWA e carregar somente ao escolher um arquivo. Falha ao iniciar worker deve orientar em português. Repetir leitura/cancelamento deve terminar sem workers remanescentes; uma medição de heap JavaScript não equivale à RAM total do Chrome.
+
+## Gráficos
+
+1. Abra `/graficos` como administrador, líder, músico aprovado e visitante pela consulta pública liberada. Os dados devem corresponder ao recorte disponível em cada acesso, sem e-mails, perfis privados ou ações de escrita para visitante.
+2. Confira **Todos os cultos**, 30/90 dias, ano e datas livres, além do filtro por temática. Os períodos recentes terminam hoje em São Paulo; o histórico completo pode incluir cultos futuros. Inverta as datas para conferir erro compreensível sem números enganosos.
+3. Use uma fixture com pessoa em duas funções e música repetida no mesmo culto. Pessoa e música contam uma vez naquele culto; funções contam suas atribuições. Etiquetas sobrepostas podem somar mais de 100%, com nota explicativa. A escala não deve ser descrita como presença confirmada.
+4. Confira evolução, rankings com pesquisa/limite, temáticas, horários e equipe/repertório preenchidos. **Ver números do gráfico** deve oferecer os valores em tabela. Totais de cadastro atual não devem mudar ao filtrar o período. Banco vazio e filtro sem resultados devem mostrar estados vazios, sem exemplos inventados.
+5. Repita em 350/390 px, com teclado e sem rolagem horizontal. Trocar filtros não deve gravar dados ou alterar cultos.
+
+## Fotos de perfil e integrantes
+
+1. Use contas temporárias e imagens de teste. Em `/perfil`, escolha PNG/JPEG/WebP válido de até 10 MiB, confira recorte/prévia e clique em **Salvar foto**. Escolher e cancelar não devem enviar imagem; após salvar/recarregar, a foto deve permanecer e identificar a conta no cabeçalho.
+2. No cadastro de integrante, administrador escolhe foto e salva a pessoa. Músico/líder/visitante não devem receber essa edição. Foto da pessoa e foto da conta permanecem independentes; alterar uma não substitui a outra.
+3. Confira preparação local para até 512 px e 300 KiB, rejeição de tipo inválido/SVG/arquivo excessivo e remoção confirmada ao salvar. Falha de upload/RPC deve manter o formulário revisável, sem confirmar um salvamento inexistente.
+4. No Supabase real autorizado, confira bucket público `avatars` com limite de 2 MiB, upload em `UID/UUID.ext` novo, rejeição de sobrescrita e escrita no UID de outra conta. Arquivo ainda referenciado por pessoa/perfil não pode ser excluído; foto própria não altera papel/aprovação/vínculo.
+5. Na consulta pública liberada, confira fotos das pessoas e leitura das URLs de imagem, mantendo e-mails/perfis de conta privados. Desativar consulta não deve ser apresentado como tornar privado o bucket de imagens.
+6. Confirme remoção de contas, pessoas e objetos temporários criados para o teste; preserve imagens e dados do proprietário. Resultados com Auth/Storage simulados e checagem de migração devem ser registrados separadamente do teste real de upload/RLS.
 
 ## Auth e recuperação
 

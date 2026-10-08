@@ -22,7 +22,11 @@ Para atualizar uma instalação anterior, baixe o ZIP atualizado, substitua os a
 
 ## Importação pelo celular
 
-O guia público `/conectar-cifra-club` oferece duas alternativas sem extensão: um favorito com JavaScript no Chrome do Android e um Atalho para o Safari do iPhone/iPad. A configuração inicial copia somente o código do importador. Em cada uso, o usuário abre a cifra no navegador, executa o favorito/Atalho e recebe uma prévia no Candeia; não precisa copiar o texto da música.
+O guia público `/conectar-cifra-club` orienta salvar a cifra como PDF no Chrome do Android/Xiaomi ou no Safari do iPhone/iPad e escolher o arquivo no editor de música do Candeia. A leitura extrai texto e acordes no navegador e entrega uma prévia, sem enviar o PDF ao servidor. O usuário confere título, artista, tom e fonte antes de importar e salvar. O arquivo precisa ter texto selecionável e até 8 MiB; fotos e PDFs digitalizados não recebem OCR.
+
+### Alternativas experimentais anteriores
+
+O build mantém os artefatos de favorito JavaScript e Atalho para compatibilidade e testes anteriores. Esses métodos dependem de execução de scripts pelo navegador e não são apresentados como o fluxo inicial de importação no celular.
 
 O build gera `/downloads/candeia-cifra-celular.txt` e `/downloads/candeia-cifra-iphone.js` com o mesmo leitor DOM da extensão incorporado. O favorito executa no documento aberto e navega para o Candeia. O Atalho usa a ação **Executar JavaScript na Página Web**, recebe **Entrada de Atalho**, chama `completion` uma única vez com o endereço da transferência em caso de sucesso e depois usa **Abrir URLs**. Se houver erro, lança uma mensagem de execução prefixada por “Candeia”, limitada a 300 caracteres, e interrompe o atalho antes de abrir URLs. O script do Atalho não usa `alert`, `prompt` ou `confirm`: a Apple documenta que esses diálogos podem ultrapassar o limite de tempo da ação. A configuração do Atalho segue o recurso documentado pela [Apple](https://support.apple.com/guide/shortcuts/run-javascript-on-a-webpage-apd218e2187d/ios).
 

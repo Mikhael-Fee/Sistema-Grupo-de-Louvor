@@ -7,6 +7,7 @@ export interface MockMinistry {
   profiles: Profile[];
   publicAccess: boolean;
   calls: { method: string; path: string }[];
+  storage: { objects: Map<string, { body: Buffer; contentType: string }> };
   setRole(role: Role): void;
   login(role?: Role): Promise<void>;
 }
@@ -34,6 +35,7 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin'): Promi
     ],
     publicAccess: true,
     calls: [],
+    storage: { objects: new Map() },
     setRole(nextRole) { mock.profiles.find(profile => profile.id === USER_ID)!.role = nextRole; },
     async login(nextRole) {
       const logout = page.getByRole('button', { name: /^(Sair|Entrar para editar)$/ }).first();
@@ -93,12 +95,12 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin'): Promi
     return error(route, 'mock_auth_unhandled', `Auth não simulado: ${request.method()} ${path}`, 401);
   });
 
-  const profileRow = (profile: Profile): Row => ({ ...profile, person_id: profile.personId ?? null });
+  const profileRow = (profile: Profile): Row => ({ ...profile, person_id: profile.personId ?? null, photo_url: profile.photoUrl || '' });
   const tableRows = (table: string): Row[] | undefined => {
     switch (table) {
       case 'profiles': return mock.profiles.map(profileRow);
       case 'tags': return mock.data.tags.map(tag => ({ ...tag }));
-      case 'people': return mock.data.people.map(person => ({ ...person }));
+      case 'people': return mock.data.people.map(person => ({ ...person, photo_url: person.photoUrl || '' }));
       case 'songs': return mock.data.songs.map(song => ({
         id: song.id, title: song.title, artist: song.artist, original_key: song.originalKey,
         church_key: song.churchKey, content: song.content, youtube_url: song.youtubeUrl, notes: song.notes,
@@ -167,6 +169,20 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin'): Promi
         mock.data.songs = put(mock.data.songs, song);
         return respond(route, null);
       }
+      if (rpc === 'update_my_profile_photo') {
+        if (!authorized('read')) return denied(route);
+        const photoUrl = body.p_photo_url;
+        if (typeof photoUrl !== 'string') return error(route, '22023', 'Foto inválida.');
+        if (photoUrl) {
+          const origin = url.origin;
+          const prefix = `${origin}/storage/v1/object/public/avatars/${USER_ID}/`;
+          if (!photoUrl.startsWith(prefix) || !/^[0-9a-f-]{36}\.(?:webp|png|jpeg)$/i.test(photoUrl.slice(prefix.length))) {
+            return denied(route);
+          }
+        }
+        mock.profiles = put(mock.profiles, { ...actor(), photoUrl: photoUrl || undefined });
+        return respond(route, null);
+      }
       if (rpc === 'save_service') {
         if (!authorized('plan')) return denied(route);
         const service = body.p_service as Service;
@@ -206,7 +222,9 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin'): Promi
     if (method === 'POST' && (path === 'tags' || path === 'people')) {
       if (path === 'tags') mock.data.tags = put(mock.data.tags, body as unknown as Tag);
       else {
-        const person = body as unknown as Person;
+        const previous = mock.data.people.find(person => person.id === body.id);
+        const person = { id: body.id, name: body.name, email: body.email, functions: body.functions,
+          photoUrl: Object.hasOwn(body, 'photo_url') ? body.photo_url || undefined : previous?.photoUrl } as Person;
         if (mock.data.services.some(service => service.assignments.some(assignment => assignment.personId === person.id
           && !person.functions.includes(assignment.function)))) return error(route, '23514', 'Função em uso na escala.');
         mock.data.people = put(mock.data.people, person);
@@ -229,6 +247,51 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin'): Promi
       return rowsResponse(selected.map(row => ({ id: row.id })));
     }
     return error(route, 'mock_method_unhandled', `Operação não simulada: ${method} ${path}`, 405);
+  });
+
+  // Storage is also intercepted completely. Uploads remain in this test's
+  // memory; no photo or fixture credential reaches a Supabase project.
+  await page.route('**/storage/v1/**', async route => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname.replace('/storage/v1/', '');
+    const method = request.method();
+    mock.calls.push({ method, path: `/storage/v1/${path}` });
+    if (method === 'OPTIONS') return respond(route, null);
+    if (method === 'GET' && path.startsWith('object/public/avatars/')) {
+      const key = path.slice('object/public/avatars/'.length);
+      const object = mock.storage.objects.get(key);
+      return object ? route.fulfill({ contentType: object.contentType, body: object.body,
+        headers: { 'access-control-allow-origin': '*' } }) : error(route, '404', 'Foto não encontrada.', 404);
+    }
+    if (!authorized('read')) return denied(route);
+    if (method === 'POST' && path.startsWith('object/avatars/')) {
+      const key = path.slice('object/avatars/'.length);
+      if (!key.startsWith(`${USER_ID}/`) || !/^[0-9a-f-]{36}\.(?:webp|png|jpeg)$/i.test(key.slice(USER_ID.length + 1))) return denied(route);
+      if (mock.storage.objects.has(key)) return error(route, '23505', 'Foto já existe.', 409);
+      const raw = request.postDataBuffer() || Buffer.alloc(0);
+      let body = raw;
+      let contentType = request.headers()['content-type']?.split(';')[0] || '';
+      const boundary = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(request.headers()['content-type'] || '');
+      if (boundary) {
+        const sections = raw.toString('latin1').split(`--${boundary[1] || boundary[2]}`);
+        const file = sections.find(section => /content-disposition:[^\r\n]*filename=/i.test(section));
+        if (!file) return error(route, '22023', 'Upload sem foto.');
+        const separator = file.indexOf('\r\n\r\n');
+        const headers = file.slice(0, separator);
+        contentType = /content-type:\s*([^\r\n]+)/i.exec(headers)?.[1]?.trim() || '';
+        body = Buffer.from(file.slice(separator + 4).replace(/\r\n$/, ''), 'latin1');
+      }
+      if (!['image/webp', 'image/png', 'image/jpeg'].includes(contentType) || body.length > 2_097_152) return error(route, '22023', 'Foto inválida.');
+      mock.storage.objects.set(key, { body, contentType });
+      return respond(route, { Key: `avatars/${key}`, Id: key.split('/')[1] });
+    }
+    if (method === 'DELETE' && path === 'object/avatars') {
+      const body = request.postDataJSON() as { prefixes?: unknown };
+      if (!Array.isArray(body.prefixes) || body.prefixes.some(key => typeof key !== 'string' || !key.startsWith(`${USER_ID}/`))) return denied(route);
+      for (const key of body.prefixes) mock.storage.objects.delete(key);
+      return respond(route, body.prefixes.map(name => ({ name })));
+    }
+    return error(route, 'mock_storage_unhandled', `Storage não simulado: ${method} ${path}`, 404);
   });
   return mock;
 }

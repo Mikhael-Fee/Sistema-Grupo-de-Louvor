@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, Check, Download, ExternalLink, ListFilter, LoaderCircle, Music2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
+import CifraPdfPicker from '../components/CifraPdfPicker';
 import { useMinistry } from '../context/MinistryContext';
 import { KEYS, normalizeSearch, stripChords } from '../lib/music';
 import { validateSong } from '../lib/validation';
@@ -128,6 +129,14 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
     sourceRequest.current?.abort(); setSourceOpen(false); setSearching(false); setPreviewing(null); setSourceConfirmReplace(false); setSourceResults([]); setPreview(null); setSourceWarnings([]);
   }
 
+  function receivePdf(source: SongSearchResult) {
+    sourceRequest.current?.abort();
+    setSearching(false); setPreviewing(null); setSourceError(null); setError(null);
+    setSourceOpen(true); setPreview(source); setPreviewWrittenKey(''); setPreviewLyricsOnly(false);
+    setImported(false); setUseSourceMetadata(true); setSourceConfirmReplace(false);
+    setDraft(current => ({ ...current, title: source.title || current.title, artist: source.artist || current.artist }));
+  }
+
   function draftFromPreview(current: Song): Song {
     if (!preview?.content) throw new Error('Escolha uma versão com conteúdo para importar.');
     const key = sourceKey(preview.originalKey) || sourceKey(previewWrittenKey);
@@ -178,6 +187,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
         <label className="field">Tom na igreja<select aria-label="Tom na igreja" value={draft.churchKey} onChange={e => change('churchKey', e.target.value)}>{KEYS.map(key => <option key={key}>{key}</option>)}</select><span className="songs-field-hint">Alterar o tom também transpõe os acordes do rascunho.</span></label>
       </div>
       <section className="songs-source-search" aria-label="Busca online de letra e cifra">
+        <CifraPdfPicker onRead={receivePdf} disabled={busy || saving || searching || Boolean(previewing)} />
         <div className="songs-unified-search-heading">
           <div><strong>Cifra e letra em uma busca</strong><span>Pesquise pelo título; o artista ajuda a encontrar a versão certa.</span><span>{browserConnected ? 'Importador conectado · cifra automática pelo navegador' : <a href="/conectar-cifra-club" target="_blank" rel="noopener noreferrer">{browserOutdated ? 'Atualizar importador Cifra Club' : 'Conectar importador Cifra Club'}</a>}</span></div>
           <button type="button" className="button button-primary" disabled={searching || Boolean(previewing)} onClick={searchOnline}>{searching ? <LoaderCircle className="songs-spinner" size={15} /> : <Search size={15} />}{searching ? 'Pesquisando…' : 'Pesquisar cifra e letra'}</button>

@@ -6,7 +6,7 @@ export interface SongSearchResult {
   id: string;
   title: string;
   artist: string;
-  source: 'LRCLIB' | 'Worship Together' | 'Cifra Club';
+  source: 'LRCLIB' | 'Worship Together' | 'Cifra Club' | 'Arquivo PDF';
   sourceUrl: string;
   kind: SongImportKind;
   content?: string;

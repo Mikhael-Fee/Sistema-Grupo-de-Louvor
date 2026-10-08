@@ -25,9 +25,26 @@ function check(error: { message: string; code?: string } | null): void {
   throw new Error(error.message);
 }
 
-type ProfileRow = { id: string; name: string; role: Profile['role']; approved: boolean; person_id: string | null };
+type ProfileRow = { id: string; name: string; role: Profile['role']; approved: boolean; person_id: string | null; photo_url?: string };
 function profileFromRow(row: ProfileRow): Profile {
-  return { id: row.id, name: row.name, role: row.role, approved: row.approved, personId: row.person_id ?? undefined };
+  return { id: row.id, name: row.name, role: row.role, approved: row.approved, personId: row.person_id ?? undefined, photoUrl: row.photo_url || undefined };
+}
+
+const AVATAR_LIMIT = 2 * 1024 * 1024;
+const AVATAR_TYPES: Record<string, string> = { 'image/webp': 'webp', 'image/png': 'png', 'image/jpeg': 'jpeg' };
+const AVATAR_PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(webp|png|jpeg)$/;
+
+function avatarPath(photoUrl: string): string {
+  if (!url) throw new Error('Configure o armazenamento do ministério.');
+  const origin = new URL(url).origin;
+  const parsed = new URL(photoUrl);
+  const prefix = '/storage/v1/object/public/avatars/';
+  const path = parsed.pathname.slice(prefix.length);
+  if (parsed.origin !== origin || parsed.protocol !== 'https:' || !parsed.pathname.startsWith(prefix)
+    || parsed.search || parsed.hash || !AVATAR_PATH.test(path)) {
+    throw new Error('A foto precisa usar o armazenamento deste ministério.');
+  }
+  return path;
 }
 
 export const repository = {
@@ -75,7 +92,7 @@ export const repository = {
     for (const result of [songs, tags, people, services, songTags, assignments, repertoire]) check(result.error);
     return {
       tags: (tags.data ?? []).map(row => ({ id: row.id, name: row.name, color: row.color })),
-      people: (people.data ?? []).map(row => ({ id: row.id, name: row.name, email: row.email, functions: row.functions })),
+      people: (people.data ?? []).map(row => ({ id: row.id, name: row.name, email: row.email, functions: row.functions, photoUrl: row.photo_url || undefined })),
       songs: (songs.data ?? []).map(row => ({
         id: row.id, title: row.title, artist: row.artist, originalKey: row.original_key,
         churchKey: row.church_key, content: row.content, youtubeUrl: row.youtube_url, notes: row.notes,
@@ -94,7 +111,7 @@ export const repository = {
   },
 
   async getProfile(userId: string): Promise<Profile> {
-    const { data, error } = await client().from('profiles').select('id, name, role, approved, person_id').eq('id', userId).single();
+    const { data, error } = await client().from('profiles').select('id, name, role, approved, person_id, photo_url').eq('id', userId).single();
     check(error);
     return profileFromRow(data as ProfileRow);
   },
@@ -110,7 +127,35 @@ export const repository = {
   async savePerson(person: Person): Promise<void> {
     const { error } = await client().from('people').upsert({
       id: person.id, name: person.name.trim(), email: person.email.trim(), functions: person.functions,
+      ...(person.photoUrl === undefined ? {} : { photo_url: person.photoUrl }),
     }).select('id').single();
+    check(error);
+  },
+  async uploadAvatar(photo: Blob): Promise<string> {
+    const extension = AVATAR_TYPES[photo.type];
+    if (!extension || photo.size === 0 || photo.size > AVATAR_LIMIT) {
+      throw new Error('Escolha uma foto PNG, JPEG ou WebP com até 2 MB.');
+    }
+    const { data: auth, error: authError } = await client().auth.getUser();
+    check(authError);
+    if (!auth.user) throw new Error('Entre na sua conta para enviar uma foto.');
+    const path = `${auth.user.id}/${crypto.randomUUID()}.${extension}`;
+    const { error } = await client().storage.from('avatars').upload(path, photo, {
+      upsert: false, contentType: photo.type, cacheControl: '31536000',
+    });
+    check(error);
+    const publicUrl = client().storage.from('avatars').getPublicUrl(path).data.publicUrl;
+    avatarPath(publicUrl);
+    return publicUrl;
+  },
+  async deleteAvatar(photoUrl: string): Promise<void> {
+    const path = avatarPath(photoUrl);
+    const { error } = await client().storage.from('avatars').remove([path]);
+    check(error);
+  },
+  async updateMyProfilePhoto(photoUrl: string): Promise<void> {
+    if (photoUrl) avatarPath(photoUrl);
+    const { error } = await client().rpc('update_my_profile_photo', { p_photo_url: photoUrl });
     check(error);
   },
   async deletePerson(id: string): Promise<void> {
@@ -139,7 +184,7 @@ export const repository = {
     if (!auth.user) throw new Error('Entre na sua conta para consultar os perfis.');
     const actor = await repository.getProfile(auth.user.id);
     if (!actor.approved || actor.role !== 'admin') throw new Error('Somente administradores aprovados podem consultar todos os perfis.');
-    const { data, error } = await client().from('profiles').select('id, name, role, approved, person_id').order('name');
+    const { data, error } = await client().from('profiles').select('id, name, role, approved, person_id, photo_url').order('name');
     check(error);
     return (data as ProfileRow[]).map(profileFromRow);
   },
