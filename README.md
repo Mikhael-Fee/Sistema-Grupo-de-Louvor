@@ -2,7 +2,7 @@
 
 Aplicação React + TypeScript + Vite para organizar músicas, pessoas, cultos, escalas e repertórios. Interface em português, responsiva e instalável como PWA, com identidade preto/branco e acentos de chama.
 
-Endereço do site: **[louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app)**. O README é este guia de uso e manutenção; a aplicação é acessada pelo link. A versão publicada e os resultados de cada atualização estão registrados em [VALIDACAO.md](docs/VALIDACAO.md). A atualização publicada inclui consulta real sem cadastro, equipe e repertório em lote, temáticas livres, rascunhos, pesquisa unificada de cifra e letra, importação individual ou em lote por PDF com tom escrito preservado, gráficos e fotos de contas vinculadas aos integrantes.
+Endereço do site: **[louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app)**. O README é este guia de uso e manutenção; a aplicação é acessada pelo link. A versão publicada e os resultados de cada atualização estão registrados em [VALIDACAO.md](docs/VALIDACAO.md). A atualização publicada inclui consulta real sem cadastro, equipe e repertório em lote, temáticas livres, rascunhos, pesquisa unificada de cifra e letra, importação individual ou em lote por PDF com tom escrito preservado, gráficos, fotos vinculadas e resumo inicial com fotos da equipe e observações do repertório.
 
 Código em [Mikhael-Fee/Sistema-Grupo-de-Louvor](https://github.com/Mikhael-Fee/Sistema-Grupo-de-Louvor), branch `main`. O site usa publicação direta no Netlify, sem integração Git; novos commits não atualizam a aplicação automaticamente.
 
@@ -27,6 +27,7 @@ Configure as duas variáveis públicas do Supabase usando `.env.example`: `VITE_
 
 ## Funcionalidades
 
+- Início com próximo culto, equipe e repertório: as fotos seguem a mesma prioridade da equipe/escala, com iniciais quando não há imagem. A primeira linha preenchida da observação de cada música naquele culto aparece como **Obs.:** abaixo do artista; a linha completa fica disponível no título do texto.
 - Biblioteca com artista, tom na igreja, um único campo editável **Letra e cifra**, vídeo YouTube, observações e etiquetas; pesquisa sem acentos e filtros combinados. A importação converte os acordes para o tom na igreja; mudar esse tom no editor também transpõe o texto.
 - Leitura de letra ou cifra, transposição, fonte de 14 a 28 px e modo leitura que ocupa a tela. No celular, os controles de leitura têm área de toque de pelo menos 44 px e os versos se ajustam à largura. Trocar o tom no leitor altera a visualização; salvar o tom no repertório exige uma ação explícita de um perfil autorizado.
 - Cultos com data, horário, temática livre no campo **Tipo de culto**, observações, equipe e repertório ordenado; tom e observação próprios por música em cada culto. Digite, por exemplo, **Santa Ceia**, **Culto de sábado** ou **Culto de louvor**; sugestões incluem tipos já usados, sem limitar as opções.

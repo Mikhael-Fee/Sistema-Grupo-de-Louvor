@@ -17,6 +17,8 @@ const proxy = proxyUrl ? { server: proxyUrl.origin,
 const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox'], env, ...(proxy ? { proxy } : {}) });
 let checks = 0;
 let transpositionChecked = false;
+let homePhotosChecked = 0;
+let homeNotesChecked = 0;
 let diagnosticPage;
 const expect = (condition, label) => { if (!condition) throw new Error(label); checks++; };
 let stage = 'login';
@@ -35,9 +37,41 @@ try {
   expect(await page.getByRole('button', { name: 'Entrar no ministério', exact: true }).isVisible(), 'Login real disponível');
   expect(await page.getByRole('button', { name: /demonstração/i }).count() === 0, 'Demonstração removida');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Login cabe no celular');
+  const publicResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/rest/v1/rpc/read_public_ministry');
   await page.getByRole('button', { name: 'Entrar sem cadastro', exact: true }).click();
+  const ministry = await (await publicResponse).json();
   await page.locator('.public-banner').waitFor();
   expect(await page.getByRole('heading', { name: /^Olá,/ }).isVisible(), 'Consulta sem cadastro abre dados reais');
+  stage = 'fotos e observações na tela inicial';
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const next = ministry.services.filter(service => service.date >= today)
+    .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`))[0];
+  if (next) {
+    const team = page.locator('.home-team-person');
+    expect(await team.count() === next.assignments.length, 'Resumo inicial mostra a equipe do próximo culto');
+    for (const [index, assignment] of next.assignments.entries()) {
+      const person = ministry.people.find(candidate => candidate.id === assignment.personId);
+      const photo = person?.photoUrl || person?.accountPhotoUrl;
+      if (!photo) continue;
+      const avatar = team.nth(index).locator('img');
+      expect(await avatar.getAttribute('src') === photo, 'Foto inicial corresponde à pessoa ou conta vinculada');
+      await avatar.scrollIntoViewIfNeeded();
+      await page.waitForFunction(url => [...document.querySelectorAll('.home-team-person img')]
+        .some(image => image.src === url && image.naturalWidth > 0), photo);
+      homePhotosChecked++;
+    }
+    const repertoire = page.locator('.home-song-list>li');
+    for (const [index, item] of next.repertoire.entries()) {
+      const line = (item.notes || '').split(/\r?\n/).find(value => value.trim())?.trim();
+      const note = repertoire.nth(index).locator('.home-song-note');
+      expect(line ? await note.textContent() === `Obs.: ${line}` && await note.getAttribute('title') === line
+        : await note.count() === 0, 'Resumo inicial usa somente a primeira linha da observação da música');
+      if (line) homeNotesChecked++;
+    }
+  }
+  await page.setViewportSize({ width: 320, height: 800 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Equipe e repertório iniciais cabem em320px');
+  await page.setViewportSize({ width: 390, height: 844 });
   stage = 'cultos públicos';
   await page.goto(`${origin}/cultos`);
   await page.getByRole('heading', { name: 'Cultos', exact: true }).waitFor();
@@ -198,7 +232,8 @@ try {
   await context.setOffline(false);
   await context.close();
   console.log(JSON.stringify({ public_url: origin, passed: checks, mobile: true, readonly_public: true,
-    transposition_checked: transpositionChecked, static_pwa: true, offline_login_shell: true }));
+    transposition_checked: transpositionChecked, home_photos_checked: homePhotosChecked, home_notes_checked: homeNotesChecked,
+    static_pwa: true, offline_login_shell: true }));
 } catch (error) {
   console.error(`Verificação pública falhou: ${stage}. ${error instanceof Error && error.message.length < 80 ? error.message : 'Revise essa etapa.'}`);
   if (stage.includes('service worker') && diagnosticPage) {

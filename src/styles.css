@@ -85,3 +85,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 
 .topbar-profile-link{color:inherit;text-decoration:none;border-radius:999px}.topbar-profile-link:focus-visible{outline:2px solid var(--green);outline-offset:5px}
 .sidebar{overflow-y:auto}.sidebar-bottom{padding-top:24px}
+
+/* The home repertoire shows the first note line while keeping mobile rows within the card. */
+.home-song-list .song-list-copy>.home-song-note{font-size:11px;line-height:1.5;color:var(--flame,#ad4d0d);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

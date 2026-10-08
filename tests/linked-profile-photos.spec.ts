@@ -29,6 +29,13 @@ async function expectPhoto(container: Locator, url: string) {
 
 const personCard = (page: Page, name: string) => page.locator('.people-person').filter({ has: page.getByRole('heading', { name, exact: true }) });
 const teamRow = (page: Page, name: string) => page.locator('.service-team-list li').filter({ has: page.getByText(name, { exact: true }) });
+// The home row also contains the current member's “você” badge.
+const homeTeamRow = (page: Page, name: string) => page.locator('.home-team-person').filter({ hasText: name });
+
+async function expectNextService(page: Page, mock: MockMinistry) {
+  await expect(page.getByRole('heading', { name: 'Equipe escalada', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Abrir culto', exact: true })).toHaveAttribute('href', `/cultos/${mock.data.services[0].id}`);
+}
 
 async function openAccess(page: Page, name: string) {
   await page.goto('/administracao');
@@ -36,7 +43,7 @@ async function openAccess(page: Page, name: string) {
   return page.getByRole('dialog');
 }
 
-test('foto cadastrada na pessoa aparece na escala, seleção de equipe e perfil sem selfie', async ({ page }) => {
+test('foto cadastrada na pessoa aparece no painel, escala, seleção de equipe e perfil sem selfie', async ({ page }) => {
   const mock = await setupMockMinistry(page);
   await page.goto('/');
   const person = mock.data.people[0];
@@ -44,6 +51,8 @@ test('foto cadastrada na pessoa aparece na escala, seleção de equipe e perfil 
   person.photoUrl = personPhoto;
   await mock.login();
   await expectPhoto(page.locator('.topbar-profile-link'), personPhoto);
+  await expectNextService(page, mock);
+  await expectPhoto(homeTeamRow(page, person.name), personPhoto);
   await page.goto(`/cultos/${mock.data.services[0].id}`);
   await expectPhoto(teamRow(page, person.name), personPhoto);
   await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
@@ -76,6 +85,9 @@ test('administrador vincula selfie à pessoa; desvincular ou suspender acesso re
   expect(mock.data.people[2].photoUrl).toBeUndefined();
   await page.goto('/pessoas');
   await expectPhoto(personCard(page, target.name), selfie);
+  await page.goto('/');
+  await expectNextService(page, mock);
+  await expectPhoto(homeTeamRow(page, target.name), selfie);
   await page.goto(`/cultos/${mock.data.services[0].id}`);
   await expectPhoto(teamRow(page, target.name), selfie);
   dialog = await openAccess(page, account.name);
@@ -84,6 +96,9 @@ test('administrador vincula selfie à pessoa; desvincular ou suspender acesso re
   await expect(dialog).toBeHidden();
   await page.goto('/pessoas');
   await expect(personCard(page, target.name).locator('img')).toHaveCount(0);
+  await page.goto('/');
+  await expectNextService(page, mock);
+  await expect(homeTeamRow(page, target.name).locator('img')).toHaveCount(0);
   dialog = await openAccess(page, account.name);
   await dialog.getByRole('combobox', { name: /^Pessoa vinculada/ }).selectOption(target.id);
   await dialog.getByRole('checkbox', { name: 'Acesso aprovado', exact: false }).uncheck();
@@ -91,6 +106,9 @@ test('administrador vincula selfie à pessoa; desvincular ou suspender acesso re
   await expect(dialog).toBeHidden();
   await page.goto(`/cultos/${mock.data.services[0].id}`);
   await expect(teamRow(page, target.name).locator('img')).toHaveCount(0);
+  await page.goto('/');
+  await expectNextService(page, mock);
+  await expect(homeTeamRow(page, target.name).locator('img')).toHaveCount(0);
   expect(mock.profiles[2].photoUrl).toBe(selfie);
 });
 
@@ -103,6 +121,8 @@ test('foto própria da pessoa tem prioridade na equipe; remover selfie usa cadas
   person.photoUrl = personPhoto; mock.profiles[0].photoUrl = selfie;
   await mock.login();
   await expectPhoto(page.locator('.topbar-profile-link'), selfie);
+  await expectNextService(page, mock);
+  await expectPhoto(homeTeamRow(page, person.name), personPhoto);
   await page.goto('/pessoas');
   await expectPhoto(personCard(page, person.name), personPhoto);
   await page.goto('/perfil');
@@ -116,6 +136,9 @@ test('foto própria da pessoa tem prioridade na equipe; remover selfie usa cadas
   expect(mock.data.people[0].photoUrl).toBe(personPhoto);
   expect(mock.storage.objects.has(new URL(personPhoto).pathname.split('/avatars/')[1])).toBe(true);
   expect(mock.storage.objects.has(new URL(selfie).pathname.split('/avatars/')[1])).toBe(false);
+  await page.goto('/');
+  await expectNextService(page, mock);
+  await expectPhoto(homeTeamRow(page, person.name), personPhoto);
   await page.goto(`/cultos/${mock.data.services[0].id}`);
   await expectPhoto(teamRow(page, person.name), personPhoto);
 });
@@ -153,6 +176,12 @@ test('remover foto do cadastro revela selfie vinculada também na consulta públ
   expect(body.profiles).toBeUndefined();
   await expectPhoto(personCard(page, person.name), selfie);
   await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto('/');
+  await expectNextService(page, mock);
+  await expectPhoto(homeTeamRow(page, person.name), selfie);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect(page.getByRole('link', { name: 'Meu perfil', exact: true })).toHaveCount(0);
   await page.goto(`/cultos/${mock.data.services[0].id}`);
   await expectPhoto(teamRow(page, person.name), selfie);
   await expect(page.getByRole('button', { name: 'Editar equipe', exact: true })).toHaveCount(0);

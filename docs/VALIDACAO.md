@@ -1,6 +1,25 @@
 # Validação da atualização Candeia — 08/10/2026
 
-## Versão atual — PDFs em lote, tom escrito, instrumentais e fotos vinculadas
+## Versão atual — fotos e observações no início
+
+Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app) com deploy `6ac8002de7f6373d83519a86`, confirmado pronto no Netlify. A verificação do domínio publicado concluiu 48 checks, incluindo uma observação real do repertório do próximo culto.
+
+O resumo do próximo culto no **Início** usa a mesma imagem de equipe/escala: foto explícita da pessoa, depois foto da conta aprovada vinculada e, sem imagem, iniciais. O repertório mostra **Obs.:** com a primeira linha não vazia da observação daquela música no culto, abaixo do artista. Espaços externos e quebras CRLF são tratados; a linha completa fica no título do texto, e a apresentação usa reticências sem rolagem horizontal. A origem é `item.notes` do repertório, não as observações gerais do cadastro da música.
+
+| Verificação desta atualização | Estado |
+| --- | --- |
+| TypeScript e build Vite/PWA | Passaram; 1.688 módulos e 46 entradas de precache, 957,99 KiB |
+| Playwright específico | 6/6 cenários passaram em 23,7 s, sem falhas ou casos pulados: quatro de fotos/vínculos com resumo inicial e dois de observações em desktop 1200 px/consulta pública 320 px |
+| Revisão de artefato | 191 arquivos e varredura de checkout/dist sem credenciais privadas |
+| Domínio publicado | 48 verificações passaram; `home_notes_checked=1` confirma a observação real do próximo culto |
+| Foto na Home em produção | `home_photos_checked=0`: a equipe retornada para o próximo culto não tinha foto associada; exibição coberta pelos quatro testes controlados de vínculo/Home |
+| Publicação Netlify | Deploy `6ac8002de7f6373d83519a86` pronto no mesmo domínio existente |
+
+Esta rodada altera somente a interface inicial. O schema Supabase e o rascunho de configuração Codex mantêm o estado da entrega anterior. A validação de navegador desta rodada executou os seis cenários específicos; os resultados completos anteriores permanecem históricos.
+
+Limite: a rodada pública não verificou uma foto real na Home, pois não havia imagem associada aos integrantes do próximo culto consultado. Os testes controlados verificaram prioridade de foto da pessoa, alternativa da conta vinculada e iniciais sem imagem; essa cobertura não é apresentada como visualização de uma foto real em produção.
+
+## Versão anterior — PDFs em lote, tom escrito, instrumentais e fotos vinculadas
 
 Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app) com deploy `6ac7f97d564662e8ab1bce75`, confirmado `ready` pelo helper `--check`. Esta versão acrescenta **Importar PDFs**, separado da importação individual em **Nova música**, preserva o tom escrito na importação PDF/Cifra Club, melhora a limpeza/visualização de introduções e solos e conecta a exibição de fotos entre conta e integrante. Testes unitários/banco, build, 85 cenários distintos de navegador, migração 005 no Supabase real e 44 verificações do domínio publicado foram concluídos.
 
