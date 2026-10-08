@@ -1,6 +1,45 @@
 # Validação da atualização Candeia — 08/10/2026
 
-## Versão atual — PDF no celular, gráficos e fotos
+## Versão atual — PDFs em lote, tom escrito, instrumentais e fotos vinculadas
+
+Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app) com deploy `6ac7f97d564662e8ab1bce75`, confirmado `ready` pelo helper `--check`. Esta versão acrescenta **Importar PDFs**, separado da importação individual em **Nova música**, preserva o tom escrito na importação PDF/Cifra Club, melhora a limpeza/visualização de introduções e solos e conecta a exibição de fotos entre conta e integrante. Testes unitários/banco, build, 85 cenários distintos de navegador, migração 005 no Supabase real e 44 verificações do domínio publicado foram concluídos.
+
+O lote permite até 20 PDFs, 8 MiB por arquivo e 80 MiB no total, com uma música por arquivo e leitura sequencial de worker, progresso e revisão por item. Não envia PDFs nem grava músicas durante a leitura. O salvamento é por música selecionada: sucessos permanecem salvos, falhas podem ser corrigidas/repetidas e o mesmo UUID é reutilizado na tentativa. Duplicatas vêm desmarcadas; incluir explicitamente cria uma cópia. Cancelar leitura preserva itens processados, e interromper gravação termina o item em andamento antes de parar os próximos.
+
+O tom escrito explícito da fonte tem prioridade. Se houver somente tom sonoro e capotraste, o intervalo é subtraído para obter a base escrita: **Bb/capo3 → G**, com **G** como padrão de tom na igreja quando não houve escolha manual. Um tom escolhido pelo usuário é preservado; igreja Bb transpõe G→Bb uma vez, sem somar capotraste novamente. A estimativa analisa conjunto/sequência de acordes e candidatos maiores/menores: confiança alta/média pode preencher com indicação **PROVÁVEL**, revisão e edição; baixa confiança exige confirmação. G/A/D pode sugerir D, e G/A/D/Bm/C pode sugerir D com C como possível empréstimo. Esses exemplos não provam a tonalidade e não usam somente o primeiro acorde.
+
+A limpeza retira tabs de introdução e solo sem perder rótulos **[Intro]**/**[Solo]**, acordes ou versos. A visualização de linhas instrumentais sem letra acrescenta espaço de pelo menos 8 px entre acordes, preservando alinhamento em linhas com versos e transposição. Leitura de registros antigos continua sem escrita automática.
+
+Equipe/escala usam primeiro a foto definida para a pessoa e, se faltar, a foto da conta aprovada vinculada. Perfil/cabeçalho usam primeiro a selfie própria e, se faltar, a foto da pessoa vinculada. URLs e arquivos continuam separados, sem copiar dados; desvincular ou retirar aprovação deixa de retornar a foto da conta na próxima leitura. O formulário administrativo impede escolher uma pessoa usada por outro perfil.
+
+A migração `005_linked_profile_photos.sql` foi aplicada no Supabase real: `read_team_profile_photos()` exige acesso aprovado, retorna apenas `personId`/`photoUrl` e a consulta pública inclui a URL da conta aprovada vinculada como `accountPhotoUrl`. A reinspeção confirmou a migração aplicada, `schema_changed: false`, guarda de aprovação, privilégios públicos restritos e `search_path` protegido. O helper `scripts/configure-linked-profile-photos.mjs` consulta o contrato por padrão e aplica somente essa atualização com `--apply`; `tests/database/linked-photos-check.mjs` usa PGlite/Auth/Storage simulados. Os retornos não têm campos de ID de Auth, e-mail ou papel; URLs públicas de avatar podem conter UUIDs no caminho do arquivo.
+
+| Verificação desta atualização | Estado |
+| --- | --- |
+| Vitest | 220/220 testes passaram em 16 arquivos |
+| PostgreSQL/PGlite | 280/280 verificações passaram: 111 de domínio/RLS, 55 de consulta pública, 82 de fotos/Storage e 32 de fotos vinculadas; Auth/Storage simulados |
+| TypeScript e build Vite/PWA | Passaram; 1.688 módulos processados |
+| Migração 005 no Supabase real | Aplicada; reinspeção confirmou idempotência e proteções dos RPCs, sem modificar registros do proprietário |
+| Fotos/Auth/Storage no Supabase real | 18 verificações passaram, incluindo vínculo, desvinculação, retirada de aprovação e RPC/consulta pública; leitura de fotos vinculadas via GET, como no aplicativo; contas, pessoa e uploads descartáveis removidos |
+| Artefato | 190 arquivos revisados e varredura de checkout/dist sem credenciais privadas; ZIP com seis arquivos idênticos ao código, sem source maps |
+| Precache PWA | 46 entradas, 957,69 KiB; PDF e workers grandes carregados sob demanda, fora do precache |
+| Configuração reutilizável Codex | `start_skill` de 17 passos salvo com `requires_publish: true`, separado da publicação Netlify |
+| Playwright | 85 cenários distintos aprovados no conjunto de execuções, sem casos pulados; rodada completa teve 80 aprovações e 5 falhas de roteiro, revalidadas após correção dos testes |
+| Fontes e lote PDF na rodada completa | 4 cenários novos de tom, 7 com extensão real e 5 de lote PDF passaram |
+| Leitura PDF repetida | 23 leituras, zero workers remanescentes e delta de heap JavaScript de 587 KiB após aquecimento/coleta de lixo |
+| Domínio publicado | 44 verificações reais passaram: consulta pública sem edição/gravação, ausência de lote para visitante, transposição, layout móvel, gráficos, PWA/cache estático/shell offline e artefato publicado |
+| PDF/parser no build publicado | Limpeza de tabs Intro/Solo e preservação de rótulos/acordes verificadas; dois PDFs lidos em sequência com worker real e encerramento confirmado |
+| Publicação Netlify | Deploy `6ac7f97d564662e8ab1bce75` confirmado `ready`, no mesmo domínio e site existentes |
+
+A rodada completa executou os 85 cenários: três falhas ainda esperavam o padrão antigo Bb ou usavam uma fonte com tom sonoro/capotraste como se fosse desconhecida; outras duas tinham seletores/rota inadequados. Os testes foram atualizados para conferir o padrão escrito G, a transposição manual para Bb, a confirmação de uma fonte sem tom escrito/sonoro e os controles reais de vínculo administrativo. A reexecução de 14 cenários de importação móvel/fotos teve 13 aprovações e uma falha de seletor; a rodada específica dos quatro casos de fotos teve três aprovações e uma incompatibilidade de asserção com `<option>`. A asserção passou a conferir a propriedade `disabled` da opção, e o último cenário de vínculo/desvinculação/retirada de aprovação passou em 7,1 segundos. Os 85 cenários distintos foram aprovados nessas execuções, **sem uma rodada única de 85/85**. Não houve mudança de código de produção depois da rodada completa/build nem retirada das verificações de permissão; o TypeScript final também passou.
+
+A medição nova de PDF é heap JavaScript do Chromium de teste, não RAM total do Chrome ou medição de aparelho físico. As medições anteriores abaixo permanecem históricas. A configuração salva do ambiente Codex ainda exige publicação pelo produto e é separada do site Netlify já publicado; não foi validada uma nova restauração completa do ambiente. Nenhum cadastro, foto, vínculo ou senha do proprietário foi alterado pelos testes reais.
+
+A consulta final de limpeza confirmou zero contas/pessoas de teste de fotos e zero objetos de avatar sem uma conta proprietária. O helper concluiu novamente as 18 verificações usando GET no RPC de fotos vinculadas, preservando autenticação, aprovação e a configuração de consulta pública.
+
+Limites: o lote continua usando PDFs com texto selecionável, sem OCR; uma música deve ocupar seu próprio arquivo. A cifra precisa abrir normalmente no navegador para gerar o PDF, e o bloqueio HTTP 403 do servidor permanece. Estimativa de tom é uma indicação revisável, com possibilidade de acordes emprestados e modulação, não confirmação musical. Menus de impressão em Android/Safari físicos precisam de conferência no aparelho. Nenhum novo resultado de teste ou publicação é inferido pela existência do código.
+
+## Versão anterior — PDF no celular, gráficos e fotos
 
 Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app) com deploy `6ac7e22149737a81462e075b`, confirmado `ready` pela API Netlify. A aplicação e a função foram publicadas juntas no mesmo site. Esta versão acrescenta importação de cifra por PDF, gráficos do planejamento e fotos de perfil/integrantes. As verificações locais, de fotos no Supabase real e as 41 verificações públicas do deploy final foram concluídas, incluindo o ajuste de cancelamento da leitura do arquivo.
 

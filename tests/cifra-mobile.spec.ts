@@ -123,7 +123,8 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
       const dialog = h.page.getByRole('dialog');
       await expect(dialog.getByLabel('Título', { exact: true })).toHaveValue(TITLE);
       await expect(dialog.getByLabel('Artista / compositor', { exact: true })).toHaveValue(ARTIST);
-      await expect(dialog.getByLabel('Tom na igreja', { exact: true })).toHaveValue('Bb');
+      await expect(dialog.getByLabel('Tom na igreja', { exact: true })).toHaveValue('G');
+      await dialog.getByLabel('Tom na igreja', { exact: true }).selectOption('Bb');
       await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('');
       await expect(dialog).toContainText('Capotraste na fonte: 3ª casa');
       await expect(dialog.getByLabel('Prévia do conteúdo para importar', { exact: true })).toHaveText(WRITTEN);
@@ -173,11 +174,11 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
     } finally { await h.dispose(); }
   });
 
-  test('sem tom escrito exige confirmação antes de importar ou salvar', async () => {
+  test('sem metadados de tom e com harmonia ambígua exige confirmação antes de importar ou salvar', async () => {
     const h = await harness();
     try {
       await h.mock.login();
-      await h.page.goto(transfer({ ...SOURCE, displayedKey: undefined, keyUnknownReason: 'Confirme o tom dos acordes escritos.' }));
+      await h.page.goto(transfer({ ...SOURCE, displayedKey: undefined, soundingKey: undefined, keyUnknownReason: 'Confirme o tom dos acordes escritos.' }));
       await pending(h.page);
       await h.page.getByRole('button', { name: 'Revisar e salvar na biblioteca', exact: true }).click();
       const dialog = h.page.getByRole('dialog');
@@ -242,7 +243,7 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
       expect(writes(h.mock)).toHaveLength(0);
       await h.page.getByRole('button', { name: 'Revisar e salvar na biblioteca', exact: true }).click();
       const dialog = h.page.getByRole('dialog');
-      await expect(dialog.getByLabel('Tom na igreja', { exact: true })).toHaveValue('Bb');
+      await expect(dialog.getByLabel('Tom na igreja', { exact: true })).toHaveValue('G');
       await expect(dialog.getByLabel('Artista / compositor', { exact: true })).toHaveValue(ARTIST);
       await expect(dialog).toContainText('Capotraste na fonte: 3ª casa');
     } finally { await h.dispose(); }

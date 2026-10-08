@@ -1,7 +1,7 @@
 export type Role = 'admin' | 'leader' | 'musician';
 export interface Profile { id: string; name: string; role: Role; approved: boolean; personId?: string; photoUrl?: string }
 export interface Tag { id: string; name: string; color: string }
-export interface Person { id: string; name: string; email: string; functions: string[]; photoUrl?: string }
+export interface Person { id: string; name: string; email: string; functions: string[]; photoUrl?: string; accountPhotoUrl?: string }
 export interface Song {
   id: string; title: string; artist: string; originalKey: string; churchKey: string;
   content: string; youtubeUrl: string; notes: string; tagIds: string[];

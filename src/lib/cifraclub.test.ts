@@ -71,6 +71,48 @@ describe('importação de texto do Cifra Club', () => {
     expect(cleanChordSheet(input)).toBe('\n[G]Luz\n| C G |\nC\n\n[Refrão]\nSegue a canção');
   });
 
+  it('remove captions de tab intro e solo, conservando seções instrumentais com acordes', () => {
+    const input = '[Intro] [G] [A] [D]\n[Tab Intro]\nParte 1 de 2\n\ne|--0h2p0-----|\nB|--3---3-----|\nG|--2---------|\nD|--0---------|\nA|------------|\nE|------------|\n\n[Solo] [Em] [Am]\nTab - Solo\n(Parte 2 de 2)\ne|--12b(14)r12--10/12--|\nB|--10~~--------------|\nG|--------------------|\nD|--------------------|\nA|--------------------|\nE|--------------------|\n\n[G]Cantamos juntos, eu nunca estou solo';
+    const cleaned = cleanChordSheet(input);
+    expect(cleaned).not.toMatch(/Tab|e\||B\||G\||D\||A\||E\||12b/);
+    expect(cleaned).toContain('[Intro] [G] [A] [D]');
+    expect(cleaned).toContain('[Solo] [Em] [Am]');
+    expect(cleaned).not.toContain('Parte');
+    expect(cleaned).toContain('[G]Cantamos juntos, eu nunca estou solo');
+  });
+
+  it('limpa tablatura com hífens e barras Unicode, casas curtas e linhas abertas', () => {
+    const input = 'Tablatura da introdução\ne │ ––0–2– │\nB┃−−3−−3−\nG¦──2──\nD | -0- |\nA|0h2p0\nE|——x——\n\n[Refrão]\n[G]Luz [A]em [D]nós';
+    expect(cleanChordSheet(input)).toBe('\n[Refrão]\n[G]Luz [A]em [D]nós');
+  });
+
+  it('remove continuações da tab quebradas pela impressão sem apagar separadores comuns', () => {
+    const input = '[Tab Solo]\ne|-----7h9--9/11-------\n------11p9------7-------|\nB|-----7---------------\n------7------<12>-------|\n\n[Intro] G A D\n\n----------\nA paz nasceu\n| C G | (2x)';
+    const cleaned = cleanChordSheet(input);
+    expect(cleaned).toBe('\n[Intro] G A D\n\n----------\nA paz nasceu\n| C G | (2x)');
+    expect(parseCifraClubText(input).content).toBe('[Intro] [G] [A] [D]\n\n----------\nA paz nasceu\n| [C] [G] | (2x)');
+  });
+
+  it('preserva acordes junto de captions e elimina captions de tab isoladas sem perder versos', () => {
+    const input = '[TabIntro] G A D\n[Tab Solo] [Em] [Am]\n[Tab Intro] e|---0---2---|\n[Tab Solo]\nTablatura - Solo 2\nTab (Intro)\nIntro (Tab)\n\nSolo de amor em tua voz\nA\nE\n[G]Meu solo encontra paz';
+    const cleaned = cleanChordSheet(input);
+    expect(cleaned).toBe('[Intro] G A D\n[Solo] [Em] [Am]\n[Intro]\n\nSolo de amor em tua voz\nA\nE\n[G]Meu solo encontra paz');
+    expect(parseCifraClubText(input).content).toContain('[Intro] [G] [A] [D]');
+  });
+
+  it('reconhece um grupo de tablatura sem nomes das cordas, mas conserva uma linha avulsa', () => {
+    const input = '-----0h2----|\n-----3-----|\n-----2-----|\n----------|\n----------|\n----------|\n\n[Solo] [G] [A]\n\n-----0-----\n[G]Luz no caminho';
+    expect(cleanChordSheet(input)).toBe('\n[Solo] [G] [A]\n\n-----0-----\n[G]Luz no caminho');
+  });
+
+  it('não confunde palavras de letras com captions nem processa cifras acima do limite', () => {
+    const input = 'Tabuleiro de amor\nTab intro para cantar\nA tablatura da introdução toca em meu coração\nSolo\n[Intro]\n[Solo]\nParte 1 de 2\nG A D\nA|uma palavra\nE | 3';
+    expect(cleanChordSheet(input)).toBe(input);
+    expect(cleanChordSheet('Capotraste: 0\nParte 1 de 2\n[G]A paz chegou')).toBe('Parte 1 de 2\n[G]A paz chegou');
+    expect(() => cleanChordSheet('a'.repeat(100_001))).toThrow('100.000');
+    expect(cleanChordSheet(`Tab${' '.repeat(50_000)}com palavras`)).toBe(`Tab${' '.repeat(50_000)}com palavras`);
+  });
+
   it('usa o tom das posições indicado na fonte, sem somar o capotraste de novo', () => {
     const input = 'Tom: Bb (forma dos acordes no tom de G)\nCapotraste na 3ª casa\nG     D/F#\nLuz em paz';
     const parsed = parseCifraClubText(input);

@@ -1,5 +1,6 @@
 import { KEYS } from './music';
 import { buildCifraClubSearchUrl, normalizeCifraClubUrl } from './cifraclub';
+import type { SongKeyEstimate } from './key-estimate';
 
 export type SongImportKind = 'lyrics' | 'chords';
 export interface SongSearchResult {
@@ -14,6 +15,7 @@ export interface SongSearchResult {
   soundingKey?: string;
   capo?: number;
   keyUnknownReason?: string;
+  keyEstimate?: SongKeyEstimate;
   album?: string;
 }
 

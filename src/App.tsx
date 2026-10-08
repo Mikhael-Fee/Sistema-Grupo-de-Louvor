@@ -9,6 +9,7 @@ import HomePage from './pages/HomePage';
 import { FormError } from './components/ui';
 import Brand from './components/Brand';
 import ProfileAvatar from './components/ProfileAvatar';
+import { getProfilePhoto } from './lib/avatars';
 
 const SongsPage = lazy(() => import('./pages/SongsPage'));
 const SongPage = lazy(() => import('./pages/SongPage'));
@@ -60,7 +61,7 @@ function PublicEntry() {
 }
 
 function AccountIdentity() {
-  const { profile, mode } = useMinistry();
-  const identity = <><div className="profile-copy"><strong>{profile?.name}</strong><span>{profile ? ROLE_LABELS[profile.role] : ''}</span></div><ProfileAvatar name={profile?.name || 'Visitante'} photoUrl={profile?.photoUrl} decorative /></>;
+  const { profile, mode, data } = useMinistry();
+  const identity = <><div className="profile-copy"><strong>{profile?.name}</strong><span>{profile ? ROLE_LABELS[profile.role] : ''}</span></div><ProfileAvatar name={profile?.name || 'Visitante'} photoUrl={getProfilePhoto(profile, data)} decorative /></>;
   return mode === 'public' ? <div className="topbar-profile">{identity}</div> : <Link className="topbar-profile topbar-profile-link" to="/perfil" aria-label="Meu perfil">{identity}</Link>;
 }

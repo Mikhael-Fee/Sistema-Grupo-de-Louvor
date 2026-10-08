@@ -200,6 +200,10 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
         }
         if (modeRef.current === 'supabase' && sessionUser.current === actor) {
           setProfile(current => current?.id === actor ? { ...current, photoUrl: nextUrl || undefined } : current);
+          if (profile.approved && profile.personId) {
+            setData(current => ({ ...current, people: current.people.map(person => person.id === profile.personId
+              ? { ...person, accountPhotoUrl: nextUrl || undefined } : person) }));
+          }
         }
         if (previous && previous !== nextUrl) await repository.deleteAvatar(previous).catch(() => {});
       } finally { lock.current = false; setBusy(false); }

@@ -3,11 +3,12 @@ import { Link } from 'react-router-dom';
 import { ArrowUpRight, Check, Download, ExternalLink, ListFilter, LoaderCircle, Music2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
 import CifraPdfPicker from '../components/CifraPdfPicker';
+import CifraPdfBatchDialog from '../components/CifraPdfBatchDialog';
 import { useMinistry } from '../context/MinistryContext';
 import { KEYS, normalizeSearch, stripChords } from '../lib/music';
 import { validateSong } from '../lib/validation';
 import { cleanChordSheet, normalizeCifraClubUrl, parseCifraClubText } from '../lib/cifraclub';
-import { contentInChurchKey, hasWrittenChords, songInChurchKey } from '../lib/song-tones';
+import { contentInChurchKey, hasWrittenChords, resolveSourceTonality, songInChurchKey } from '../lib/song-tones';
 import { useDraft } from '../hooks/useDraft';
 import { cifraBrowserStatus, readCifraFromBrowser } from '../lib/cifra-browser';
 import { cifraClubUrlFromNotes, notesWithCifraClubSource, previewSongSource, searchUnifiedSongSources, sourceKey, type SongSearchResult } from '../lib/song-search';
@@ -27,11 +28,16 @@ function SourceKeyConfirmation({ value, onChange, reason }: { value: string; onC
 
 export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onSaved }: { song?: Song; incomingSource?: SongSearchResult; incomingDraftId?: string; onClose: () => void; onSaved?: () => void }) {
   const { data, saveSong, busy } = useMinistry();
+  const incomingTonality = useMemo(() => incomingSource ? resolveSourceTonality(incomingSource) : null, [incomingSource]);
   const editorKey = song?.id || (incomingSource ? `mobile:${incomingDraftId || incomingSource.id}` : 'new');
   const { draft, setDraft, discardDraft, hasDraft } = useDraft<Song>(`song:${editorKey}`, () => song ? songInChurchKey({ ...song, tagIds: [...song.tagIds] })
     : incomingSource ? { ...blankSong(), title: incomingSource.title, artist: incomingSource.artist,
-      originalKey: sourceKey(incomingSource.soundingKey) || sourceKey(incomingSource.originalKey) || 'C',
-      churchKey: sourceKey(incomingSource.soundingKey) || sourceKey(incomingSource.originalKey) || 'C' } : blankSong());
+      originalKey: incomingTonality?.churchKey || 'C',
+      churchKey: incomingTonality?.churchKey || 'C' } : blankSong());
+  const { draft: keyPreference, setDraft: setKeyPreference, discardDraft: discardKeyPreference } = useDraft<{ manual: boolean }>(`song-key-preference:${editorKey}`,
+    () => ({ manual: Boolean(song || (!incomingSource && (draft.content.trim() || draft.churchKey !== 'C'))) }));
+  const keyPreferenceRef = useRef(keyPreference);
+  keyPreferenceRef.current = keyPreference;
   const { draft: pastedSource, setDraft: setPastedSource, discardDraft: discardPastedSource } = useDraft<{ unknown: boolean; reason: string }>(`song-pasted-source:${editorKey}`, { unknown: false, reason: '' });
   const [repairWrittenKey, setRepairWrittenKey] = useState('');
   const [repairApplied, setRepairApplied] = useState(false);
@@ -41,7 +47,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
   const [sourceOpen, setSourceOpen] = useState(Boolean(incomingSource));
   const [sourceResults, setSourceResults] = useState<SongSearchResult[]>([]);
   const [sourceWarnings, setSourceWarnings] = useState<string[]>([]);
-  const [preview, setPreview] = useState<SongSearchResult | null>(incomingSource || null);
+  const [preview, setPreview] = useState<SongSearchResult | null>(incomingTonality?.source || null);
   const [previewLyricsOnly, setPreviewLyricsOnly] = useState(false);
   const previewText = useMemo(() => {
     const cleaned = cleanChordSheet(preview?.content || '');
@@ -67,10 +73,26 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
   useEffect(() => {
     if (draft.originalKey !== draft.churchKey) setDraft(current => songInChurchKey(current));
   }, [draft.originalKey, draft.churchKey, setDraft]);
-  const change = (field: keyof Song, value: string) => setDraft(current => field === 'churchKey'
-    ? pastedSource.unknown ? { ...current, churchKey: value, originalKey: value } : songInChurchKey(current, value)
-    : { ...current, [field]: value });
+  const change = (field: keyof Song, value: string) => {
+    if (field === 'churchKey') { keyPreferenceRef.current = { manual: true }; setKeyPreference({ manual: true }); }
+    setDraft(current => field === 'churchKey'
+      ? pastedSource.unknown ? { ...current, churchKey: value, originalKey: value } : songInChurchKey(current, value)
+      : { ...current, [field]: value });
+  };
   const previewNeedsKey = Boolean(preview?.kind === 'chords' && hasWrittenChords(preview.content || '') && !sourceKey(preview.originalKey));
+  const previewImportKey = sourceKey(preview?.originalKey) || sourceKey(previewWrittenKey);
+  const previewChurchKey = !keyPreference.manual && previewImportKey ? previewImportKey : draft.churchKey;
+  function sourceDefault(key: string | null) {
+    if (key && !keyPreferenceRef.current.manual) {
+      setKeyPreference({ manual: false });
+      setDraft(current => current.content.trim() ? current : { ...current, originalKey: key, churchKey: key });
+    }
+  }
+  function receivePreview(source: SongSearchResult) {
+    const tonality = resolveSourceTonality(source);
+    setPreview(tonality.source);
+    sourceDefault(tonality.churchKey);
+  }
   function prepareContent(current: Song, confirmedKey?: string): Song {
     if (!current.content.trim()) return current;
     const parsed = parseCifraClubText(current.content);
@@ -119,7 +141,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
       if (connected) setBrowserConnected(true);
       const resultPreview = connected ? await readCifraFromBrowser(result, controller.signal) : await previewSongSource(result, controller.signal);
       if ((resultPreview.content?.length || 0) > 100_000) throw new Error('A letra e cifra desta versão excedem 100.000 caracteres. Escolha outra versão.');
-      if (!controller.signal.aborted) setPreview(resultPreview);
+      if (!controller.signal.aborted) receivePreview(resultPreview);
     }
     catch (cause) { if (!controller.signal.aborted) setSourceError(cause instanceof Error ? cause.message : 'Não foi possível abrir a prévia.'); }
     finally { if (!controller.signal.aborted) setPreviewing(null); }
@@ -132,7 +154,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
   function receivePdf(source: SongSearchResult) {
     sourceRequest.current?.abort();
     setSearching(false); setPreviewing(null); setSourceError(null); setError(null);
-    setSourceOpen(true); setPreview(source); setPreviewWrittenKey(''); setPreviewLyricsOnly(false);
+    setSourceOpen(true); receivePreview(source); setPreviewWrittenKey(''); setPreviewLyricsOnly(false);
     setImported(false); setUseSourceMetadata(true); setSourceConfirmReplace(false);
     setDraft(current => ({ ...current, title: source.title || current.title, artist: source.artist || current.artist }));
   }
@@ -140,11 +162,12 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
   function draftFromPreview(current: Song): Song {
     if (!preview?.content) throw new Error('Escolha uma versão com conteúdo para importar.');
     const key = sourceKey(preview.originalKey) || sourceKey(previewWrittenKey);
-    const content = contentInChurchKey(preview.kind === 'lyrics' ? stripChords(preview.content) : preview.content, key || undefined, current.churchKey);
+    const churchKey = !keyPreferenceRef.current.manual && key ? key : current.churchKey;
+    const content = contentInChurchKey(preview.kind === 'lyrics' ? stripChords(preview.content) : preview.content, key || undefined, churchKey);
     const attribution = `Fonte ${preview.kind === 'chords' ? 'da letra e cifra' : 'da letra'}: ${preview.source} — ${preview.sourceUrl}`;
     const importedCifraUrl = preview.source === 'Cifra Club' ? normalizeCifraClubUrl(preview.sourceUrl) : null;
     const notes = importedCifraUrl ? notesWithCifraClubSource(current.notes, importedCifraUrl) : current.notes.includes(attribution) ? current.notes : `${current.notes.trim()}${current.notes.trim() ? '\n\n' : ''}${attribution}`;
-    return { ...current, content, originalKey: current.churchKey, ...(useSourceMetadata ? { title: preview.title, artist: preview.artist || current.artist } : {}), notes };
+    return { ...current, content, originalKey: churchKey, churchKey, ...(useSourceMetadata ? { title: preview.title, artist: preview.artist || current.artist } : {}), notes };
   }
 
   function importPreview() {
@@ -172,7 +195,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
     if (invalid) { setError(invalid); return; }
     setError(null);
     setSaving(true);
-    try { await saveSong(cleaned); discardDraft(); discardPastedSource(); onSaved?.(); onClose(); }
+    try { await saveSong(cleaned); discardDraft(); discardPastedSource(); discardKeyPreference(); onSaved?.(); onClose(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível salvar a música. Tente novamente.'); }
     finally { setSaving(false); }
   }
@@ -184,7 +207,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
       <div className="form-grid">
         <label className="field">Título<input autoFocus required value={draft.title} onChange={e => change('title', e.target.value)} placeholder="Nome da música" maxLength={200} /></label>
         <label className="field">Artista / compositor<input required value={draft.artist} onChange={e => change('artist', e.target.value)} placeholder="Quem compôs ou interpreta" maxLength={200} /></label>
-        <label className="field">Tom na igreja<select aria-label="Tom na igreja" value={draft.churchKey} onChange={e => change('churchKey', e.target.value)}>{KEYS.map(key => <option key={key}>{key}</option>)}</select><span className="songs-field-hint">Alterar o tom também transpõe os acordes do rascunho.</span></label>
+        <label className="field">Tom na igreja<select aria-label="Tom na igreja" value={draft.churchKey} onChange={e => change('churchKey', e.target.value)}>{KEYS.map(key => <option key={key}>{key}</option>)}</select><span className="songs-field-hint">A importação usa o tom dos acordes recebidos por padrão. Sua escolha manual é preservada; alterar o tom transpõe os acordes.</span></label>
       </div>
       <section className="songs-source-search" aria-label="Busca online de letra e cifra">
         <CifraPdfPicker onRead={receivePdf} disabled={busy || saving || searching || Boolean(previewing)} />
@@ -202,14 +225,15 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
           {sourceResults.length > 0 && <ul className="songs-source-results">{sourceResults.map(result => <li key={`${result.source}:${result.id}`}><div><strong>{result.title}</strong><span>{result.artist || 'Confira o artista na prévia'}{result.album && ` · ${result.album}`}</span><span className={`songs-result-source ${result.source === 'Cifra Club' ? 'songs-result-primary' : ''}`}>{result.source} · {result.kind === 'chords' ? 'Letra e cifra' : 'Letra sem acordes'}</span></div><div className="songs-result-actions"><button type="button" className="button button-ghost" disabled={Boolean(previewing)} aria-label={`Ver prévia de ${result.title}`} onClick={() => openPreview(result)}>{previewing === result.id ? 'Abrindo…' : 'Ver prévia'}<ArrowUpRight size={14} /></button><a href={result.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${result.title} na fonte`}>Fonte<ExternalLink size={11} /></a></div></li>)}</ul>}
           {preview && <div className="songs-source-preview">
             <div className="songs-preview-heading"><div><h3>{preview.title}</h3><p>{preview.artist || 'Artista não informado pela fonte'} · {preview.source} · {preview.kind === 'chords' ? `Tom dos acordes na fonte: ${sourceKey(preview.originalKey) || 'a confirmar'}` : 'Letra sem acordes'}</p></div><a href={preview.sourceUrl} target="_blank" rel="noopener noreferrer">Ver fonte<ExternalLink size={12} /></a></div>
-            {preview.capo !== undefined && <p className="songs-import-hint">Capotraste na fonte: {preview.capo}ª casa{preview.soundingKey ? ` · Tom sonoro: ${preview.soundingKey}` : ''}. Os acordes serão convertidos para teclado, sem capotraste.</p>}
-            {previewNeedsKey && <SourceKeyConfirmation value={previewWrittenKey} onChange={setPreviewWrittenKey} reason={preview.keyUnknownReason} />}
+            {preview.capo !== undefined && <p className="songs-import-hint">Capotraste na fonte: {preview.capo}ª casa{preview.soundingKey ? ` · Tom sonoro: ${preview.soundingKey}` : ''}. Tom dos acordes sem capotraste: {sourceKey(preview.originalKey) || 'a confirmar'}. O capotraste não será aplicado novamente.</p>}
+            {preview.keyEstimate && <div className="songs-import-hint" role="status"><p>Tom provável: {preview.keyEstimate.key}{preview.keyEstimate.mode === 'minor' ? 'm' : ''}. {preview.keyEstimate.confidence === 'low' ? 'Acordes insuficientes ou tonalidades próximas: confirme abaixo.' : 'Sugerido pelo campo harmônico; confira antes de salvar.'}</p>{preview.keyEstimate.borrowedChords.length > 0 && <p>Fora do campo harmônico sugerido: {preview.keyEstimate.borrowedChords.join(', ')}. Podem ser empréstimos harmônicos ou outra variação.</p>}{preview.keyEstimate.alternatives.length > 0 && <p>Outras possibilidades: {preview.keyEstimate.alternatives.map(item => `${item.key}${item.mode === 'minor' ? 'm' : ''}`).join(', ')}.</p>}</div>}
+            {previewNeedsKey && <SourceKeyConfirmation value={previewWrittenKey} onChange={key => { setPreviewWrittenKey(key); sourceDefault(sourceKey(key)); }} reason={preview.keyUnknownReason} />}
             {preview.kind === 'chords' && <label className="songs-source-metadata songs-preview-lyrics"><input type="checkbox" checked={previewLyricsOnly} onChange={e => setPreviewLyricsOnly(e.target.checked)} />Ver somente letra na prévia</label>}
             <pre tabIndex={0} aria-label="Prévia do conteúdo para importar">{previewText.slice(0, 12000)}</pre>
             {previewText.length > 12000 && <p className="songs-import-hint">A prévia exibe o início do texto. A importação inclui o conteúdo completo.</p>}
             <label className="songs-source-metadata"><input type="checkbox" checked={useSourceMetadata} onChange={e => { const checked = e.target.checked; setUseSourceMetadata(checked); if (checked) setDraft(current => ({ ...current, title: preview.title, artist: preview.artist || current.artist })); }} />Atualizar título e artista com os dados da fonte</label>
             {useSourceMetadata && !draft.content.trim() && <p className="songs-import-hint">Você pode importar abaixo ou clicar em Salvar música para preencher e salvar esta versão com título, artista, letra e cifra.</p>}
-            <p className="songs-import-hint">{draft.content.trim() ? 'A importação substituirá a letra e cifra do formulário. ' : ''}{preview.kind === 'chords' ? `Os acordes serão ajustados automaticamente para ${draft.churchKey}, o tom da igreja. Tablaturas e diagramas serão removidos. ` : 'Esta versão contém apenas a letra; nenhum acorde será acrescentado. '}A fonte será registrada nas observações.</p>
+            <p className="songs-import-hint">{draft.content.trim() ? 'A importação substituirá a letra e cifra do formulário. ' : ''}{preview.kind === 'chords' ? `Os acordes serão ajustados automaticamente para ${previewChurchKey}, o tom da igreja após importar. Tablaturas e diagramas serão removidos. ` : 'Esta versão contém apenas a letra; nenhum acorde será acrescentado. '}A fonte será registrada nas observações.</p>
             <button type="button" className="button button-primary" disabled={sourceConfirmReplace || (previewNeedsKey && !previewWrittenKey)} onClick={() => draft.content.trim() ? setSourceConfirmReplace(true) : importPreview()}><Download size={15} />{preview.kind === 'chords' ? 'Importar cifra e letra' : 'Importar letra sem acordes'}</button>
             {sourceConfirmReplace && <div className="songs-cifra-replace" role="group" aria-label="Confirmar substituição do conteúdo importado"><p>Substituir a letra e cifra atuais pela versão selecionada?{preview.kind === 'lyrics' && ' Esta versão não contém acordes.'}</p><div><button type="button" className="button button-primary" disabled={previewNeedsKey && !previewWrittenKey} onClick={importPreview}>Substituir letra e cifra</button><button type="button" className="button button-secondary" onClick={() => setSourceConfirmReplace(false)}>Manter conteúdo atual</button></div></div>}
           </div>}
@@ -254,7 +278,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
         return <button key={tag.id} type="button" className={`chip ${selected ? 'active' : ''}`} aria-pressed={selected} onClick={() => setDraft(current => ({ ...current, tagIds: selected ? current.tagIds.filter(id => id !== tag.id) : [...current.tagIds, tag.id] }))}>{selected && <Check size={13} />}<span className="songs-tag-dot" style={{ backgroundColor: tag.color }} />{tag.name}</button>;
       })}</div> : <p className="muted">Cadastre etiquetas na seção Etiquetas para organizar as músicas.</p>}</fieldset>
       <FormError error={error} />
-      <div className="form-actions"><button type="button" className="button button-secondary" onClick={() => { discardDraft(); discardPastedSource(); onClose(); }}>Cancelar</button><button type="submit" className="button button-primary" disabled={saving || busy}>{saving ? 'Salvando…' : 'Salvar música'}</button></div>
+      <div className="form-actions"><button type="button" className="button button-secondary" onClick={() => { discardDraft(); discardPastedSource(); discardKeyPreference(); onClose(); }}>Cancelar</button><button type="submit" className="button button-primary" disabled={saving || busy}>{saving ? 'Salvando…' : 'Salvar música'}</button></div>
     </form>
   </Modal>;
 }
@@ -265,6 +289,7 @@ export default function SongsPage() {
   const [keyFilter, setKeyFilter] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [editor, setEditor] = useState<Song | 'new' | null>(null);
+  const [batchImport, setBatchImport] = useState(false);
   const [deleting, setDeleting] = useState<Song | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -286,7 +311,7 @@ export default function SongsPage() {
   }
 
   return <>
-    <PageHeader eyebrow="REPERTÓRIO DO MINISTÉRIO" title="Biblioteca de músicas" description="Cada canção, pronta para o próximo encontro." action={canEditLibrary && <button className="button button-primary" onClick={() => setEditor('new')}><Plus size={17} />Nova música</button>} />
+    <PageHeader eyebrow="REPERTÓRIO DO MINISTÉRIO" title="Biblioteca de músicas" description="Cada canção, pronta para o próximo encontro." action={canEditLibrary && <div className="form-actions" style={{ marginTop: 0 }}><button className="button button-secondary" onClick={() => setBatchImport(true)}><Download size={17} />Importar PDFs</button><button className="button button-primary" onClick={() => setEditor('new')}><Plus size={17} />Nova música</button></div>} />
     <div className="songs-summary"><span className="songs-summary-icon"><Music2 size={19} /></span><strong>{data.songs.length}</strong><span>{data.songs.length === 1 ? 'música na biblioteca' : 'músicas na biblioteca'}</span><span className="songs-summary-divider" /><span>{data.tags.length} {data.tags.length === 1 ? 'etiqueta para organizar' : 'etiquetas para organizar'}</span></div>
     <section className="card songs-filters" aria-label="Filtros de músicas">
       <div className="songs-filter-row"><label className="songs-search"><Search size={18} /><input className="search-input" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar por título ou artista…" aria-label="Buscar por título ou artista" /></label><label className="songs-key-filter"><ListFilter size={16} /><span className="sr-only">Filtrar pelo tom na igreja</span><select value={keyFilter} onChange={e => setKeyFilter(e.target.value)} aria-label="Filtrar pelo tom na igreja"><option value="">Todos os tons</option>{KEYS.map(key => <option key={key} value={key}>Tom {key}</option>)}</select></label></div>
@@ -305,6 +330,7 @@ export default function SongsPage() {
     </article>)}</div> : <div className="card"><EmptyState title={filtered ? 'Nenhuma música com esses filtros' : 'A biblioteca começa com uma canção'} description={filtered ? 'Tente outro título, tom ou combinação de etiquetas.' : 'Adicione as músicas que fazem parte da caminhada do ministério.'} action={filtered ? <button className="button button-secondary" onClick={reset}>Limpar filtros</button> : canEditLibrary ? <button className="button button-primary" onClick={() => setEditor('new')}><Plus size={16} />Adicionar música</button> : undefined} /></div>}
     <p className="songs-footer-note"><Music2 size={14} />Os ajustes de tom na visualização preservam a música original.</p>
     {editor && <SongEditor song={editor === 'new' ? undefined : editor} onClose={() => setEditor(null)} />}
+    {batchImport && <CifraPdfBatchDialog onClose={() => setBatchImport(false)} />}
     {deleting && <Modal title="Excluir música" onClose={() => setDeleting(null)}><p>Excluir <strong>{deleting.title}</strong> da biblioteca?</p>{usedBy > 0 ? <p className="songs-delete-warning">Esta música aparece em {usedBy} {usedBy === 1 ? 'culto' : 'cultos'}. Remova-a dos repertórios antes de excluir.</p> : <p className="muted">Esta ação remove a letra, a cifra e as observações cadastradas.</p>}<FormError error={deleteError} /><div className="form-actions"><button className="button button-secondary" onClick={() => setDeleting(null)}>Cancelar</button><button className="button songs-danger-button" disabled={usedBy > 0 || removing || busy} onClick={removeSong}>{removing ? 'Excluindo…' : 'Excluir música'}</button></div></Modal>}
   </>;
 }

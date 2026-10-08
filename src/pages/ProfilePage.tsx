@@ -5,10 +5,11 @@ import { useMinistry } from '../context/MinistryContext';
 import { FormError, PageHeader } from '../components/ui';
 import ProfileAvatar from '../components/ProfileAvatar';
 import PhotoPicker, { type PhotoChange } from '../components/PhotoPicker';
+import { getProfilePhoto } from '../lib/avatars';
 import { ROLE_LABELS } from '../types';
 
 export default function ProfilePage() {
-  const { profile, mode, busy, updateProfilePhoto } = useMinistry();
+  const { data, profile, mode, busy, updateProfilePhoto } = useMinistry();
   const [photo, setPhoto] = useState<PhotoChange>(undefined);
   const [processing, setProcessing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -16,7 +17,8 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const lock = useRef(false);
   if (mode === 'public' || !profile?.approved) return <Navigate to="/" replace />;
-  const photoUrl = profile.photoUrl;
+  const photoUrl = getProfilePhoto(profile, data);
+  const person = data.people.find(candidate => candidate.id === profile.personId);
   const disabled = saving || busy || processing;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,8 +34,8 @@ export default function ProfilePage() {
       <div className="profile-page-identity"><ProfileAvatar name={profile.name} photoUrl={photoUrl} size={64} /><div><h2>{profile.name}</h2><p>{ROLE_LABELS[profile.role]}</p></div></div>
       <form onSubmit={event => void submit(event)}>
         <h3>Foto de perfil</h3>
-        <PhotoPicker name={profile.name} currentPhotoUrl={photoUrl} value={photo} disabled={saving || busy} onBusyChange={setProcessing} onChange={value => { setPhoto(value); setError(null); setSaved(false); }} />
-        <p className="profile-page-note">Esta foto identifica sua conta. A foto exibida na equipe é definida pelo administrador no cadastro da pessoa.</p>
+        <PhotoPicker name={profile.name} currentPhotoUrl={photoUrl} fallbackPhotoUrl={person?.photoUrl} hasOwnPhoto={Boolean(profile.photoUrl)} value={photo} disabled={saving || busy} onBusyChange={setProcessing} onChange={value => { setPhoto(value); setError(null); setSaved(false); }} />
+        <p className="profile-page-note">Ao vincular sua conta a uma pessoa da equipe, sua foto também aparece nas escalas quando essa pessoa não tem uma foto própria. Se você remover a foto da conta, seu perfil passa a usar a foto da pessoa vinculada, quando houver.</p>
         <FormError error={error} />
         <div className="form-actions"><button className="button button-primary" disabled={disabled || photo === undefined}><Save size={16} />{saving ? 'Salvando foto…' : 'Salvar foto'}</button></div>
         {saved && <p className="profile-page-success" role="status"><Check size={16} />Foto atualizada.</p>}

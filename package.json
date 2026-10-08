@@ -13,7 +13,7 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:db": "node tests/database/check.mjs && node tests/database/public-check.mjs && node tests/database/profile-photos-check.mjs",
+    "test:db": "node tests/database/check.mjs && node tests/database/public-check.mjs && node tests/database/profile-photos-check.mjs && node tests/database/linked-photos-check.mjs",
     "supabase:check": "node scripts/configure-supabase.mjs",
     "supabase:setup": "node scripts/configure-supabase.mjs --apply",
     "supabase:verify": "node scripts/verify-supabase.mjs"

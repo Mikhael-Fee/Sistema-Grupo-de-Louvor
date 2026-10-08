@@ -96,6 +96,9 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin'): Promi
   });
 
   const profileRow = (profile: Profile): Row => ({ ...profile, person_id: profile.personId ?? null, photo_url: profile.photoUrl || '' });
+  const teamProfilePhotos = () => mock.profiles.filter(profile => profile.approved && profile.personId && profile.photoUrl
+    && mock.data.people.some(person => person.id === profile.personId))
+    .map(profile => ({ personId: profile.personId!, photoUrl: profile.photoUrl! }));
   const tableRows = (table: string): Row[] | undefined => {
     switch (table) {
       case 'profiles': return mock.profiles.map(profileRow);
@@ -155,7 +158,15 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin'): Promi
       if (rpc === 'get_public_access') return respond(route, mock.publicAccess);
       if (rpc === 'read_public_ministry') {
         if (!mock.publicAccess) return denied(route);
-        return respond(route, { ...copy(mock.data), people: mock.data.people.map(person => ({ ...person, email: '' })) });
+        const photos = new Map(teamProfilePhotos().map(photo => [photo.personId, photo.photoUrl]));
+        return respond(route, { ...copy(mock.data), people: mock.data.people.map(person => ({
+          id: person.id, name: person.name, email: '', functions: [...person.functions],
+          photoUrl: person.photoUrl || '', accountPhotoUrl: photos.get(person.id) || '',
+        })) });
+      }
+      if (rpc === 'read_team_profile_photos') {
+        if (!authorized('read')) return denied(route);
+        return respond(route, teamProfilePhotos());
       }
       if (rpc === 'save_public_access') {
         if (!authorized('admin')) return denied(route);
@@ -203,7 +214,12 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin'): Promi
           return error(route, '23514', 'Mantenha pelo menos um administrador aprovado.');
         }
         if (next.personId && !mock.data.people.some(person => person.id === next.personId)) return error(route, '23503', 'Pessoa inexistente.');
-        mock.profiles = put(mock.profiles, next);
+        if (next.personId && mock.profiles.some(profile => profile.id !== next.id && profile.personId === next.personId)) {
+          return error(route, '23505', 'Pessoa já vinculada a outra conta.', 409);
+        }
+        // Administrative access updates never copy or overwrite photographs.
+        mock.profiles = put(mock.profiles, { id: previous.id, name: next.name, role: next.role,
+          approved: next.approved, personId: next.personId || undefined, photoUrl: previous.photoUrl });
         return respond(route, null);
       }
       return error(route, 'mock_rpc_unhandled', `RPC não simulado: ${rpc}`, 404);

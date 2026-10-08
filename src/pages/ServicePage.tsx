@@ -2,9 +2,11 @@ import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Clock3, Copy, ExternalLink, GripVertical, Music2, Pencil, Trash2, Users, X } from 'lucide-react';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
+import ProfileAvatar from '../components/ProfileAvatar';
 import { useMinistry } from '../context/MinistryContext';
 import { useDraft } from '../hooks/useDraft';
 import { KEYS } from '../lib/music';
+import { getPersonPhoto } from '../lib/avatars';
 import { validateService } from '../lib/validation';
 import type { Assignment, Person, Service, SetlistItem, Song } from '../types';
 import { formatServiceDate, mergeTeamAssignments, previousTeamService, RepertoirePicker, restoreTeamPickerDraft, selectedRepertoireItems, selectedTeamAssignments, ServiceForm, TeamPicker, teamPickerFromAssignments, type RepertoirePickerDraft, type TeamPickerDraft } from './ServicesPage';
@@ -132,7 +134,7 @@ export default function ServicePage() {
       <section className="card service-team"><div className="service-section-heading"><div><span className="service-section-icon"><Users size={20} /></span><h2>Equipe <span>{service.assignments.length}</span></h2></div></div>
         {service.assignments.length ? <><p className="service-section-description">Juntos, servimos melhor.</p><ul className="service-team-list">{service.assignments.map(assignment => {
           const person = data.people.find(candidate => candidate.id === assignment.personId);
-          return <li key={assignment.id}><span className="service-avatar">{(person?.name || '?').split(' ').filter(Boolean).slice(0, 2).map(part => part[0]).join('')}</span><div><strong>{person?.name || 'Pessoa indisponível'}</strong><span>{assignment.function}</span></div>{canPlan && <button className="icon-button" disabled={disabled} aria-label={`Remover ${person?.name || 'pessoa'} da função ${assignment.function}`} onClick={() => void save({ ...currentService, assignments: currentService.assignments.filter(candidate => candidate.id !== assignment.id) })}><X size={17} /></button>}</li>;
+          return <li key={assignment.id}><ProfileAvatar name={person?.name || 'Pessoa indisponível'} photoUrl={getPersonPhoto(person)} size={39} className="service-avatar" decorative /><div><strong>{person?.name || 'Pessoa indisponível'}</strong><span>{assignment.function}</span></div>{canPlan && <button className="icon-button" disabled={disabled} aria-label={`Remover ${person?.name || 'pessoa'} da função ${assignment.function}`} onClick={() => void save({ ...currentService, assignments: currentService.assignments.filter(candidate => candidate.id !== assignment.id) })}><X size={17} /></button>}</li>;
         })}</ul></> : <EmptyState title="Vamos reunir a equipe" description={canPlan ? 'Selecione todas as pessoas e suas funções para este culto.' : 'A escala aparecerá aqui quando estiver pronta.'} />}
         {canPlan && <button className="button button-secondary service-team-batch" onClick={() => open('team')} disabled={disabled}><Users size={16} /> {service.assignments.length ? 'Editar equipe' : 'Selecionar equipe'}</button>}
       </section>

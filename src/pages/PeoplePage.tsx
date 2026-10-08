@@ -7,6 +7,7 @@ import ProfileAvatar from '../components/ProfileAvatar';
 import PhotoPicker, { type PhotoChange } from '../components/PhotoPicker';
 import { validatePerson } from '../lib/validation';
 import { normalizeSearch } from '../lib/music';
+import { getPersonPhoto } from '../lib/avatars';
 import { FUNCTIONS, type Person } from '../types';
 import './people.css';
 
@@ -25,7 +26,7 @@ function PersonForm({ initial, onSaved, onCancel }: { initial: Person; onSaved: 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canEditLibrary || lock.current || busy || photoProcessing) return;
-    const person = { ...draft, name: draft.name.trim(), email: draft.email.trim() };
+    const person: Person = { id: draft.id, name: draft.name.trim(), email: draft.email.trim(), functions: [...draft.functions], photoUrl: draft.photoUrl };
     const validation = validatePerson(person);
     if (validation) { setError(validation); return; }
     lock.current = true;
@@ -39,7 +40,8 @@ function PersonForm({ initial, onSaved, onCancel }: { initial: Person; onSaved: 
     {hasDraft && <p className="muted" role="status" style={{ gridColumn: '1 / -1', fontSize: 12 }}>Rascunho guardado nesta aba. Você pode sair e continuar depois.</p>}
     <label className="field">Nome<input autoFocus required maxLength={120} disabled={disabled} value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} placeholder="Nome e sobrenome" autoComplete="name" /></label>
     <label className="field">E-mail <span className="muted">(opcional)</span><input type="email" maxLength={254} disabled={disabled} value={draft.email} onChange={event => setDraft({ ...draft, email: event.target.value })} placeholder="pessoa@exemplo.com" autoComplete="email" /></label>
-    <PhotoPicker name={draft.name || 'nova pessoa'} currentPhotoUrl={initial.photoUrl} value={photo} onChange={setPhoto} onBusyChange={setPhotoProcessing} disabled={saving || busy} />
+    <PhotoPicker name={draft.name || 'nova pessoa'} currentPhotoUrl={getPersonPhoto(initial)} fallbackPhotoUrl={initial.accountPhotoUrl} hasOwnPhoto={Boolean(initial.photoUrl)} value={photo} onChange={setPhoto} onBusyChange={setPhotoProcessing} disabled={saving || busy} />
+    <p className="people-photo-note muted">Quando esta pessoa estiver vinculada a uma conta aprovada, a foto da conta aparecerá automaticamente se não houver uma foto própria no cadastro. Remover a foto própria volta a mostrar a foto da conta, sem alterá-la.</p>
     <fieldset className="people-functions-field"><legend>Funções no ministério</legend><p className="muted">Selecione uma ou mais funções. A função de cada culto será definida na escala.</p><div className="people-function-options">{FUNCTIONS.map(fn => <label key={fn} className={`people-function-option ${draft.functions.includes(fn) ? 'active' : ''}`}><input type="checkbox" disabled={disabled} checked={draft.functions.includes(fn)} onChange={event => setDraft({ ...draft, functions: event.target.checked ? [...draft.functions, fn] : draft.functions.filter(value => value !== fn) })} />{fn}</label>)}</div></fieldset>
     <FormError error={error} /><div className="form-actions"><button type="button" className="button button-secondary" disabled={disabled} onClick={() => { discardDraft(); onCancel(); }}>Cancelar</button><button className="button button-primary" disabled={disabled}>{saving ? 'Salvando…' : 'Salvar pessoa'}</button></div>
   </form>;
@@ -81,7 +83,7 @@ export default function PeoplePage() {
     {people.length ? <div className="people-grid">{people.map((person, index) => {
       const inUse = data.services.some(service => service.assignments.some(assignment => assignment.personId === person.id));
       return <article className="people-person card" key={person.id}>
-        <div className="people-person-heading"><ProfileAvatar name={person.name} photoUrl={person.photoUrl} size={44} className={`people-avatar people-avatar-${index % 4}`} decorative />{canEditLibrary && <div className="people-person-actions"><button className="icon-button" aria-label={`Editar ${person.name}`} onClick={() => openEditor(person)}><Pencil size={16} /></button><button className="icon-button" aria-label={`Excluir ${person.name}`} disabled={inUse} title={inUse ? 'Esta pessoa está na escala de um culto.' : 'Excluir pessoa'} onClick={() => { setError(null); setRemoving(person); }}><Trash2 size={16} /></button></div>}</div>
+        <div className="people-person-heading"><ProfileAvatar name={person.name} photoUrl={getPersonPhoto(person)} size={44} className={`people-avatar people-avatar-${index % 4}`} decorative />{canEditLibrary && <div className="people-person-actions"><button className="icon-button" aria-label={`Editar ${person.name}`} onClick={() => openEditor(person)}><Pencil size={16} /></button><button className="icon-button" aria-label={`Excluir ${person.name}`} disabled={inUse} title={inUse ? 'Esta pessoa está na escala de um culto.' : 'Excluir pessoa'} onClick={() => { setError(null); setRemoving(person); }}><Trash2 size={16} /></button></div>}</div>
         <h2>{person.name}</h2><div className="people-functions">{person.functions.map(fn => <span className="badge people-function" key={fn}>{fn}</span>)}</div>
         {mode !== 'public' && <div className="people-contact">{person.email ? <a href={`mailto:${person.email}`}><Mail size={15} />{person.email}</a> : <span className="muted">Sem e-mail cadastrado</span>}</div>}
       </article>;

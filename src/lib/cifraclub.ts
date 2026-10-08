@@ -36,10 +36,37 @@ export function chordSheetMetadata(value: string): Omit<ParsedCifraClubText, 'co
   return { ...(sounding ? { originalKey: sounding } : {}), ...(capo !== undefined ? { capo } : {}) };
 }
 
-function tabRow(line: string): boolean {
-  // A string name alone ("E" / "A") is a lyric or a chord, never a tab.
-  const row = /^(?:[A-Ga-g](?:[#b♯♭])?|\[[A-Ga-g](?:[#b♯♭])?\]|\d{1,2})?\s*\|([\d\s|=\-~hHpPbBrR/\\().xX*^+vV]+)\|?$/.exec(line.trim());
-  return Boolean(row && row[1].length >= 6 && (row[1].match(/[-=]/g)?.length || 0) >= 3);
+interface TabEvidence { labelled: boolean; fretted: boolean }
+
+function tabRow(line: string): TabEvidence | null {
+  // Printing can substitute Unicode bars/dashes or wrap a string onto an unlabelled row.
+  const normalized = line.trim().replace(/[‐‑‒–—−─━]/g, '-').replace(/[│┃¦]/g, '|');
+  const labelled = /^(?:[A-Ga-g][#b♯♭]?|\d{1,2}|\[(?:[A-Ga-g][#b♯♭]?|\d{1,2})\])\s*\|/.exec(normalized);
+  const body = labelled ? normalized.slice(labelled[0].length) : normalized.replace(/^\|/, '');
+  if (body.length < 3 || !/^[\d\s|=\-~hHpPbBrRsStT/\\().xX*^+vV<>:↑↓]+$/.test(body)) return null;
+  let separators = 0;
+  let fretted = false;
+  let technique = false;
+  for (const character of body) {
+    if (character === '-' || character === '=') separators++;
+    else if (character >= '0' && character <= '9' || character === 'x' || character === 'X') fretted = true;
+    else if ('hHpPbBrRsStT/\\~<>↑↓'.includes(character)) technique = true;
+  }
+  // "E", "A", meter numbers and isolated repetition bars are never enough evidence.
+  const plausible = labelled
+    ? separators >= 2 || separators >= 1 && fretted || fretted && technique && body.length >= 4
+    : body.length >= 6 && separators >= 3;
+  return plausible ? { labelled: Boolean(labelled), fretted } : null;
+}
+
+function tabCaption(label: string): { section?: string } | null {
+  const plain = label.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\[\](){}:–—-]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  const match = /^(?:tab|tablatura|tablature)\s*(?:(?:da|do|de)\s+)?(?:(intro|introducao|solo|riff|ponte|final|instrumental)(?:\s+\d+)?)?$/.exec(plain)
+    || /^(intro|introducao|solo|riff|ponte|final|instrumental)(?:\s+\d+)?\s+(?:tab|tablatura|tablature)$/.exec(plain);
+  if (!match) return null;
+  const names: Record<string, string> = { intro: 'Intro', introducao: 'Intro', solo: 'Solo', riff: 'Riff', ponte: 'Ponte', final: 'Final', instrumental: 'Instrumental' };
+  return { ...(match[1] ? { section: names[match[1]] } : {}) };
 }
 
 function compactDiagram(line: string): boolean {
@@ -59,12 +86,25 @@ function gridRow(line: string): boolean {
 
 /** Remove explicit guitar apparatus from raw text or saved ChordPro without changing the song. */
 export function cleanChordSheet(value: string): string {
+  if (value.length > 100_000) throw new Error('A letra e cifra excedem 100.000 caracteres.');
   const lines = value.replace(/\r\n?/g, '\n').split('\n');
+  // A mixed heading such as "[Tab Intro] G D" still contains real instrumental chords.
+  for (let index = 0; index < lines.length; index++) {
+    const heading = /^\s*(\[[^\]\r\n]{1,80}\])\s*(\S.*)$/.exec(lines[index]);
+    if (!heading) continue;
+    const caption = tabCaption(heading[1]);
+    if (caption) {
+      const section = caption.section ? `[${caption.section}]` : '';
+      lines[index] = tabRow(heading[2]) ? section : `${section ? `${section} ` : ''}${heading[2]}`;
+    }
+  }
+  const tabRows = lines.map(tabRow);
+  const tabCaptions = lines.map(line => tabCaption(line));
   const removed = new Set<number>();
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
     const label = line.replace(/\s+/g, ' ').trim();
-    if (tabRow(line) || compactDiagram(line)
+    if (tabRows[index]?.labelled || tabCaptions[index] || compactDiagram(line)
       || /^(?:afina[çc][aã]o|tuning)\s*:\s*\S.*$/i.test(label)
       || /^(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(?:\d{1,2}(?:\s*[ªºao])?(?:\s*casa)?|sem|none)\s*[.!]?$/i.test(label)
       || /^\(?forma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?[A-G](?:[#♯b♭])?(?:m|min|maj)?\)?$/i.test(label)) removed.add(index);
@@ -75,10 +115,40 @@ export function cleanChordSheet(value: string): string {
     if (end - index >= 3) for (let row = index; row < end; row++) removed.add(row);
     index = end - 1;
   }
+  // Wrapped rows have no string label. Remove them only in a recognized tab block,
+  // or in a group of several fret rows; an ordinary lyric separator remains intact.
+  for (let index = 0; index < lines.length; index++) {
+    if (!tabRows[index]) continue;
+    const start = index;
+    let end = index + 1;
+    while (end < lines.length && (tabRows[end] || !lines[end].trim() && tabRows[end + 1])) end++;
+    let previous = start - 1;
+    while (previous >= 0 && start - previous <= 3 && !lines[previous].trim()) previous--;
+    let labelled = false;
+    let frettedRows = 0;
+    let rows = 0;
+    for (let row = start; row < end; row++) {
+      if (!tabRows[row]) continue;
+      rows++;
+      labelled ||= tabRows[row]!.labelled;
+      if (tabRows[row]!.fretted) frettedRows++;
+    }
+    if (labelled || previous >= 0 && Boolean(tabCaptions[previous]) || rows >= 3 && frettedRows >= 2) {
+      for (let row = start; row < end; row++) if (tabRows[row]) removed.add(row);
+    }
+    index = end - 1;
+  }
   // Remove guitar-only captions immediately adjoining an actual diagram/tab.
   for (let pass = 0; pass < 3; pass++) for (const index of [...removed]) {
-    for (const adjacent of [index - 1, index + 1]) {
-      if (adjacent >= 0 && adjacent < lines.length && /^(?:\[?\s*(?:tablatura|tab(?:lature)?|diagrama(?:s)?(?:\s+dos?\s+acordes)?|dedilhado)\s*\]?\s*:?|(?:[eEaAgGbBdD]\s+){5}[eEaAgGbBdD])$/i.test(lines[adjacent].replace(/\s+/g, ' ').trim())) removed.add(adjacent);
+    for (const direction of [-1, 1]) {
+      let adjacent = index + direction;
+      // Print layouts often separate "Parte 1 de 2" from the strings by a blank row.
+      if (adjacent >= 0 && adjacent < lines.length && !lines[adjacent].trim()) adjacent += direction;
+      if (adjacent < 0 || adjacent >= lines.length) continue;
+      const caption = lines[adjacent].replace(/\s+/g, ' ').trim();
+      if (/^(?:\[?\s*(?:tablatura|tab(?:lature)?|diagrama(?:s)?(?:\s+dos?\s+acordes)?|dedilhado)\s*\]?\s*:?|(?:[eEaAgGbBdD]\s+){5}[eEaAgGbBdD])$/i.test(caption)
+        || (tabRows[index] || compactDiagram(lines[index]) || gridRow(lines[index]))
+          && /^(?:\[|\()?parte \d{1,2} de \d{1,2}(?:\]|\))?:?$/i.test(caption)) removed.add(adjacent);
     }
   }
   return lines.filter((_, index) => !removed.has(index)).join('\n');

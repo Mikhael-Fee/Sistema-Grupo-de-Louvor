@@ -55,6 +55,8 @@ try {
   await page.getByRole('heading', { name: 'Biblioteca de músicas', exact: true }).waitFor();
   expect(await page.getByRole('button', { name: 'Nova música', exact: true }).count() === 0
     && await page.locator('.songs-row-actions button').count() === 0, 'Consulta não edita o catálogo');
+  expect(await page.getByRole('button', { name: 'Importar PDFs', exact: true }).count() === 0,
+    'Consulta não oferece importação de PDFs em lote');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Biblioteca cabe no celular');
   const firstSong = page.locator('.songs-name').first();
   if (await firstSong.count()) {
@@ -152,6 +154,20 @@ try {
   stage = 'leitor PDF publicado';
   const pdfAsset = (await readdir(new URL('../dist/assets/', import.meta.url))).filter(name => /^cifra-pdf-[\w-]+\.js$/.test(name) && !name.startsWith('cifra-pdf-worker-'));
   expect(pdfAsset.length === 1, 'Build tem um módulo de importação PDF');
+  const cleanedInstrumental = await page.evaluate(async asset => {
+    const { songFromPdfText } = await import(asset);
+    // Original local text only: exercise the published parser without
+    // creating a song or requesting any protected Cifra Club page.
+    const text = 'Verificação instrumental\nEquipe de teste\nTom: D\n[Intro] [G] [A] [D]\n[Tab Intro]\nParte 1 de 2\ne|--0h2p0-----|\nB|--3---3-----|\nG|--2---------|\nD|--0---------|\nA|------------|\nE|------------|\n\n[Solo] [Em] [Am]\nTab - Solo\n(Parte 2 de 2)\ne|--12b(14)r12--10/12--|\nB|--10~~--------------|\nG|--------------------|\nD|--------------------|\nA|--------------------|\nE|--------------------|\n\n[G]Cantamos juntos, eu nunca estou solo';
+    const source = songFromPdfText(text, 'Verificação instrumental - Equipe de teste - Cifra Club');
+    return { content: source.content, key: source.originalKey };
+  }, `${origin}/assets/${pdfAsset[0]}`);
+  expect(cleanedInstrumental.key === 'D'
+    && cleanedInstrumental.content.includes('[Intro] [G] [A] [D]')
+    && cleanedInstrumental.content.includes('[Solo] [Em] [Am]')
+    && cleanedInstrumental.content.includes('[G]Cantamos juntos, eu nunca estou solo')
+    && !/Tab|Parte \d|[eBGDAE]\||12b/.test(cleanedInstrumental.content),
+    'Importador publicado limpa tabs de intro e solo preservando acordes, letra e tom');
   const pdf = await readFile(new URL('../tests/fixtures/cifra-chart.pdf', import.meta.url));
   const parsed = await page.evaluate(async ({ asset, bytes }) => {
     const { readCifraPdf } = await import(asset);
@@ -162,6 +178,15 @@ try {
   const workerClosedDeadline = Date.now() + 5000;
   while (page.workers().length && Date.now() < workerClosedDeadline) await new Promise(resolve => setTimeout(resolve, 50));
   expect(page.workers().length === 0, 'Leitura publicada encerra o worker');
+  const repeated = await page.evaluate(async ({ asset, bytes }) => {
+    const { readCifraPdf } = await import(asset);
+    const source = await readCifraPdf(new File([new Uint8Array(bytes)], 'verificacao-local-repetida.pdf', { type: 'application/pdf' }));
+    return { content: source.content, key: source.originalKey, title: source.title };
+  }, { asset: `${origin}/assets/${pdfAsset[0]}`, bytes: [...pdf] });
+  const repeatedWorkerDeadline = Date.now() + 5000;
+  while (page.workers().length && Date.now() < repeatedWorkerDeadline) await new Promise(resolve => setTimeout(resolve, 50));
+  expect(repeated.content === parsed.content && repeated.key === parsed.key && repeated.title === parsed.title
+    && page.workers().length === 0, 'Leituras PDF sequenciais preservam a cifra e encerram cada worker');
   expect(writes.length === 0, 'Leitura PDF local não envia arquivo ou gravações');
   stage = 'shell offline';
   // Shared ministry data remains online-only. Test the cached login shell.

@@ -80,7 +80,7 @@ export const repository = {
     const profile = await repository.getProfile(auth.user.id);
     if (!profile.approved) throw new Error('Seu cadastro aguarda aprovação de um administrador.');
 
-    const [songs, tags, people, services, songTags, assignments, repertoire] = await Promise.all([
+    const [songs, tags, people, services, songTags, assignments, repertoire, teamPhotos] = await Promise.all([
       db.from('songs').select('*').order('title'),
       db.from('tags').select('*').order('name'),
       db.from('people').select('*').order('name'),
@@ -88,11 +88,15 @@ export const repository = {
       db.from('song_tags').select('song_id, tag_id'),
       db.from('assignments').select('*').order('position'),
       db.from('repertoire').select('*').order('position'),
+      db.rpc('read_team_profile_photos', {}, { get: true }),
     ]);
-    for (const result of [songs, tags, people, services, songTags, assignments, repertoire]) check(result.error);
+    for (const result of [songs, tags, people, services, songTags, assignments, repertoire, teamPhotos]) check(result.error);
+    if (!Array.isArray(teamPhotos.data)) throw new Error('Não foi possível consultar as fotos vinculadas à equipe.');
+    const accountPhotos = new Map<string, string>(teamPhotos.data.map((row: { personId: string; photoUrl: string }) => [row.personId, row.photoUrl]));
     return {
       tags: (tags.data ?? []).map(row => ({ id: row.id, name: row.name, color: row.color })),
-      people: (people.data ?? []).map(row => ({ id: row.id, name: row.name, email: row.email, functions: row.functions, photoUrl: row.photo_url || undefined })),
+      people: (people.data ?? []).map(row => ({ id: row.id, name: row.name, email: row.email, functions: row.functions,
+        photoUrl: row.photo_url || undefined, accountPhotoUrl: accountPhotos.get(row.id) || undefined })),
       songs: (songs.data ?? []).map(row => ({
         id: row.id, title: row.title, artist: row.artist, originalKey: row.original_key,
         churchKey: row.church_key, content: row.content, youtubeUrl: row.youtube_url, notes: row.notes,
@@ -190,6 +194,7 @@ export const repository = {
   },
   async updateProfile(profile: Profile): Promise<void> {
     const { error } = await client().rpc('update_profile', { p_profile: { ...profile, personId: profile.personId ?? null } });
+    if (error?.code === '23505') throw new Error('Esta pessoa já está vinculada a outra conta. Desvincule a conta anterior ou escolha outra pessoa.');
     check(error);
   },
 };

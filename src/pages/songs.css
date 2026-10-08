@@ -13,6 +13,8 @@
 .song-page,.song-reader,.song-heading>div,.song-reader-controls,.song-sheet,.song-line,.song-segment{min-width:0}
 .song-line{align-items:flex-start}
 .song-segment,.song-lyric{overflow-wrap:anywhere}
+/* Instrumental chords need their own separation; sung segments retain their exact alignment. */
+.song-segment-instrumental{flex:0 0 auto;padding-inline-end:max(8px,.65em)}
 .song-sheet{color:var(--text,#171717)}
 .song-chord{color:var(--flame,#ad4d0d)}
 .song-reader-controls{flex-wrap:wrap}

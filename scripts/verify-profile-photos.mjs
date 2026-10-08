@@ -127,8 +127,9 @@ try {
   serviceKey = Array.isArray(keys) ? keys.find(key => key.name === 'service_role')?.api_key : undefined;
   if (!anonymousKey || !serviceKey || /[\r\n]/.test(anonymousKey + serviceKey)) throw new Error('As chaves de verificação não estão disponíveis.');
   const schema = await query(`select to_regprocedure('public.update_my_profile_photo(text)') is not null as ready,
+    to_regprocedure('public.read_team_profile_photos()') is not null as linked_ready,
     exists(select 1 from storage.buckets where id='avatars' and public and file_size_limit=2097152) as bucket_ready`);
-  if (!schema[0]?.ready || !schema[0]?.bucket_ready) throw new Error('A migração de fotos precisa estar instalada antes da verificação.');
+  if (!schema[0]?.ready || !schema[0]?.linked_ready || !schema[0]?.bucket_ready) throw new Error('As migrações004/005 precisam estar instaladas antes da verificação.');
   imageDirectory = await mkdtemp(join(tmpdir(), 'candeia-photo-check-'));
   const pngFile = join(imageDirectory, 'pixel.png');
   const svgFile = join(imageDirectory, 'rejected.svg');
@@ -203,6 +204,44 @@ try {
   }), 'cadastro de integrante descartável com foto');
   expect(Array.isArray(people) && people.length === 1 && people[0].id === personId
     && people[0].photo_url === publicUrl(personPath), 'admin aprovado salva foto da equipe no banco real');
+
+  const linkedPath = newPath(musician);
+  success(await upload(musician, linkedPath, pngFile), 'upload da foto própria para testar o vínculo');
+  success(await rpc(musician, publicUrl(linkedPath)), 'foto própria antes do vínculo');
+  const link = async (person, approved = true) => success(await rest(admin, 'rpc/update_profile', {
+    method: 'POST', body: { p_profile: { id: musician.id, name: marker, role: 'musician', approved, personId: person } },
+  }), 'atualizar somente o perfil descartável');
+  const teamPhotos = async actor => success(await rest(actor, 'rpc/read_team_profile_photos', { method: 'GET' }), 'ler fotos vinculadas da equipe pelo mesmo método do aplicativo');
+  await link(personId);
+  const linkedRows = await teamPhotos(musician);
+  const linked = linkedRows.find(row => row.personId === personId);
+  expect(linked?.photoUrl === publicUrl(linkedPath)
+    && Object.keys(linked).sort().join(',') === 'personId,photoUrl', 'conta aprovada vinculada fornece somente foto e ID da pessoa');
+  const linkedProfile = await ownProfile(musician);
+  expect(linkedProfile.person_id === personId && linkedProfile.photo_url === publicUrl(linkedPath)
+    && linkedProfile.role === 'musician' && linkedProfile.approved,
+  'vínculo preserva foto própria, papel e aprovação');
+  expect(refused(await rest(null, 'rpc/read_team_profile_photos', { method: 'POST', body: {} })), 'visitante não executa RPC privada de fotos de contas');
+  const publicEnabled = success(await rest(null, 'rpc/get_public_access', { method: 'POST', body: {} }), 'verificação da consulta pública sem alterar configuração');
+  const publicResponse = await rest(null, 'rpc/read_public_ministry', { method: 'POST', body: {} });
+  if (publicEnabled) {
+    const publicPerson = success(publicResponse, 'consulta pública de fotos vinculadas').people.find(person => person.id === personId);
+    expect(publicPerson?.photoUrl === publicUrl(personPath) && publicPerson?.accountPhotoUrl === publicUrl(linkedPath)
+      && publicPerson.email === '' && Object.keys(publicPerson).sort().join(',') === 'accountPhotoUrl,email,functions,id,name,photoUrl',
+    'consulta pública recebe fotos da pessoa e conta vinculada sem contatos ou campos de perfil');
+  } else expect(refused(publicResponse), 'consulta pública desligada mantém fotos vinculadas privadas');
+  await link(personId, false);
+  expect(refused(await rest(musician, 'rpc/read_team_profile_photos', { method: 'POST', body: {} })), 'conta suspensa não consulta fotos da equipe');
+  expect(!(await teamPhotos(admin)).some(row => row.personId === personId), 'revogar aprovação remove a foto vinculada da equipe');
+  if (publicEnabled) {
+    const revokedPerson = success(await rest(null, 'rpc/read_public_ministry', { method: 'POST', body: {} }), 'consulta após revogação').people.find(person => person.id === personId);
+    expect(!revokedPerson.accountPhotoUrl && revokedPerson.photoUrl === publicUrl(personPath), 'revogação pública remove selfie e conserva foto explícita da pessoa');
+  }
+  await link(null);
+  expect(!(await teamPhotos(admin)).some(row => row.personId === personId)
+    && (await ownProfile(musician)).person_id === null, 'desvincular conta remove foto da equipe sem apagar selfie');
+  success(await rpc(musician, ''), 'retirar selfie descartável após testar o vínculo');
+  success(await remove(musician, [linkedPath]), 'limpeza da selfie usada no vínculo');
   success(await rest(admin, `people?id=eq.${personId}`, {
     method: 'PATCH', body: { photo_url: '' },
   }), 'desvincular foto do integrante descartável');
@@ -222,7 +261,7 @@ try {
       const ids = [...temporaryIds];
       try {
         await query(`begin;
-          ${ids.length ? `update public.profiles set photo_url='' where id in (${sqlList(ids)});` : ''}
+          ${ids.length ? `update public.profiles set photo_url='',person_id=null where id in (${sqlList(ids)});` : ''}
           delete from public.people where id=${quote(personId)} and name=${quote(marker)};
           commit;`);
       } catch { /* Independent Storage and account cleanup must still run. */ }

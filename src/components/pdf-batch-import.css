@@ -1,0 +1,31 @@
+.cifra-pdf-batch { min-width: 0; }
+.cifra-pdf-batch-intro { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+.cifra-pdf-batch-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.cifra-pdf-batch .button { min-height: 44px; white-space: normal; }
+.cifra-pdf-batch-input { display: none; }
+.cifra-pdf-batch-hint { color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 10px; overflow-wrap: anywhere; }
+.cifra-pdf-batch-status { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 1.6; margin-top: 12px; }
+.cifra-pdf-batch-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 18px 0 12px; font-size: 12px; }
+.cifra-pdf-batch-summary > div { display: flex; flex-wrap: wrap; }
+.cifra-pdf-batch-summary .button { font-size: 12px; padding: 8px 12px; }
+.cifra-pdf-batch-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.cifra-pdf-batch-entry { min-width: 0; border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.cifra-pdf-batch-entry-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 12px; }
+.cifra-pdf-batch-entry-heading strong { min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+.cifra-pdf-batch-selection { display: flex; gap: 10px; align-items: center; min-width: 0; min-height: 44px; flex: 1; cursor: pointer; }
+.cifra-pdf-batch input[type=checkbox] { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--green); }
+.cifra-pdf-batch-entry-saved { background: var(--green-light); }
+.cifra-pdf-batch-saved { display: inline-flex; align-items: center; gap: 5px; color: var(--green); font-size: 12px; font-weight: 650; }
+.cifra-pdf-batch-duplicate { padding: 10px 12px; margin-bottom: 12px; border-radius: 8px; background: var(--flame-soft); font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
+.cifra-pdf-batch-key-estimate { padding: 12px; margin-top: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--flame-soft); font-size: 12px; }
+.cifra-pdf-batch-key-estimate > label { display: flex; gap: 10px; align-items: center; min-height: 44px; margin-top: 6px; cursor: pointer; }
+.cifra-pdf-batch-preview { margin-top: 14px; min-width: 0; }
+.cifra-pdf-batch-preview summary { display: flex; align-items: center; min-height: 44px; font-size: 12px; color: var(--green); font-weight: 650; cursor: pointer; overflow-wrap: anywhere; }
+.cifra-pdf-batch-preview pre { min-width: 0; max-width: 100%; max-height: 260px; overflow: auto; white-space: pre; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; line-height: 1.8; padding: 12px; border: 1px solid var(--border); background: #fff; border-radius: 8px; }
+@media (max-width: 600px) {
+  .cifra-pdf-batch .form-grid { grid-template-columns: 1fr; }
+  .cifra-pdf-batch-entry { padding: 12px; }
+  .cifra-pdf-batch-actions .button, .cifra-pdf-batch .form-actions .button { width: 100%; }
+  .cifra-pdf-batch-summary > div { width: 100%; }
+  .cifra-pdf-batch-summary .button { flex: 1; }
+}
