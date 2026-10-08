@@ -308,10 +308,47 @@ function chordRow(line) {
   return chords.length ? { chords, standalone } : null;
 }
 
+/** Same conservative guitar-apparatus removal used by the browser editor. */
+export function cleanChordSheet(value) {
+  const lines = value.replace(/\r\n?/g, '\n').split('\n');
+  const removed = new Set();
+  const tabRow = line => {
+    const row = /^(?:[A-Ga-g](?:[#b♯♭])?|\[[A-Ga-g](?:[#b♯♭])?\]|\d{1,2})?\s*\|([\d\s|=\-~hHpPbBrR/\\().xX*^+vV]+)\|?$/.exec(line.trim());
+    return Boolean(row && row[1].length >= 6 && (row[1].match(/[-=]/g)?.length || 0) >= 3);
+  };
+  const diagram = line => {
+    const tokens = line.trim().split(/\s+/);
+    const header = tokens[0].replace(/[:=]$/, '').replace(/^\[([^\]]+)\]$/, '$1');
+    if (chord(header) && (tokens.length === 2 && /^[xX\d]{6}$/.test(tokens[1])
+      || tokens.length === 7 && tokens.slice(1).every(token => /^[xX\d]$/.test(token)))) return true;
+    const joined = /^(\[[^\]\r\n]{1,84}\]|[^\s:=]{1,84})[:=]([xX\d]{6})$/.exec(line.trim());
+    return Boolean(joined && chord(joined[1].replace(/^\[([^\]]+)\]$/, '$1')));
+  };
+  const gridRow = line => /^[|│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪─━+\-\s○●oOxX\d]{5,}$/.test(line.trim())
+    && /[│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪|]/.test(line);
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const label = line.replace(/\s+/g, ' ').trim();
+    if (tabRow(line) || diagram(line)
+      || /^(?:afina[çc][aã]o|tuning)\s*:\s*\S.*$/i.test(label)
+      || /^(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(?:\d{1,2}(?:\s*[ªºao])?(?:\s*casa)?|sem|none)\s*[.!]?$/i.test(label)
+      || /^\(?forma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?[A-G](?:[#♯b♭])?(?:m|min|maj)?\)?$/i.test(label)) removed.add(index);
+    if (!gridRow(line)) continue;
+    let end = index + 1;
+    while (end < lines.length && gridRow(lines[end])) end++;
+    if (end - index >= 3) for (let row = index; row < end; row++) removed.add(row);
+    index = end - 1;
+  }
+  for (let pass = 0; pass < 3; pass++) for (const index of [...removed]) for (const adjacent of [index - 1, index + 1]) {
+    if (adjacent >= 0 && adjacent < lines.length && /^(?:\[?\s*(?:tablatura|tab(?:lature)?|diagrama(?:s)?(?:\s+dos?\s+acordes)?|dedilhado)\s*\]?\s*:?|(?:[eEaAgGbBdD]\s+){5}[eEaAgGbBdD])$/i.test(lines[adjacent].replace(/\s+/g, ' ').trim())) removed.add(adjacent);
+  }
+  return lines.filter((_, index) => !removed.has(index)).join('\n');
+}
+
 /** Preserve the alignment of the chords actually present in the public page. */
 export function convertCifraClubRows(value) {
   if (!value.trim() || value.length > 100_000) throw new Error('Não foi possível reconhecer uma cifra pública dentro do limite de tamanho.');
-  const lines = value.replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ').split('\n').map(line => {
+  const lines = cleanChordSheet(value.replace(/\u00a0/g, ' ')).split('\n').map(line => {
     let result = '';
     for (const character of line) result += character === '\t' ? ' '.repeat(8 - result.length % 8) : character;
     return result;
@@ -362,11 +399,20 @@ export function parseCifraClubPage(html, url) {
   const title = text(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1] || '').trim() || metadata?.[1]?.trim();
   const artist = text(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i.exec(html)?.[1] || '').trim() || metadata?.[2]?.trim();
   if (!title || !artist) throw new Error('O Cifra Club retornou uma versão sem título ou artista reconhecidos.');
-  const keyArea = /(?:id|class)=["'][^"']*\bcifra_tom\b[^"']*["'][^>]*>([\s\S]{0,1200})/i.exec(html)?.[1] || '';
-  const keyLabel = text(keyArea.split(/<\/(?:a|span|div)>/i)[0]).trim();
-  const originalKey = /^(?:tom\s*:\s*)?([A-G](?:#|b)?(?:m|maj|min)?)(?=\s|$)/i.exec(keyLabel)?.[1]
-    || /\bdata-original-key=["']([A-G](?:#|b)?(?:m|maj|min)?)["']/i.exec(html)?.[1];
-  return { id: canonical, title: title.slice(0, 300), artist: artist.slice(0, 300), content, ...(originalKey ? { originalKey } : {}), source: 'Cifra Club', sourceUrl: canonical, kind: 'chords' };
+  const keyArea = /<(?:span|div)\b[^>]*(?:id|class)=["'][^"']*\bcifra_tom\b[^"']*["'][^>]*>([\s\S]{0,1200}?)<\/(?:span|div)>/i.exec(html)?.[1] || '';
+  const keyLabel = text(keyArea).replace(/\s+/g, ' ').trim();
+  const shapeKey = /\bforma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?([A-G](?:[#b♯♭])?(?:m|maj|min)?)(?=\s|$|[)])/i.exec(keyLabel)?.[1];
+  const currentKey = /\bdata-current-key=["']([A-G](?:[#b♯♭])?(?:m|maj|min)?)["']/i.exec(html)?.[1];
+  const soundingKey = /^(?:tom\s*:\s*)?([A-G](?:[#b♯♭])?(?:m|maj|min)?)(?=\s|$|[()])/i.exec(keyLabel)?.[1];
+  const capoArea = /<(?:span|div)\b[^>]*(?:id|class)=["'][^"']*\bcifra_capo(?:_info)?\b[^"']*["'][^>]*>([\s\S]{0,600}?)<\/(?:span|div)>/i.exec(html)?.[1] || '';
+  const capoMatch = /\b(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(\d{1,2})(?:\s*[ªºao])?(?:\s*casa)?\b/i.exec(`${keyLabel}\n${text(capoArea)}\n${raw}`.replace(/\s+/g, ' '));
+  const capo = capoMatch && Number(capoMatch[1]) <= 12 ? Number(capoMatch[1]) : undefined;
+  const originalKey = (shapeKey || currentKey || (!capo ? soundingKey : undefined))?.replace(/♯/g, '#').replace(/♭/g, 'b');
+  return { id: canonical, title: title.slice(0, 300), artist: artist.slice(0, 300), content, ...(originalKey ? { originalKey } : {}),
+    ...(soundingKey && (shapeKey || currentKey || capo) ? { soundingKey: soundingKey.replace(/♯/g, '#').replace(/♭/g, 'b') } : {}),
+    ...(capo !== undefined ? { capo } : {}),
+    ...(!originalKey && capo ? { keyUnknownReason: 'A fonte informa capotraste, mas não o tom das posições dos acordes. Confirme o tom dos acordes escritos antes de importar.' } : {}),
+    source: 'Cifra Club', sourceUrl: canonical, kind: 'chords' };
 }
 
 export function parseSongPage(html, url) {

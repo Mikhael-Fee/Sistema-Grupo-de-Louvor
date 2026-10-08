@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 const functionModulePath = '../../netlify/functions/song-search.mjs';
-const { allowedSongUrl, convertCifraClubRows, handler, parseCifraClubPage, parseCifraClubSearch, parseSongPage } = await import(functionModulePath);
+const { allowedSongUrl, cleanChordSheet: cleanServerChordSheet, convertCifraClubRows, handler, parseCifraClubPage, parseCifraClubSearch, parseSongPage } = await import(functionModulePath);
+import { cleanChordSheet } from './cifraclub';
 afterEach(() => vi.unstubAllGlobals());
 
 describe('consulta restrita à fonte pública de cifras', () => {
@@ -78,6 +79,25 @@ describe('Cifra Club público', () => {
     const invalid = `C${'1'.repeat(26)}x`;
     expect(convertCifraClubRows(`${invalid}\nNossa luz`)).toBe(`${invalid}\nNossa luz`);
     expect(() => convertCifraClubRows('C'.repeat(100_001))).toThrow('limite de tamanho');
+  });
+
+  it('limpa tablaturas e diagramas do servidor com as mesmas regras do editor', () => {
+    const raw = 'Afinação: E A D G B E\nCapotraste na 3ª casa\n[Intro] G D/F#\n\nTablatura\nE|----0----|\nB|----1----|\n\nDiagramas dos acordes\nE A D G B E\nC x32010\nG: 320003\nDm x x 0 2 3 1\n\n[Refrão]\nG\nA luz vem';
+    expect(cleanServerChordSheet(raw)).toBe(cleanChordSheet(raw));
+    expect(convertCifraClubRows(raw)).not.toMatch(/Afinação|Capotraste|\|----|x32010/);
+    expect(convertCifraClubRows(raw)).toContain('[Intro] [G] [D/F#]');
+    expect(convertCifraClubRows(raw)).toContain('[G]A luz vem');
+  });
+
+  it('retorna o tom das posições escritas e separa o som com capotraste', () => {
+    const prefix = '<h1>Luz</h1><h2>Equipe</h2><span id="cifra_tom">Tom: Bb (forma dos acordes no tom de G)</span><div id="cifra_capo">Capotraste na 3ª casa</div>';
+    const html = `${prefix}<pre data-original-key="Bb"><b>G</b>\nLuz\nE|---0---|\nB|---1---|</pre>`;
+    const result = parseCifraClubPage(html, 'https://www.cifraclub.com.br/equipe/luz/');
+    expect(result).toMatchObject({ originalKey: 'G', soundingKey: 'Bb', capo: 3, content: '[G]Luz' });
+    const ambiguous = parseCifraClubPage(html.replace(' (forma dos acordes no tom de G)', ''), 'https://www.cifraclub.com.br/equipe/luz/');
+    expect(ambiguous.originalKey).toBeUndefined();
+    expect(ambiguous.keyUnknownReason).toContain('posições');
+    expect(ambiguous.soundingKey).toBe('Bb');
   });
 
   it('informa um bloqueio da fonte e não segue redirecionamentos', async () => {

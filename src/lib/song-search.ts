@@ -11,6 +11,9 @@ export interface SongSearchResult {
   kind: SongImportKind;
   content?: string;
   originalKey?: string;
+  soundingKey?: string;
+  capo?: number;
+  keyUnknownReason?: string;
   album?: string;
 }
 

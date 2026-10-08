@@ -6,6 +6,8 @@ const ORIGIN = 'https://louvor-grupo-fxebsy.netlify.app';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_JOB_TIME = 25_000; // Finish before the MV3 worker's 30s idle deadline.
 const MAX_JOBS = 4;
+const IMPORTER_VERSION = '1.1.0';
+const CAPABILITIES = ['written-key-capo'];
 const jobsByCandeia = new Map();
 const jobsBySource = new Map();
 
@@ -28,9 +30,15 @@ function validatedResult(value, job) {
     || typeof value.title !== 'string' || !value.title.trim() || value.title.length > 200
     || typeof value.artist !== 'string' || !value.artist.trim() || value.artist.length > 200
     || typeof value.text !== 'string' || !value.text.trim() || value.text.length > 100_000
-    || value.displayedKey !== undefined && (typeof value.displayedKey !== 'string' || !/^[A-G](?:#|b)?(?:maj|min|m)?$/.test(value.displayedKey))) return null;
+    || value.displayedKey !== undefined && (typeof value.displayedKey !== 'string' || !/^[A-G](?:#|b)?(?:maj|min|m)?$/.test(value.displayedKey))
+    || value.soundingKey !== undefined && (typeof value.soundingKey !== 'string' || !/^[A-G](?:#|b)?(?:maj|min|m)?$/.test(value.soundingKey))
+    || value.capo !== undefined && (!Number.isInteger(value.capo) || value.capo < 0 || value.capo > 12)
+    || value.keyUnknownReason !== undefined && (typeof value.keyUnknownReason !== 'string' || value.keyUnknownReason.length > 300)) return null;
   return { sourceUrl: job.sourceUrl, title: value.title.trim(), artist: value.artist.trim(), text: value.text,
-    ...(value.displayedKey ? { displayedKey: value.displayedKey } : {}) };
+    ...(value.displayedKey ? { displayedKey: value.displayedKey } : {}),
+    ...(value.soundingKey ? { soundingKey: value.soundingKey } : {}),
+    ...(value.capo !== undefined ? { capo: value.capo } : {}),
+    ...(value.keyUnknownReason ? { keyUnknownReason: value.keyUnknownReason } : {}) };
 }
 
 async function finish(job, payload, focus = true) {
@@ -45,7 +53,7 @@ async function finish(job, payload, focus = true) {
     try { await chrome.tabs.update(job.candeiaTabId, { active: true }); } catch { /* The requesting tab may have closed. */ }
   }
   if (jobsByCandeia.get(job.candeiaTabId) === job) jobsByCandeia.delete(job.candeiaTabId);
-  try { job.respond(payload); } catch { /* No receiver remains after navigation or closing the Candeia tab. */ }
+  try { job.respond({ ...payload, importerVersion: IMPORTER_VERSION, capabilities: CAPABILITIES }); } catch { /* No receiver remains after navigation or closing the Candeia tab. */ }
 }
 
 async function open(job) {
@@ -70,7 +78,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     if (!fromCandeia(sender) || typeof message.requestId !== 'string' || !UUID.test(message.requestId)) {
       respond({ error: 'Esta solicitação não veio de uma aba autorizada do Candeia.' }); return false;
     }
-    if (message.type === 'ping') { respond({ ok: true }); return false; }
+    if (message.type === 'ping') { respond({ ok: true, importerVersion: IMPORTER_VERSION, capabilities: CAPABILITIES }); return false; }
     const current = jobsByCandeia.get(sender.tab.id);
     if (message.type === 'cancel') {
       if (current?.requestId === message.requestId) void finish(current, { error: 'Consulta cancelada.' });

@@ -1,6 +1,33 @@
-# Validação da atualização Candeia — 07/10/2026
+# Validação da atualização Candeia — 08/10/2026
 
-## Versão atual — importador pelo navegador
+## Versão atual — tons, campo único, celular e repertório em lote
+
+Publicado em https://louvor-grupo-fxebsy.netlify.app com deploy `6ac77b98ac9d5921e56c162c`, confirmado `ready`. O editor tem um único campo editável Letra e cifra, sem painel de colagem separado nem seletor comum de Tom original. A importação converte realmente os acordes escritos para o tom da igreja; a base interna do conteúdo salvo passa a ser esse mesmo tom. Alterar o tom da igreja no editor também transpõe o texto.
+
+A extensão 1.1.0 separa posições escritas, tom sonoro e capotraste. Posições G/capo3/somBb produzem tecladoBb uma vez, e a leitura Bb→C continua correta. Se o tom escrito for desconhecido ou houver dados conflitantes, exige confirmação; não infere pelo primeiro acorde. Importadores antigos são identificados e precisam atualizar pelo guia. Tablaturas, diagramas, afinação e instruções de capotraste são removidos no import/salvar e na leitura legada, preservando versos, seções e acordes. Cadastros antigos com base incorreta só são reparados por reimportação ou indicação explícita do tom real, sem regravação por palpite.
+
+A opção dos dados da fonte preenche título/artista imediatamente. Com conteúdo vazio, Salvar música pode importar e salvar a prévia, sem redigitar os campos; rascunho não vazio mantém confirmação de substituição. Texto colado com cabeçalho conhecido é convertido no próprio campo; colagem parcial converte somente o fragmento, preservando o trecho anterior. Pendências de tom ficam no rascunho entre navegações.
+
+Selecionar músicas é a única inclusão do repertório, em lote, inclusive no formulário do culto: mantém marcações entre buscas, impede duplicatas, segue a ordem dos cliques e usa o tom da igreja. Ordem, tom e notas continuam ajustáveis no culto. No celular, leitor tem controles de 44 px, fonte de 14–28 px e modo leitura em tela inteira com foco contido; campos do editor usam 16 px até 700 px.
+
+| Verificação atual | Resultado |
+| --- | --- |
+| TypeScript e build Vite/PWA/ZIP | Passaram |
+| Vitest | 120/120 passaram |
+| Playwright completo final | 46/46 passaram em 1,6 min: 31 fluxos do app, 5 móveis, 3 de repertório em lote e 7 com extensão real |
+| Banco PostgreSQL/PGlite | 153 verificações passaram: 98 existentes + 55 de consulta pública, Auth simulado |
+| Navegador da extensão | Chrome for Testing153, páginas HTTPS/Auth/REST de fixtures; zero requisições fora da rede simulada |
+| Artefato | 41 arquivos dist, sem credenciais privadas/.env/source maps; ZIP10868bytes, seis arquivos exatamente iguais ao código e manifest1.1.0 |
+| Site publicado | 27 verificações reais em Chromium390px passaram: consulta pública sem gravação, transposição, modo leitura/foco, guia, download igual ao build, PWA/cache estático e shell offline |
+| Função Netlify real | 4 verificações passaram: busca200 com3 versões, prévia502 informando403 da fonte, URLexterna400 e POST405 |
+| Git e configuração reutilizável | Mudanças registradas no repositório; start_skill salvo com novos fluxos e requisitos da extensão, install_script existente preservado |
+
+A verificação pública inicial encontrou uma corrida no próprio teste do guia, que consultava a visibilidade antes da montagem da rota; o helper agora aguarda seu carregamento e a rodada final passou. A consulta Node usa o proxy de ambiente suportado (`NODE_USE_ENV_PROXY=1`) com TLS ativo; acesso direto sem proxy não estava disponível.
+
+Limites: os cenários de cifra e autenticação do Playwright são simulados, embora usem a extensão real. Não comprovam acesso do servidor à cifra: a fonte continua retornando403 nesse caminho. A importação depende de a página abrir normalmente no computador do usuário. Chrome de celular não instala a extensão; músicas salvas podem ser lidas/transpostas pelo celular, e o campo único permite edição/colagem. Layout móvel foi validado no Chromium com dimensões320/350/390px, não em aparelhos físicos Safari/Android. Nenhum cadastro/senha do proprietário foi alterado; testes reais administrativos do Supabase não foram repetidos nesta entrega. As medições anteriores de RAM abaixo permanecem históricas e não foram repetidas. O rascunho Codex exige publicação da configuração pelo produto (`requires_publish:true`), distinta do deploy Netlify já confirmado; não foi validada uma nova restauração do ambiente.
+
+
+## Versão anterior — importador pelo navegador (07/10)
 
 Foi implementada uma alternativa automática para Chrome/Edge no computador: depois da instalação inicial, **Ver prévia** abre a versão escolhida em uma aba criada pela extensão, lê somente a cifra que o navegador consegue exibir e retorna a prévia ao Candeia, sem copiar e colar. A aba temporária é fechada no sucesso, erro ou cancelamento. O tom recebido é o tom exibido; o tom na igreja permanece. Importar modifica o rascunho e salvar continua explícito.
 

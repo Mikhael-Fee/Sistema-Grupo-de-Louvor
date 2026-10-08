@@ -1,5 +1,6 @@
 /** Read-only production guest/PWA/mobile checks. No accounts or demo records. */
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
 
 const state = JSON.parse(await readFile('/workspace/scratch/louvor-netlify-state.json', 'utf8'));
@@ -69,6 +70,13 @@ try {
     'Consulta pode trocar o tom local sem editar o cadastro');
     const sourceLink = await page.getByRole('link', { name: 'Abrir Cifra Club', exact: true }).getAttribute('href');
     expect(/^https:\/\/(?:www\.)?cifraclub\.com\.br\//.test(sourceLink || ''), 'Cifra Club disponível na leitura');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Leitura cabe no celular');
+    expect(!/Tom original/.test(await page.locator('.song-meta').innerText()), 'Tom interno não aparece como opção pública');
+    await page.getByRole('button', { name: 'Entrar no modo leitura', exact: true }).click();
+    expect(await page.getByRole('dialog', { name: /^Leitura de/ }).isVisible(), 'Modo leitura móvel disponível');
+    expect(await page.evaluate(() => document.querySelector('.topbar')?.inert === true), 'Navegação de fundo não recebe foco durante leitura');
+    await page.getByRole('button', { name: 'Sair do modo leitura', exact: true }).click();
+    expect(await key.inputValue() !== previousKey, 'Modo leitura preserva o tom escolhido');
     transpositionChecked = true;
   }
   expect(writes.length === 0, 'Consulta não envia gravações ao banco');
@@ -109,6 +117,19 @@ try {
       || /\/auth\/v1|\/rest\/v1|\/\.netlify\/functions\//.test(new URL(request.url).pathname)) };
   });
   expect(cache.files > 10 && !cache.api, 'Cache estático sem dados da API');
+  stage = 'guia e importador atualizado';
+  await page.goto(`${origin}/conectar-cifra-club`);
+  await page.getByRole('heading', { name: 'Importar do Cifra Club sem copiar e colar', exact: true }).waitFor();
+  expect(await page.getByRole('heading', { name: 'Importar do Cifra Club sem copiar e colar', exact: true }).isVisible(), 'Guia publicado');
+  expect(await page.getByText('Atualização 1.1:', { exact: true }).isVisible(), 'Guia orienta atualização do importador');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Guia cabe no celular');
+  const downloading = page.waitForEvent('download');
+  await page.getByRole('link', { name: 'Baixar importador', exact: true }).click();
+  const download = await downloading;
+  expect(download.suggestedFilename() === 'candeia-cifraclub.zip', 'Download recebe o nome esperado');
+  const downloaded = await readFile(await download.path());
+  const built = await readFile(new URL('../dist/downloads/candeia-cifraclub.zip', import.meta.url));
+  expect(createHash('sha256').update(downloaded).digest('hex') === createHash('sha256').update(built).digest('hex'), 'Download publicado corresponde ao pacote 1.1 do build');
   stage = 'shell offline';
   // Shared ministry data remains online-only. Test the cached login shell.
   await page.evaluate(() => sessionStorage.removeItem('candeia.public.session'));

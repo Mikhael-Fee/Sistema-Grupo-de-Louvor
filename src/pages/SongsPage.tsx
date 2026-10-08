@@ -1,14 +1,15 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, Check, Download, ExternalLink, ListFilter, LoaderCircle, Music2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
 import { useMinistry } from '../context/MinistryContext';
 import { KEYS, normalizeSearch, stripChords } from '../lib/music';
 import { validateSong } from '../lib/validation';
-import { normalizeCifraClubUrl, parseCifraClubText } from '../lib/cifraclub';
+import { cleanChordSheet, normalizeCifraClubUrl, parseCifraClubText } from '../lib/cifraclub';
+import { contentInChurchKey, hasWrittenChords, songInChurchKey } from '../lib/song-tones';
 import { useDraft } from '../hooks/useDraft';
-import { detectCifraBrowser, readCifraFromBrowser } from '../lib/cifra-browser';
-import { cifraClubSearchUrl, cifraClubUrlFromNotes, isSafeCifraClubUrl, notesWithCifraClubSource, previewSongSource, searchUnifiedSongSources, sourceKey, type SongSearchResult } from '../lib/song-search';
+import { cifraBrowserStatus, readCifraFromBrowser } from '../lib/cifra-browser';
+import { cifraClubUrlFromNotes, notesWithCifraClubSource, previewSongSource, searchUnifiedSongSources, sourceKey, type SongSearchResult } from '../lib/song-search';
 import type { Song } from '../types';
 import './songs.css';
 
@@ -16,21 +17,20 @@ function blankSong(): Song {
   return { id: crypto.randomUUID(), title: '', artist: '', originalKey: 'C', churchKey: 'C', content: '', youtubeUrl: '', notes: '', tagIds: [] };
 }
 
+function SourceKeyConfirmation({ value, onChange, reason }: { value: string; onChange: (key: string) => void; reason?: string }) {
+  return <div className="songs-cifra-replace">
+    <p>{reason || 'A fonte não informou o tom dos acordes escritos. Confirme esse tom uma vez para converter a cifra corretamente.'}</p>
+    <label className="field">Tom dos acordes recebidos<select aria-label="Tom dos acordes recebidos" value={value} onChange={event => onChange(event.target.value)}><option value="">Selecione o tom na fonte</option>{KEYS.map(key => <option key={key}>{key}</option>)}</select><span className="songs-field-hint">Confira o tom das posições dos acordes na fonte. O primeiro acorde sozinho não determina o tom.</span></label>
+  </div>;
+}
+
 export function SongEditor({ song, onClose }: { song?: Song; onClose: () => void }) {
   const { data, saveSong, busy } = useMinistry();
-  const { draft, setDraft, discardDraft, hasDraft } = useDraft<Song>(`song:${song?.id || 'new'}`, () => song ? { ...song, tagIds: [...song.tagIds] } : blankSong());
-  const { draft: cifraClubUrl, setDraft: setCifraClubUrl, discardDraft: discardCifraClubDraft, hasDraft: hasCifraClubDraft } = useDraft<string>(`song-cifraclub:${song?.id || 'new'}`, () => cifraClubUrlFromNotes(draft.notes));
-  const { draft: cifraClubText, setDraft: setCifraClubText, discardDraft: discardCifraTextDraft, hasDraft: hasCifraTextDraft } = useDraft<string>(`song-cifraclub-text:${song?.id || 'new'}`, '');
-  const [cifraError, setCifraError] = useState<string | null>(null);
-  const [cifraImported, setCifraImported] = useState(false);
-  const [cifraConfirmReplace, setCifraConfirmReplace] = useState(false);
-  const [manualOpen, setManualOpen] = useState(false);
-  const deferredCifraClubText = useDeferredValue(cifraClubText);
-  const cifraPreview = useMemo(() => {
-    if (!manualOpen || !deferredCifraClubText.trim()) return null;
-    try { return parseCifraClubText(deferredCifraClubText); }
-    catch { return null; }
-  }, [manualOpen, deferredCifraClubText]);
+  const { draft, setDraft, discardDraft, hasDraft } = useDraft<Song>(`song:${song?.id || 'new'}`, () => song ? songInChurchKey({ ...song, tagIds: [...song.tagIds] }) : blankSong());
+  const { draft: pastedSource, setDraft: setPastedSource, discardDraft: discardPastedSource } = useDraft<{ unknown: boolean; reason: string }>(`song-pasted-source:${song?.id || 'new'}`, { unknown: false, reason: '' });
+  const [repairWrittenKey, setRepairWrittenKey] = useState('');
+  const [repairApplied, setRepairApplied] = useState(false);
+  const [previewWrittenKey, setPreviewWrittenKey] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
@@ -38,7 +38,10 @@ export function SongEditor({ song, onClose }: { song?: Song; onClose: () => void
   const [sourceWarnings, setSourceWarnings] = useState<string[]>([]);
   const [preview, setPreview] = useState<SongSearchResult | null>(null);
   const [previewLyricsOnly, setPreviewLyricsOnly] = useState(false);
-  const previewText = useMemo(() => previewLyricsOnly ? stripChords(preview?.content || '') : preview?.content || '', [preview?.content, previewLyricsOnly]);
+  const previewText = useMemo(() => {
+    const cleaned = cleanChordSheet(preview?.content || '');
+    return previewLyricsOnly ? stripChords(cleaned) : cleaned;
+  }, [preview?.content, previewLyricsOnly]);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [previewing, setPreviewing] = useState<string | null>(null);
@@ -48,38 +51,48 @@ export function SongEditor({ song, onClose }: { song?: Song; onClose: () => void
   const [sourceConfirmReplace, setSourceConfirmReplace] = useState(false);
   const sourceRequest = useRef<AbortController | null>(null);
   const [browserConnected, setBrowserConnected] = useState(false);
+  const [browserOutdated, setBrowserOutdated] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    void detectCifraBrowser(controller.signal).then(setBrowserConnected).catch(() => {});
+    void cifraBrowserStatus(controller.signal).then(status => { setBrowserConnected(status === 'connected'); setBrowserOutdated(status === 'outdated'); }).catch(() => {});
     return () => controller.abort();
   }, []);
   useEffect(() => () => sourceRequest.current?.abort(), []);
-  const change = (field: keyof Song, value: string) => setDraft(current => ({ ...current, [field]: value }));
+  // Older tab drafts still use a separate base key. Rebase once, preserving their actual chords.
+  useEffect(() => {
+    if (draft.originalKey !== draft.churchKey) setDraft(current => songInChurchKey(current));
+  }, [draft.originalKey, draft.churchKey, setDraft]);
+  const change = (field: keyof Song, value: string) => setDraft(current => field === 'churchKey'
+    ? pastedSource.unknown ? { ...current, churchKey: value, originalKey: value } : songInChurchKey(current, value)
+    : { ...current, [field]: value });
+  const previewNeedsKey = Boolean(preview?.kind === 'chords' && hasWrittenChords(preview.content || '') && !sourceKey(preview.originalKey));
+  function prepareContent(current: Song, confirmedKey?: string): Song {
+    if (!current.content.trim()) return current;
+    const parsed = parseCifraClubText(current.content);
+    const rawChords = hasWrittenChords(parsed.content) && !hasWrittenChords(current.content);
+    const needsKey = !parsed.originalKey && (pastedSource.unknown || rawChords || Boolean(parsed.keyUnknownReason));
+    if (needsKey && !confirmedKey) {
+      const reason = parsed.keyUnknownReason || 'Confirme o tom dos acordes colados para ajustá-los ao tom da igreja.';
+      setPastedSource({ unknown: true, reason });
+      throw new Error(reason);
+    }
+    return { ...current, content: contentInChurchKey(parsed.content, parsed.originalKey || confirmedKey || current.originalKey, current.churchKey), originalKey: current.churchKey };
+  }
 
-  function importCifraClubText() {
-    setCifraConfirmReplace(false);
-    setCifraError(null);
-    if (cifraClubUrl.trim() && !normalizeCifraClubUrl(cifraClubUrl.trim())) { setCifraError('Informe o link HTTPS de uma música no Cifra Club ou deixe o campo vazio.'); return; }
+  function formatEditedContent(confirmedKey?: string) {
     try {
-      const parsed = parseCifraClubText(cifraClubText);
-      if (!parsed.content.trim()) { setCifraError('Cole a letra e cifra que você deseja importar.'); return; }
-      if (parsed.content.length > 100_000) { setCifraError('A letra e cifra excedem 100.000 caracteres. Ajuste o texto antes de importar.'); return; }
-      setDraft(current => {
-        const reference = 'Fonte da cifra: Cifra Club — texto colado pelo usuário';
-        let notes = notesWithCifraClubSource(current.notes, cifraClubUrl);
-        if (!cifraClubUrl.trim() && !notes.includes(reference)) notes = `${notes}${notes ? '\n\n' : ''}${reference}`;
-        return { ...current, content: parsed.content, originalKey: parsed.originalKey || current.originalKey, notes };
-      });
-      if (cifraClubUrl.trim()) setCifraClubUrl(normalizeCifraClubUrl(cifraClubUrl.trim())!);
-      setCifraImported(true);
-    } catch (cause) { setCifraError(cause instanceof Error ? cause.message : 'Não foi possível converter o texto colado. Revise a cifra e tente novamente.'); }
+      const next = prepareContent(draft, confirmedKey);
+      if (next.content !== draft.content || next.originalKey !== draft.originalKey) setDraft(next);
+      setPastedSource({ unknown: false, reason: '' });
+      setError(null);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Confira a cifra colada.'); }
   }
 
   async function searchOnline() {
     sourceRequest.current?.abort();
     const controller = new AbortController();
     sourceRequest.current = controller;
-    setSourceOpen(true); setSourceError(null); setPreview(null); setSourceResults([]); setSourceWarnings([]); setSearching(true); setPreviewing(null); setSearched(false); setImported(false); setSourceConfirmReplace(false);
+    setSourceOpen(true); setSourceError(null); setPreview(null); setPreviewWrittenKey(''); setSourceResults([]); setSourceWarnings([]); setSearching(true); setPreviewing(null); setSearched(false); setImported(false); setSourceConfirmReplace(false);
     try {
       const response = await searchUnifiedSongSources(draft.title, draft.artist, controller.signal);
       if (controller.signal.aborted) return;
@@ -93,9 +106,11 @@ export function SongEditor({ song, onClose }: { song?: Song; onClose: () => void
     sourceRequest.current?.abort();
     const controller = new AbortController();
     sourceRequest.current = controller;
-    setPreviewing(result.id); setSearching(false); setSourceError(null); setPreview(null); setPreviewLyricsOnly(false); setImported(false); setUseSourceMetadata(false); setSourceConfirmReplace(false);
+    setPreviewing(result.id); setSearching(false); setSourceError(null); setPreview(null); setPreviewWrittenKey(''); setPreviewLyricsOnly(false); setImported(false); setUseSourceMetadata(false); setSourceConfirmReplace(false);
     try {
-      const connected = result.source === 'Cifra Club' && (browserConnected || await detectCifraBrowser(controller.signal));
+      const status = result.source === 'Cifra Club' ? await cifraBrowserStatus(controller.signal) : 'missing';
+      if (status === 'outdated') { setBrowserOutdated(true); setBrowserConnected(false); throw new Error('Atualize o importador Cifra Club para reconhecer capotraste e o tom dos acordes corretamente. Abra “Atualizar importador” acima.'); }
+      const connected = status === 'connected';
       if (connected) setBrowserConnected(true);
       const resultPreview = connected ? await readCifraFromBrowser(result, controller.signal) : await previewSongSource(result, controller.signal);
       if ((resultPreview.content?.length || 0) > 100_000) throw new Error('A letra e cifra desta versão excedem 100.000 caracteres. Escolha outra versão.');
@@ -109,46 +124,58 @@ export function SongEditor({ song, onClose }: { song?: Song; onClose: () => void
     sourceRequest.current?.abort(); setSourceOpen(false); setSearching(false); setPreviewing(null); setSourceConfirmReplace(false); setSourceResults([]); setPreview(null); setSourceWarnings([]);
   }
 
-  function importPreview() {
-    if (!preview?.content) return;
-    if (preview.content.length > 100_000) { setSourceError('A letra e cifra desta versão excedem 100.000 caracteres. Escolha outra versão.'); return; }
-    const key = sourceKey(preview.originalKey);
+  function draftFromPreview(current: Song): Song {
+    if (!preview?.content) throw new Error('Escolha uma versão com conteúdo para importar.');
+    const key = sourceKey(preview.originalKey) || sourceKey(previewWrittenKey);
+    const content = contentInChurchKey(preview.kind === 'lyrics' ? stripChords(preview.content) : preview.content, key || undefined, current.churchKey);
     const attribution = `Fonte ${preview.kind === 'chords' ? 'da letra e cifra' : 'da letra'}: ${preview.source} — ${preview.sourceUrl}`;
     const importedCifraUrl = preview.source === 'Cifra Club' ? normalizeCifraClubUrl(preview.sourceUrl) : null;
-    setDraft(current => {
-      const notes = importedCifraUrl ? notesWithCifraClubSource(current.notes, importedCifraUrl) : current.notes.includes(attribution) ? current.notes : `${current.notes.trim()}${current.notes.trim() ? '\n\n' : ''}${attribution}`;
-      return { ...current, content: preview.content!, originalKey: key || current.originalKey, ...(useSourceMetadata ? { title: preview.title, artist: preview.artist || current.artist } : {}), notes };
-    });
-    if (importedCifraUrl) setCifraClubUrl(importedCifraUrl);
+    const notes = importedCifraUrl ? notesWithCifraClubSource(current.notes, importedCifraUrl) : current.notes.includes(attribution) ? current.notes : `${current.notes.trim()}${current.notes.trim() ? '\n\n' : ''}${attribution}`;
+    return { ...current, content, originalKey: current.churchKey, ...(useSourceMetadata ? { title: preview.title, artist: preview.artist || current.artist } : {}), notes };
+  }
+
+  function importPreview() {
+    if (!preview?.content) return;
+    try { setDraft(current => draftFromPreview(current)); }
+    catch (cause) { setSourceError(cause instanceof Error ? cause.message : 'Confira o tom da fonte.'); return; }
+    setPastedSource({ unknown: false, reason: '' });
     setPreview(null); setImported(true); setSourceError(null); setSourceConfirmReplace(false);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (cifraClubUrl.trim() && !isSafeCifraClubUrl(cifraClubUrl.trim())) { setError('Informe o link HTTPS de uma música no Cifra Club ou deixe o campo vazio.'); return; }
-    const cleaned = { ...draft, title: draft.title.trim(), artist: draft.artist.trim(), youtubeUrl: draft.youtubeUrl.trim(), notes: notesWithCifraClubSource(draft.notes, cifraClubUrl) };
+    let candidate = draft;
+    try {
+      // Saving an empty form with source metadata selected imports that preview too.
+      // A nonempty draft still requires the explicit replace confirmation above.
+      if (preview && useSourceMetadata && !candidate.content.trim()) {
+        candidate = draftFromPreview(candidate);
+        setDraft(candidate); setPastedSource({ unknown: false, reason: '' });
+      }
+      candidate = prepareContent(candidate);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Confira o tom da cifra.'); return; }
+    const cleaned = { ...candidate, title: candidate.title.trim(), artist: candidate.artist.trim(), youtubeUrl: candidate.youtubeUrl.trim(), notes: notesWithCifraClubSource(candidate.notes, cifraClubUrlFromNotes(candidate.notes)) };
     const invalid = validateSong(cleaned);
     if (invalid) { setError(invalid); return; }
     setError(null);
     setSaving(true);
-    try { await saveSong(cleaned); discardDraft(); discardCifraClubDraft(); discardCifraTextDraft(); onClose(); }
+    try { await saveSong(cleaned); discardDraft(); discardPastedSource(); onClose(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível salvar a música. Tente novamente.'); }
     finally { setSaving(false); }
   }
 
   return <Modal title={song ? 'Editar música' : 'Nova música'} onClose={onClose} wide>
-    <form onSubmit={submit} className="songs-editor">
+    <form onSubmit={submit} noValidate className="songs-editor">
       <p className="muted songs-editor-intro">Uma boa biblioteca deixa a preparação mais leve. Organize a letra, a cifra e os tons em um só lugar.</p>
-      {(hasDraft || hasCifraClubDraft || hasCifraTextDraft) && <p className="songs-draft-note" role="status"><Check size={14} />Rascunho salvo nesta aba. Fechar a janela mantém seus campos.</p>}
+      {hasDraft && <p className="songs-draft-note" role="status"><Check size={14} />Rascunho salvo nesta aba. Fechar a janela mantém seus campos.</p>}
       <div className="form-grid">
         <label className="field">Título<input autoFocus required value={draft.title} onChange={e => change('title', e.target.value)} placeholder="Nome da música" maxLength={200} /></label>
         <label className="field">Artista / compositor<input required value={draft.artist} onChange={e => change('artist', e.target.value)} placeholder="Quem compôs ou interpreta" maxLength={200} /></label>
-        <label className="field">Tom original<select value={draft.originalKey} onChange={e => change('originalKey', e.target.value)}>{KEYS.map(key => <option key={key}>{key}</option>)}</select></label>
-        <label className="field">Tom na igreja<select value={draft.churchKey} onChange={e => change('churchKey', e.target.value)}>{KEYS.map(key => <option key={key}>{key}</option>)}</select></label>
+        <label className="field">Tom na igreja<select aria-label="Tom na igreja" value={draft.churchKey} onChange={e => change('churchKey', e.target.value)}>{KEYS.map(key => <option key={key}>{key}</option>)}</select><span className="songs-field-hint">Alterar o tom também transpõe os acordes do rascunho.</span></label>
       </div>
       <section className="songs-source-search" aria-label="Busca online de letra e cifra">
         <div className="songs-unified-search-heading">
-          <div><strong>Cifra e letra em uma busca</strong><span>Usaremos o título e o artista preenchidos acima.</span><span>{browserConnected ? 'Importador conectado · cifra automática pelo navegador' : <a href="/conectar-cifra-club" target="_blank" rel="noopener noreferrer">Conectar importador Cifra Club</a>}</span></div>
+          <div><strong>Cifra e letra em uma busca</strong><span>Pesquise pelo título; o artista ajuda a encontrar a versão certa.</span><span>{browserConnected ? 'Importador conectado · cifra automática pelo navegador' : <a href="/conectar-cifra-club" target="_blank" rel="noopener noreferrer">{browserOutdated ? 'Atualizar importador Cifra Club' : 'Conectar importador Cifra Club'}</a>}</span></div>
           <button type="button" className="button button-primary" disabled={searching || Boolean(previewing)} onClick={searchOnline}>{searching ? <LoaderCircle className="songs-spinner" size={15} /> : <Search size={15} />}{searching ? 'Pesquisando…' : 'Pesquisar cifra e letra'}</button>
         </div>
         {sourceOpen && <div className="songs-source-body">
@@ -159,25 +186,53 @@ export function SongEditor({ song, onClose }: { song?: Song; onClose: () => void
           {searching && <p className="songs-source-empty" role="status">Procurando versões próximas ao título e ao artista…</p>}
           {searched && !sourceResults.length && <p className="songs-source-empty" role="status">Nenhuma versão encontrada. Tente parte do título ou revise o nome do artista.</p>}
           {sourceResults.length > 0 && <ul className="songs-source-results">{sourceResults.map(result => <li key={`${result.source}:${result.id}`}><div><strong>{result.title}</strong><span>{result.artist || 'Confira o artista na prévia'}{result.album && ` · ${result.album}`}</span><span className={`songs-result-source ${result.source === 'Cifra Club' ? 'songs-result-primary' : ''}`}>{result.source} · {result.kind === 'chords' ? 'Letra e cifra' : 'Letra sem acordes'}</span></div><div className="songs-result-actions"><button type="button" className="button button-ghost" disabled={Boolean(previewing)} aria-label={`Ver prévia de ${result.title}`} onClick={() => openPreview(result)}>{previewing === result.id ? 'Abrindo…' : 'Ver prévia'}<ArrowUpRight size={14} /></button><a href={result.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${result.title} na fonte`}>Fonte<ExternalLink size={11} /></a></div></li>)}</ul>}
-          {preview && <div className="songs-source-preview"><div className="songs-preview-heading"><div><h3>{preview.title}</h3><p>{preview.artist || 'Artista não informado pela fonte'} · {preview.source} · {preview.kind === 'chords' ? `Tom original: ${preview.originalKey || 'não informado; confira o campo acima'}` : 'Letra sem acordes'}</p></div><a href={preview.sourceUrl} target="_blank" rel="noopener noreferrer">Ver fonte<ExternalLink size={12} /></a></div>{preview.kind === 'chords' && <label className="songs-source-metadata songs-preview-lyrics"><input type="checkbox" checked={previewLyricsOnly} onChange={e => setPreviewLyricsOnly(e.target.checked)} />Ver somente letra na prévia</label>}<pre tabIndex={0} aria-label="Prévia do conteúdo para importar">{previewText.slice(0, 12000)}</pre>{previewText.length > 12000 && <p className="songs-import-hint">A prévia exibe o início do texto. A importação inclui o conteúdo completo.</p>}<label className="songs-source-metadata"><input type="checkbox" checked={useSourceMetadata} onChange={e => setUseSourceMetadata(e.target.checked)} />Atualizar título e artista com os dados da fonte</label><p className="songs-import-hint">{draft.content.trim() ? 'A importação substituirá a letra e cifra do formulário. ' : ''}{preview.kind === 'chords' ? sourceKey(preview.originalKey) ? `O tom original será ${sourceKey(preview.originalKey)}. ` : 'Confira o tom original acima; a fonte não informou um tom reconhecido. ' : 'Esta versão contém apenas a letra; nenhum acorde será acrescentado. '}O tom na igreja continuará {draft.churchKey}. A fonte será registrada nas observações.</p><button type="button" className="button button-primary" disabled={sourceConfirmReplace} onClick={() => draft.content.trim() ? setSourceConfirmReplace(true) : importPreview()}><Download size={15} />{preview.kind === 'chords' ? 'Importar cifra e letra' : 'Importar letra sem acordes'}</button>{sourceConfirmReplace && <div className="songs-cifra-replace" role="group" aria-label="Confirmar substituição do conteúdo importado"><p>Substituir a letra e cifra atuais pela versão selecionada?{preview.kind === 'lyrics' && ' Esta versão não contém acordes.'}</p><div><button type="button" className="button button-primary" onClick={importPreview}>Substituir letra e cifra</button><button type="button" className="button button-secondary" onClick={() => setSourceConfirmReplace(false)}>Manter conteúdo atual</button></div></div>}</div>}
+          {preview && <div className="songs-source-preview">
+            <div className="songs-preview-heading"><div><h3>{preview.title}</h3><p>{preview.artist || 'Artista não informado pela fonte'} · {preview.source} · {preview.kind === 'chords' ? `Tom dos acordes na fonte: ${sourceKey(preview.originalKey) || 'a confirmar'}` : 'Letra sem acordes'}</p></div><a href={preview.sourceUrl} target="_blank" rel="noopener noreferrer">Ver fonte<ExternalLink size={12} /></a></div>
+            {preview.capo !== undefined && <p className="songs-import-hint">Capotraste na fonte: {preview.capo}ª casa{preview.soundingKey ? ` · Tom sonoro: ${preview.soundingKey}` : ''}. Os acordes serão convertidos para teclado, sem capotraste.</p>}
+            {previewNeedsKey && <SourceKeyConfirmation value={previewWrittenKey} onChange={setPreviewWrittenKey} reason={preview.keyUnknownReason} />}
+            {preview.kind === 'chords' && <label className="songs-source-metadata songs-preview-lyrics"><input type="checkbox" checked={previewLyricsOnly} onChange={e => setPreviewLyricsOnly(e.target.checked)} />Ver somente letra na prévia</label>}
+            <pre tabIndex={0} aria-label="Prévia do conteúdo para importar">{previewText.slice(0, 12000)}</pre>
+            {previewText.length > 12000 && <p className="songs-import-hint">A prévia exibe o início do texto. A importação inclui o conteúdo completo.</p>}
+            <label className="songs-source-metadata"><input type="checkbox" checked={useSourceMetadata} onChange={e => { const checked = e.target.checked; setUseSourceMetadata(checked); if (checked) setDraft(current => ({ ...current, title: preview.title, artist: preview.artist || current.artist })); }} />Atualizar título e artista com os dados da fonte</label>
+            {useSourceMetadata && !draft.content.trim() && <p className="songs-import-hint">Você pode importar abaixo ou clicar em Salvar música para preencher e salvar esta versão com título, artista, letra e cifra.</p>}
+            <p className="songs-import-hint">{draft.content.trim() ? 'A importação substituirá a letra e cifra do formulário. ' : ''}{preview.kind === 'chords' ? `Os acordes serão ajustados automaticamente para ${draft.churchKey}, o tom da igreja. Tablaturas e diagramas serão removidos. ` : 'Esta versão contém apenas a letra; nenhum acorde será acrescentado. '}A fonte será registrada nas observações.</p>
+            <button type="button" className="button button-primary" disabled={sourceConfirmReplace || (previewNeedsKey && !previewWrittenKey)} onClick={() => draft.content.trim() ? setSourceConfirmReplace(true) : importPreview()}><Download size={15} />{preview.kind === 'chords' ? 'Importar cifra e letra' : 'Importar letra sem acordes'}</button>
+            {sourceConfirmReplace && <div className="songs-cifra-replace" role="group" aria-label="Confirmar substituição do conteúdo importado"><p>Substituir a letra e cifra atuais pela versão selecionada?{preview.kind === 'lyrics' && ' Esta versão não contém acordes.'}</p><div><button type="button" className="button button-primary" disabled={previewNeedsKey && !previewWrittenKey} onClick={importPreview}>Substituir letra e cifra</button><button type="button" className="button button-secondary" onClick={() => setSourceConfirmReplace(false)}>Manter conteúdo atual</button></div></div>}
+          </div>}
           {imported && <p className="songs-source-success" role="status"><Check size={15} />Conteúdo importado no rascunho. A visualização “Letra” oculta os acordes da mesma cifra. Revise os campos e salve a música.</p>}
         </div>}
       </section>
-      <details className="songs-manual-import" open={manualOpen} onToggle={event => setManualOpen(event.currentTarget.open)}>
-        <summary>Importar texto manualmente<span>opcional</span></summary>
-        {manualOpen && <section className="songs-cifra-primary" aria-label="Importar cifra do Cifra Club">
-          <p className="songs-cifra-instructions">Se você já tem a cifra, cole o texto com os acordes. <a href={cifraClubSearchUrl(draft.title, draft.artist)} target="_blank" rel="noopener noreferrer">Consultar no Cifra Club<ExternalLink size={11} /></a></p>
-          <label className="field">Link da cifra no Cifra Club <span className="songs-optional">opcional</span><input type="url" value={cifraClubUrl} onChange={e => { setCifraClubUrl(e.target.value); setCifraError(null); }} placeholder="https://www.cifraclub.com.br/artista/musica/" /><span className="songs-field-hint">Guarde o endereço da versão que você escolheu.{isSafeCifraClubUrl(cifraClubUrl.trim()) && <a className="songs-cifraclub-link" href={normalizeCifraClubUrl(cifraClubUrl.trim())!} target="_blank" rel="noopener noreferrer">Abrir cifra cadastrada<ExternalLink size={11} /></a>}</span></label>
-          <label className="field">Texto copiado do Cifra Club<textarea className="songs-content-input songs-cifra-paste" rows={5} value={cifraClubText} onChange={e => { setCifraClubText(e.target.value); setCifraImported(false); setCifraError(null); setCifraConfirmReplace(false); }} placeholder={'Tom: C\nC            G\nTua luz nos guia\nAm           F\nSeguimos em paz'} maxLength={100000} /><span className="songs-field-hint">Cole as linhas dos acordes e da letra juntas. Até 100.000 caracteres. O texto fica no rascunho até você importar.</span></label>
-          {cifraPreview && <div className="songs-cifra-preview"><div><strong>Prévia da cifra</strong><span>{cifraPreview.originalKey ? `Tom detectado: ${cifraPreview.originalKey}` : `Tom original atual: ${draft.originalKey} · confira com a fonte`}</span></div><pre tabIndex={0} aria-label="Prévia da cifra colada">{cifraPreview.content.slice(0, 12000)}</pre>{cifraPreview.content.length > 12000 && <p className="songs-import-hint">A importação inclui o texto completo.</p>}</div>}
-          <p className="songs-import-hint">{draft.content.trim() ? 'Ao importar, a letra e cifra atuais serão substituídas. ' : 'A importação preencherá a letra e cifra abaixo. '}{cifraPreview?.originalKey ? `O tom original será ${cifraPreview.originalKey}. ` : ''}O tom na igreja continuará {draft.churchKey}; título e artista serão preservados.</p>
-          <FormError error={cifraError} />
-          <button type="button" className="button button-primary" disabled={!cifraClubText.trim() || cifraConfirmReplace} onClick={() => draft.content.trim() ? setCifraConfirmReplace(true) : importCifraClubText()}><Download size={15} />Importar texto do Cifra Club</button>
-          {cifraConfirmReplace && <div className="songs-cifra-replace" role="group" aria-label="Confirmar substituição da letra e cifra"><p>A letra e cifra atuais serão substituídas pelo texto colado. Os outros campos serão preservados.</p><div><button type="button" className="button button-primary" onClick={importCifraClubText}>Substituir letra e cifra</button><button type="button" className="button button-secondary" onClick={() => setCifraConfirmReplace(false)}>Manter conteúdo atual</button></div></div>}
-          {cifraImported && <p className="songs-source-success" role="status"><Check size={15} />Cifra importada no rascunho. Confira os campos e salve a música.</p>}
-        </section>}
-      </details>
-      <label className="field">Letra e cifra<textarea className="songs-content-input" required rows={9} maxLength={100000} value={draft.content} onChange={e => change('content', e.target.value)} placeholder={'[C]Tua luz nos [G]guia\n[Am]Seguimos em [F]paz'} /><span className="songs-field-hint">Escreva os acordes entre colchetes, no tom original: [C], [Am7], [G/B]. Na visualização “Letra”, os acordes são ocultados automaticamente. Até 100.000 caracteres.</span></label>
+      <label className="field">Letra e cifra<textarea className="songs-content-input" required rows={9} maxLength={100000} value={draft.content} onChange={e => { change('content', e.target.value); setError(null); if (!e.target.value.trim()) setPastedSource({ unknown: false, reason: '' }); }} onBlur={() => formatEditedContent()} onPaste={event => {
+        const text = event.clipboardData.getData('text/plain');
+        if (!text.trim()) return;
+        try {
+          const parsed = parseCifraClubText(text);
+          const field = event.currentTarget;
+          const partial = Boolean(draft.content.slice(0, field.selectionStart).trim() || draft.content.slice(field.selectionEnd).trim());
+          if (parsed.originalKey) {
+            if (partial && pastedSource.unknown) { event.preventDefault(); setError('Confirme primeiro o tom da cifra atual ou selecione todo o campo antes de colar outra cifra.'); return; }
+            event.preventDefault();
+            const converted = contentInChurchKey(parsed.content, parsed.originalKey, draft.churchKey);
+            change('content', draft.content.slice(0, field.selectionStart) + converted + draft.content.slice(field.selectionEnd));
+            setPastedSource({ unknown: false, reason: '' }); setError(null);
+          } else if (hasWrittenChords(parsed.content) || parsed.keyUnknownReason) {
+            if (partial) {
+              event.preventDefault();
+              setError('Para colar um trecho de cifra, inclua o cabeçalho “Tom: G”, por exemplo. Sem o tom, selecione todo o campo antes de colar e confirme o tom dos acordes.');
+              return;
+            }
+            setPastedSource({ unknown: true, reason: parsed.keyUnknownReason || 'Confirme o tom dos acordes colados para ajustá-los ao tom da igreja.' });
+          }
+        } catch (cause) { event.preventDefault(); setError(cause instanceof Error ? cause.message : 'Não foi possível colar a cifra.'); }
+      }} placeholder={'[C]Tua luz nos [G]guia\n[Am]Seguimos em [F]paz'} /><span className="songs-field-hint">A busca preenche este campo e você pode editar ou colar uma cifra aqui. Os acordes são ajustados ao tom {draft.churchKey}. Para escrever manualmente, use colchetes: [C], [Am7], [G/B]. A visualização “Letra” oculta os acordes. Até 100.000 caracteres.</span></label>
+      {pastedSource.unknown && <SourceKeyConfirmation value="" onChange={key => { if (key) formatEditedContent(key); }} reason={pastedSource.reason} />}
+      {song && <details className="songs-manual-import">
+        <summary>Corrigir cifra com tom incorreto</summary>
+        <p className="songs-import-hint">Se um cadastro antigo informa {draft.churchKey}, mas os acordes estão em outro tom, indique o tom real dos acordes atuais. A correção converterá o texto para {draft.churchKey}. Você também pode importar a cifra novamente.</p>
+        <label className="field">Tom dos acordes atuais<select value={repairWrittenKey} onChange={event => { setRepairWrittenKey(event.target.value); setRepairApplied(false); }}><option value="">Selecione o tom real da cifra</option>{KEYS.map(key => <option key={key}>{key}</option>)}</select></label>
+        <button type="button" className="button button-secondary" disabled={!repairWrittenKey || repairApplied} onClick={() => { setDraft(current => ({ ...current, content: contentInChurchKey(current.content, repairWrittenKey, current.churchKey), originalKey: current.churchKey })); setRepairApplied(true); }}>Aplicar correção do tom</button>
+        {repairApplied && <p role="status" className="songs-source-success">Acordes corrigidos no rascunho. Confira e salve a música.</p>}
+      </details>}
       <label className="field">Vídeo no YouTube <span className="songs-optional">opcional</span><input type="url" value={draft.youtubeUrl} onChange={e => change('youtubeUrl', e.target.value)} placeholder="https://www.youtube.com/watch?v=..." /></label>
       <label className="field">Observações gerais <span className="songs-optional">opcional</span><textarea rows={3} value={draft.notes} onChange={e => change('notes', e.target.value)} placeholder="Introdução, dinâmica, andamento ou outras orientações" /></label>
       <fieldset className="songs-tags-field"><legend>Etiquetas</legend>{data.tags.length ? <div className="chips">{data.tags.map(tag => {
@@ -185,7 +240,7 @@ export function SongEditor({ song, onClose }: { song?: Song; onClose: () => void
         return <button key={tag.id} type="button" className={`chip ${selected ? 'active' : ''}`} aria-pressed={selected} onClick={() => setDraft(current => ({ ...current, tagIds: selected ? current.tagIds.filter(id => id !== tag.id) : [...current.tagIds, tag.id] }))}>{selected && <Check size={13} />}<span className="songs-tag-dot" style={{ backgroundColor: tag.color }} />{tag.name}</button>;
       })}</div> : <p className="muted">Cadastre etiquetas na seção Etiquetas para organizar as músicas.</p>}</fieldset>
       <FormError error={error} />
-      <div className="form-actions"><button type="button" className="button button-secondary" onClick={() => { discardDraft(); discardCifraClubDraft(); discardCifraTextDraft(); onClose(); }}>Cancelar</button><button type="submit" className="button button-primary" disabled={saving || busy}>{saving ? 'Salvando…' : 'Salvar música'}</button></div>
+      <div className="form-actions"><button type="button" className="button button-secondary" onClick={() => { discardDraft(); discardPastedSource(); onClose(); }}>Cancelar</button><button type="submit" className="button button-primary" disabled={saving || busy}>{saving ? 'Salvando…' : 'Salvar música'}</button></div>
     </form>
   </Modal>;
 }
@@ -230,7 +285,7 @@ export default function SongsPage() {
     <FormError error={error} />
     {songs.length ? <div className="card songs-list"><div className="songs-list-head" aria-hidden="true"><span>MÚSICA</span><span>TOM NA IGREJA</span><span>ETIQUETAS</span><span /></div>{songs.map(song => <article className="songs-row" key={song.id}>
       <Link className="songs-name" to={`/musicas/${song.id}`}><span className="songs-cover"><Music2 size={22} /></span><span><strong>{song.title}</strong><small>{song.artist}</small></span></Link>
-      <div className="songs-key"><span className="songs-key-badge">{song.churchKey}</span><small>Original: {song.originalKey}</small></div>
+      <div className="songs-key"><span className="songs-key-badge">{song.churchKey}</span></div>
       <div className="songs-row-tags">{data.tags.filter(tag => song.tagIds.includes(tag.id)).map(tag => <span key={tag.id} className="songs-tag"><span className="songs-tag-dot" style={{ backgroundColor: tag.color }} />{tag.name}</span>)}{!song.tagIds.length && <span className="muted songs-no-tags">Sem etiquetas</span>}</div>
       <div className="songs-row-actions">{canEditLibrary && <><button className="icon-button" aria-label={`Editar ${song.title}`} title="Editar música" onClick={() => setEditor(song)}><Pencil size={16} /></button><button className="icon-button songs-delete" aria-label={`Excluir ${song.title}`} title="Excluir música" onClick={() => { setDeleting(song); setDeleteError(null); }}><Trash2 size={16} /></button></>}<Link className="icon-button songs-open" to={`/musicas/${song.id}`} aria-label={`Abrir ${song.title}`}><ArrowUpRight size={19} /></Link></div>
     </article>)}</div> : <div className="card"><EmptyState title={filtered ? 'Nenhuma música com esses filtros' : 'A biblioteca começa com uma canção'} description={filtered ? 'Tente outro título, tom ou combinação de etiquetas.' : 'Adicione as músicas que fazem parte da caminhada do ministério.'} action={filtered ? <button className="button button-secondary" onClick={reset}>Limpar filtros</button> : canEditLibrary ? <button className="button button-primary" onClick={() => setEditor('new')}><Plus size={16} />Adicionar música</button> : undefined} /></div>}

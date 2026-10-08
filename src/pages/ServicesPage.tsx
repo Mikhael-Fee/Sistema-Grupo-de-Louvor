@@ -5,7 +5,7 @@ import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
 import { useMinistry } from '../context/MinistryContext';
 import { useDraft } from '../hooks/useDraft';
 import { validateService } from '../lib/validation';
-import { SERVICE_TYPES, type Assignment, type Person, type Service } from '../types';
+import { SERVICE_TYPES, type Assignment, type Person, type Service, type SetlistItem, type Song } from '../types';
 import './services.css';
 
 export function formatServiceDate(date: string, options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' }) {
@@ -22,7 +22,44 @@ export function newService(): Service {
 }
 
 export interface TeamPickerDraft { selection: Record<string, string>; search: string; additional?: Record<string, string[]> }
-interface ServiceEditorDraft { service: Service; team: TeamPickerDraft; showTeamPicker: boolean }
+export interface RepertoirePickerDraft { selection: string[]; search: string }
+interface ServiceEditorDraft { service: Service; team: TeamPickerDraft; showTeamPicker: boolean; repertoire?: RepertoirePickerDraft; showRepertoirePicker?: boolean }
+
+/** Keep existing entries intact and append new songs in the order they were selected. */
+export function selectedRepertoireItems(selection: string[], service: Service, songs: Song[]): SetlistItem[] {
+  const library = new Map(songs.map(song => [song.id, song]));
+  const included = new Set(service.repertoire.map(item => item.songId));
+  return selection.flatMap(songId => {
+    const song = library.get(songId);
+    if (!song || included.has(songId)) return [];
+    included.add(songId);
+    return [{ id: crypto.randomUUID(), songId, key: song.churchKey || song.originalKey, notes: '' }];
+  });
+}
+
+export function RepertoirePicker({ service, songs, value, onChange, disabled }: { service: Service; songs: Song[]; value: RepertoirePickerDraft; onChange: (value: RepertoirePickerDraft) => void; disabled: boolean }) {
+  const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+  const query = normalize(value.search.trim());
+  const existing = new Set(service.repertoire.map(item => item.songId));
+  const selected = value.selection.filter((id, index, selection) => selection.indexOf(id) === index && !existing.has(id) && songs.some(song => song.id === id));
+  const visible = [...songs].sort((a, b) => a.title.localeCompare(b.title, 'pt-BR') || a.artist.localeCompare(b.artist, 'pt-BR')).filter(song => !query || normalize(`${song.title} ${song.artist}`).includes(query));
+  const eligible = visible.filter(song => !existing.has(song.id));
+  const allVisibleSelected = eligible.length > 0 && eligible.every(song => selected.includes(song.id));
+  function selectVisible() {
+    const visibleIds = new Set(eligible.map(song => song.id));
+    onChange({ ...value, selection: allVisibleSelected ? selected.filter(id => !visibleIds.has(id)) : [...selected, ...eligible.filter(song => !selected.includes(song.id)).map(song => song.id)] });
+  }
+  return <div className="service-repertoire-picker">
+    <label className="field"><span>Buscar músicas</span><input placeholder="Título ou artista" value={value.search} disabled={disabled} onChange={event => onChange({ ...value, search: event.target.value })} /></label>
+    <div className="service-batch-toolbar"><button type="button" className="button button-ghost" disabled={disabled || !eligible.length} onClick={selectVisible}>{allVisibleSelected ? 'Desmarcar visíveis' : 'Selecionar visíveis'}</button><span role="status">{selected.length} {selected.length === 1 ? 'música selecionada' : 'músicas selecionadas'}</span>{selected.length > 0 && <button type="button" className="button button-ghost" disabled={disabled} onClick={() => onChange({ ...value, selection: [] })}>Limpar seleção</button>}</div>
+    <div className="service-song-options">{visible.map(song => {
+      const included = existing.has(song.id);
+      const checked = included || selected.includes(song.id);
+      return <label key={song.id} className={`service-song-option ${checked ? 'service-song-selected' : ''} ${included ? 'service-song-included' : ''}`}><input type="checkbox" aria-label={`Selecionar ${song.title}`} checked={checked} disabled={disabled || included} onChange={event => onChange({ ...value, selection: event.target.checked ? [...selected, song.id] : selected.filter(id => id !== song.id) })} /><span><strong>{song.title}</strong><small>{song.artist}</small>{included && <small>Já no repertório</small>}</span><span className="service-key">{song.churchKey || song.originalKey}</span></label>;
+    })}{!visible.length && <p className="muted service-batch-empty">Nenhuma música corresponde à busca.</p>}</div>
+    {selected.length > 0 && <p className="muted service-repertoire-selection">A ordem dos cliques será a ordem das músicas no repertório. Você pode reorganizar depois.</p>}
+  </div>;
+}
 
 export function teamPickerFromAssignments(assignments: Assignment[]): TeamPickerDraft {
   const selection: Record<string, string> = {};
@@ -115,13 +152,19 @@ export function ServiceForm({ initial, onSave, onCancel, busy }: { initial: Serv
   const team = restoreTeamPickerDraft(editor.team, draft, data.people);
   const selectedAssignments = selectedTeamAssignments(team.selection, draft, data.people, team.additional, true);
   const activeAssignments = editor.showTeamPicker ? selectedAssignments : draft.assignments;
+  const repertoire = editor.repertoire || { selection: [], search: '' };
+  const selectedSongs = repertoire.selection.filter((id, index, selection) => selection.indexOf(id) === index && data.songs.some(song => song.id === id) && !draft.repertoire.some(item => item.songId === id));
+  const repertoireCount = draft.repertoire.length + (editor.showRepertoirePicker ? selectedSongs.length : 0);
   function applyTeam(assignments: Assignment[]) {
     setEditor(current => ({ ...current, service: { ...current.service, assignments }, team: teamPickerFromAssignments(assignments), showTeamPicker: false }));
+  }
+  function applyRepertoire() {
+    setEditor(current => ({ ...current, service: { ...current.service, repertoire: [...current.service.repertoire, ...selectedRepertoireItems(current.repertoire?.selection || [], current.service, data.songs)] }, repertoire: { selection: [], search: '' }, showRepertoirePicker: false }));
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (lock.current || busy) return;
-    const cleaned = { ...draft, assignments: activeAssignments, type: draft.type.trim(), notes: draft.notes.trim() };
+    const cleaned = { ...draft, assignments: activeAssignments, repertoire: editor.showRepertoirePicker ? [...draft.repertoire, ...selectedRepertoireItems(selectedSongs, draft, data.songs)] : draft.repertoire, type: draft.type.trim(), notes: draft.notes.trim() };
     const validationError = validateService(cleaned, data);
     if (validationError) { setError(validationError); return; }
     lock.current = true;
@@ -147,6 +190,15 @@ export function ServiceForm({ initial, onSave, onCancel, busy }: { initial: Serv
       <div className="service-editor-team-actions"><button type="button" className="button button-secondary" disabled={busy || saving || !data.people.length} aria-expanded={editor.showTeamPicker} onClick={() => editor.showTeamPicker ? applyTeam(selectedAssignments) : setEditor(current => ({ ...current, showTeamPicker: true }))}><Users size={16} /> {editor.showTeamPicker ? 'Concluir seleção' : draft.assignments.length ? 'Editar equipe' : 'Selecionar equipe'}</button>{previousService && <button type="button" className="button button-ghost" disabled={busy || saving} title={`${previousService.type} · ${formatServiceDate(previousService.date)}`} onClick={() => applyTeam(mergeTeamAssignments(activeAssignments, previousService.assignments, data.people))}><Copy size={15} /> Reutilizar última escala</button>}</div>
       {!data.people.length && <p className="muted">Cadastre as pessoas e suas funções na equipe para montar a escala.</p>}
       {editor.showTeamPicker && <><TeamPicker service={draft} people={data.people} value={team} editExisting disabled={busy || saving} onChange={team => setEditor(current => ({ ...current, team }))} /><div className="service-batch-add"><button type="button" className="button button-secondary" disabled={busy || saving} onClick={() => applyTeam(selectedAssignments)}>Aplicar equipe ({selectedAssignments.length})</button></div></>}
+    </fieldset>
+    <fieldset className="service-editor-team service-editor-repertoire"><legend>Repertório do culto <span className="badge">{repertoireCount}</span></legend><p className="muted">Escolha todas as músicas de uma vez. O repertório será salvo junto com o culto.</p>
+      {draft.repertoire.length > 0 && <ol className="service-editor-assignments service-editor-song-list">{draft.repertoire.map((item, index) => {
+        const song = data.songs.find(candidate => candidate.id === item.songId);
+        return <li key={item.id}><span><strong>{index + 1}. {song?.title || 'Música indisponível'}</strong><small>Tom {item.key}{item.notes ? ` · ${item.notes}` : ''}</small></span><button type="button" className="icon-button" aria-label={`Remover ${song?.title || 'música'} do repertório em edição`} disabled={busy || saving} onClick={() => setDraft({ ...draft, repertoire: draft.repertoire.filter(candidate => candidate.id !== item.id) })}><X size={16} /></button></li>;
+      })}</ol>}
+      <div className="service-editor-team-actions"><button type="button" className="button button-secondary" disabled={busy || saving || !data.songs.length} aria-expanded={!!editor.showRepertoirePicker} onClick={() => editor.showRepertoirePicker ? applyRepertoire() : setEditor(current => ({ ...current, showRepertoirePicker: true, repertoire: current.repertoire || { selection: [], search: '' } }))}><Music2 size={16} /> {editor.showRepertoirePicker ? 'Concluir seleção de músicas' : 'Selecionar músicas'}</button></div>
+      {!data.songs.length && <p className="muted">Cadastre as músicas na biblioteca para montar o repertório.</p>}
+      {editor.showRepertoirePicker && <><RepertoirePicker service={draft} songs={data.songs} value={repertoire} disabled={busy || saving} onChange={repertoire => setEditor(current => ({ ...current, repertoire }))} /><div className="service-batch-add"><button type="button" className="button button-secondary" disabled={busy || saving} onClick={applyRepertoire}>Aplicar músicas ({selectedSongs.length})</button></div></>}
     </fieldset>
     <FormError error={error} />
     <div className="form-actions"><button type="button" className="button button-secondary" disabled={saving || busy} onClick={() => { discardDraft(); onCancel(); }}>Cancelar</button><button className="button button-primary" disabled={saving || busy}>{saving ? 'Salvando…' : 'Salvar culto'}</button></div>

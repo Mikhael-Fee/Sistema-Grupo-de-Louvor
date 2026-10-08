@@ -44,6 +44,8 @@
         const tag = node.tagName;
         if (['SCRIPT', 'STYLE', 'TEMPLATE', 'NOSCRIPT'].includes(tag)) continue;
         if (node.hidden || node.getAttribute('aria-hidden') === 'true') continue;
+        const classes = node.getAttribute('class') || '';
+        if (/(?:^|\s)(?:tablatura|tablature|cifra-tab|chord-diagram|chordDiagram|diagramas?)(?:\s|$)/i.test(classes)) continue;
         if (document.defaultView) {
           const style = document.defaultView.getComputedStyle(node);
           if (style.display === 'none' || ['hidden', 'collapse'].includes(style.visibility)) continue;
@@ -72,16 +74,51 @@
     return false;
   }
 
-  function displayedKey(document) {
+  function keyValue(value) {
+    if (typeof value !== 'string') return undefined;
+    const match = /^\s*([A-G](?:[#b♯♭])?(?:maj|min|m)?)\s*$/i.exec(value)?.[1];
+    return match ? match[0].toUpperCase() + match.slice(1).replace(/♯/g, '#').replace(/♭/g, 'b') : undefined;
+  }
+
+  function displayedKey(document, text) {
+    let explicitKey;
+    let shapeKey;
+    let soundingKey;
+    let capo;
     const candidates = document.querySelectorAll('[data-current-key], #cifra_tom, .cifra_tom');
     for (let index = 0; index < Math.min(candidates.length, 20); index++) {
       const element = candidates[index];
       if (!visible(element, document)) continue;
-      const label = element.getAttribute('data-current-key') || element.textContent || '';
-      const value = /^\s*(?:tom\s*:\s*)?([A-G](?:[#b♯♭])?(?:maj|min|m)?)(?=\s|$|[()])/i.exec(label.slice(0, 300))?.[1];
-      if (value) return value[0].toUpperCase() + value.slice(1).replace(/♯/g, '#').replace(/♭/g, 'b');
+      explicitKey ??= keyValue(element.getAttribute('data-current-key'));
+      const label = (element.textContent || '').replace(/\s+/g, ' ').slice(0, 1_200);
+      shapeKey ??= keyValue(/\bforma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?([A-G](?:[#b♯♭])?(?:maj|min|m)?)(?=\s|$|[)])/i.exec(label)?.[1]);
+      soundingKey ??= keyValue(/^\s*(?:tom\s*:\s*)?([A-G](?:[#b♯♭])?(?:maj|min|m)?)(?=\s|$|[()])/i.exec(label)?.[1]);
+      const position = /\b(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(\d{1,2})(?:\s*[ªºao])?(?:\s*casa)?\b/i.exec(label)?.[1];
+      if (position !== undefined && Number(position) <= 12) capo ??= Number(position);
     }
-    return undefined;
+    // The capo can be displayed next to the key, outside its own DOM node.
+    const capoNodes = document.querySelectorAll('#cifra_capo, .cifra_capo, #cifra_capo_info, .cifra_capo_info, [data-capo]');
+    for (let index = 0; index < Math.min(capoNodes.length, 20); index++) {
+      const element = capoNodes[index];
+      if (!visible(element, document)) continue;
+      const attribute = element.getAttribute('data-capo');
+      const label = (element.textContent || '').replace(/\s+/g, ' ').slice(0, 600);
+      const position = attribute !== null && /^\d{1,2}$/.test(attribute) ? attribute
+        : /\b(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(\d{1,2})(?:\s*[ªºao])?(?:\s*casa)?\b/i.exec(label)?.[1];
+      if (position !== undefined && Number(position) <= 12) capo ??= Number(position);
+    }
+    for (const rawLine of text.split('\n')) {
+      const line = rawLine.replace(/\s+/g, ' ').trim();
+      shapeKey ??= keyValue(/\bforma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?([A-G](?:[#b♯♭])?(?:maj|min|m)?)(?=\s|$|[)])/i.exec(line)?.[1]);
+      soundingKey ??= keyValue(/^\s*(?:tom|key|tonalidade)\s*:\s*([A-G](?:[#b♯♭])?(?:maj|min|m)?)(?=\s|$|[()])/i.exec(line)?.[1]);
+      const position = /\b(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(\d{1,2})(?:\s*[ªºao])?(?:\s*casa)?\b/i.exec(line)?.[1];
+      if (position !== undefined && Number(position) <= 12) capo ??= Number(position);
+    }
+    const written = shapeKey || explicitKey || (!capo ? soundingKey : undefined);
+    return { ...(written ? { displayedKey: written } : {}),
+      ...(soundingKey && (shapeKey || explicitKey || capo) ? { soundingKey } : {}),
+      ...(capo !== undefined ? { capo } : {}),
+      ...(!written && capo ? { keyUnknownReason: 'A fonte informa capotraste, mas não o tom das posições dos acordes. Confirme o tom dos acordes escritos antes de importar.' } : {}) };
   }
 
   /** Return null while the chart has not appeared; throw for a clear failure. */
@@ -106,8 +143,7 @@
     if (!title || !artist) return null;
     const text = readPlainText(pre, document);
     if (!text.trim()) return null;
-    const key = displayedKey(document);
-    return { sourceUrl, title, artist, text, ...(key ? { displayedKey: key } : {}) };
+    return { sourceUrl, title, artist, text, ...displayedKey(document, text) };
   }
 
   scope.CandeiaCifraReader = Object.freeze({ normalizeSourceUrl, readDocument });

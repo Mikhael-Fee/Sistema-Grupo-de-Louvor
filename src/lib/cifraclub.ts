@@ -3,6 +3,85 @@ import { chordMarkers, KEYS, stripChords } from './music';
 export interface ParsedCifraClubText {
   content: string;
   originalKey?: string;
+  soundingKey?: string;
+  capo?: number;
+  keyUnknownReason?: string;
+}
+
+const WRITTEN_KEY = /\bforma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?([A-G](?:[#♯b♭])?)(?:m|min|maj)?(?=\s|$|[)])/i;
+const CAPO = /\b(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(\d{1,2})(?:\s*[ªºao])?(?:\s*casa)?\b/i;
+
+function normalizedKey(value?: string): string | undefined {
+  if (!value) return undefined;
+  const root = value[0].toUpperCase() + value.slice(1).replace('♯', '#').replace('♭', 'b');
+  const equivalent: Record<string, string> = { 'C#': 'Db', 'D#': 'Eb', Gb: 'F#', 'G#': 'Ab', 'A#': 'Bb', 'B#': 'C', Cb: 'B', Fb: 'E', 'E#': 'F' };
+  const key = equivalent[root] || root;
+  return KEYS.includes(key) ? key : undefined;
+}
+
+/** The key belongs to the written chords, which can differ from the sounding key with a capo. */
+export function chordSheetMetadata(value: string): Omit<ParsedCifraClubText, 'content'> {
+  let written: string | undefined;
+  let sounding: string | undefined;
+  let capo: number | undefined;
+  for (const rawLine of value.replace(/\r\n?/g, '\n').split('\n')) {
+    const line = rawLine.replace(/\s+/g, ' ').trim();
+    written ??= normalizedKey(WRITTEN_KEY.exec(line)?.[1]);
+    sounding ??= normalizedKey(/^\s*(?:tom|key|tonalidade)\s*:\s*([A-G](?:[#♯b♭])?)(?:m|min|maj)?(?=\s|$|\()/i.exec(line)?.[1]);
+    const match = CAPO.exec(line);
+    if (match && Number(match[1]) <= 12) capo ??= Number(match[1]);
+  }
+  if (written) return { originalKey: written, ...(sounding ? { soundingKey: sounding } : {}), ...(capo !== undefined ? { capo } : {}) };
+  if (capo) return { ...(sounding ? { soundingKey: sounding } : {}), capo, keyUnknownReason: 'A fonte informa capotraste, mas não o tom das posições dos acordes. Confirme o tom dos acordes escritos antes de importar.' };
+  return { ...(sounding ? { originalKey: sounding } : {}), ...(capo !== undefined ? { capo } : {}) };
+}
+
+function tabRow(line: string): boolean {
+  // A string name alone ("E" / "A") is a lyric or a chord, never a tab.
+  const row = /^(?:[A-Ga-g](?:[#b♯♭])?|\[[A-Ga-g](?:[#b♯♭])?\]|\d{1,2})?\s*\|([\d\s|=\-~hHpPbBrR/\\().xX*^+vV]+)\|?$/.exec(line.trim());
+  return Boolean(row && row[1].length >= 6 && (row[1].match(/[-=]/g)?.length || 0) >= 3);
+}
+
+function compactDiagram(line: string): boolean {
+  // Six fret positions after a chord name form a guitar fingering, not an instrumental chord row.
+  const tokens = line.trim().split(/\s+/);
+  const header = tokens[0].replace(/[:=]$/, '').replace(/^\[([^\]]+)\]$/, '$1');
+  if (normalizedChord(header) && (tokens.length === 2 && /^[xX\d]{6}$/.test(tokens[1])
+    || tokens.length === 7 && tokens.slice(1).every(token => /^[xX\d]$/.test(token)))) return true;
+  const joined = /^(\[[^\]\r\n]{1,84}\]|[^\s:=]{1,84})[:=]([xX\d]{6})$/.exec(line.trim());
+  return Boolean(joined && normalizedChord(joined[1].replace(/^\[([^\]]+)\]$/, '$1')));
+}
+
+function gridRow(line: string): boolean {
+  return /^[|│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪─━+\-\s○●oOxX\d]{5,}$/.test(line.trim())
+    && /[│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪|]/.test(line);
+}
+
+/** Remove explicit guitar apparatus from raw text or saved ChordPro without changing the song. */
+export function cleanChordSheet(value: string): string {
+  const lines = value.replace(/\r\n?/g, '\n').split('\n');
+  const removed = new Set<number>();
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const label = line.replace(/\s+/g, ' ').trim();
+    if (tabRow(line) || compactDiagram(line)
+      || /^(?:afina[çc][aã]o|tuning)\s*:\s*\S.*$/i.test(label)
+      || /^(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(?:\d{1,2}(?:\s*[ªºao])?(?:\s*casa)?|sem|none)\s*[.!]?$/i.test(label)
+      || /^\(?forma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?[A-G](?:[#♯b♭])?(?:m|min|maj)?\)?$/i.test(label)) removed.add(index);
+    if (!gridRow(line)) continue;
+    let end = index + 1;
+    while (end < lines.length && gridRow(lines[end])) end++;
+    // An isolated bar can be a musical repetition marker. A grid has several rows.
+    if (end - index >= 3) for (let row = index; row < end; row++) removed.add(row);
+    index = end - 1;
+  }
+  // Remove guitar-only captions immediately adjoining an actual diagram/tab.
+  for (let pass = 0; pass < 3; pass++) for (const index of [...removed]) {
+    for (const adjacent of [index - 1, index + 1]) {
+      if (adjacent >= 0 && adjacent < lines.length && /^(?:\[?\s*(?:tablatura|tab(?:lature)?|diagrama(?:s)?(?:\s+dos?\s+acordes)?|dedilhado)\s*\]?\s*:?|(?:[eEaAgGbBdD]\s+){5}[eEaAgGbBdD])$/i.test(lines[adjacent].replace(/\s+/g, ' ').trim())) removed.add(adjacent);
+    }
+  }
+  return lines.filter((_, index) => !removed.has(index)).join('\n');
 }
 
 /** Links are references only: importing never requests or proxies the source page. */
@@ -26,12 +105,7 @@ function normalizedChord(value: string): string | null {
 }
 
 function detectedKey(line: string): string | undefined {
-  const value = /^\s*(?:tom|key|tonalidade)\s*:\s*([A-G](?:[#♯b♭])?)(?:m|min|maj)?(?=\s|$|\()/i.exec(line)?.[1];
-  if (!value) return undefined;
-  const root = value[0].toUpperCase() + value.slice(1).replace('♯', '#').replace('♭', 'b');
-  const equivalent: Record<string, string> = { 'C#': 'Db', 'D#': 'Eb', Gb: 'F#', 'G#': 'Ab', 'A#': 'Bb', 'B#': 'C', Cb: 'B', Fb: 'E', 'E#': 'F' };
-  const key = equivalent[root] || root;
-  return KEYS.includes(key) ? key : undefined;
+  return normalizedKey(/^\s*(?:tom|key|tonalidade)\s*:\s*([A-G](?:[#♯b♭])?)(?:m|min|maj)?(?=\s|$|\()/i.exec(line)?.[1]);
 }
 
 /** Match visual tab stops used by the plain text copied from a chord sheet. */
@@ -118,13 +192,14 @@ function normalizeInlineMarkers(line: string): string {
 export function parseCifraClubText(value: string): ParsedCifraClubText {
   if (value.length > 100_000) throw new Error('A cifra é muito longa. Cole somente a letra e os acordes, até 100.000 caracteres.');
   if (!value.trim()) throw new Error('Cole a letra e cifra que você deseja importar.');
-  const lines = value.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ').split('\n').map(expandTabs);
+  const normalized = value.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ');
+  const metadata = chordSheetMetadata(normalized);
+  const lines = cleanChordSheet(normalized).split('\n').map(expandTabs);
   const output: string[] = [];
-  let originalKey: string | undefined;
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
     const key = detectedKey(line);
-    if (key) { originalKey ??= key; continue; }
+    if (key) continue;
     const row = readChordRow(line);
     const next = lines[index + 1];
     const canAlign = row && !row.standalone && next?.trim() && !detectedKey(next)
@@ -135,5 +210,5 @@ export function parseCifraClubText(value: string): ParsedCifraClubText {
     } else if (row) output.push(standaloneChordLine(line, row));
     else output.push(normalizeInlineMarkers(line));
   }
-  return { content: output.join('\n').trim(), ...(originalKey ? { originalKey } : {}) };
+  return { content: output.join('\n').trim(), ...metadata };
 }

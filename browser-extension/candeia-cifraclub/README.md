@@ -16,13 +16,16 @@ Para testar a versão local:
 4. Confira os sites permitidos: somente `louvor-grupo-fxebsy.netlify.app`, `www.cifraclub.com.br` e `cifraclub.com.br`. Atualize a aba do Candeia após instalar.
 5. Entre com seu perfil administrador, pesquise a música e use a ação de importação pelo navegador da versão escolhida, quando essa ação estiver disponível no Candeia.
 
+Para atualizar uma instalação anterior, baixe o ZIP atualizado, substitua os arquivos da mesma pasta e clique em **Recarregar** na extensão. Depois, recarregue a aba do Candeia. A versão **1.1.0** reconhece o tom das posições dos acordes quando há capotraste e ignora blocos de tablatura identificados na página.
+
 É possível desativar ou remover a extensão na mesma tela. Uma futura instalação de um clique pela Chrome Web Store exige publicação e revisão próprias; carregar esta pasta não a publica na loja.
 
 ## Conteúdo e permissões
 
 - A cifra é lida somente da aba que a extensão criou para uma solicitação ativa do Candeia. Uma aba comum do Cifra Club não é extraída nem fechada.
-- São enviados título, artista, link canônico, texto da cifra e, quando reconhecido, o tom **atualmente exibido**. Se a fonte já mostra acordes transpostos, esse tom acompanha o texto; `data-original-key` não é usado para atribuir outro tom.
-- O leitor busca um `pre` visível com acordes explicitamente marcados por `b` ou `strong`, preservando espaços, linhas e quebras `br`. Não inventa acordes. Alterações no layout da fonte podem exigir adaptação do leitor.
+- São enviados título, artista, link canônico e texto da cifra. `displayedKey`, quando reconhecido, identifica o tom **dos acordes escritos**. Por exemplo, `Tom: Bb (forma dos acordes no tom de G)` envia `displayedKey: 'G'` e `soundingKey: 'Bb'`; o aplicativo transpõe de G para o tom escolhido na igreja, sem acrescentar novamente os semitons do capotraste. `data-original-key` não é usado para atribuir outro tom.
+- `capo` informa a casa reconhecida (0 a 12). Se houver capotraste sem indicação do tom das posições, o leitor deixa `displayedKey` ausente e envia `keyUnknownReason`; o aplicativo pede confirmação do tom dos acordes antes de importar, em vez de usar o tom que soa ou o primeiro acorde.
+- O leitor busca um `pre` visível com acordes explicitamente marcados por `b` ou `strong`, preservando espaços, linhas e quebras `br`, e ignora containers identificados como tablaturas ou diagramas. O aplicativo também remove tablaturas em texto, afinação e instruções de capotraste da visualização, preservando letra, acordes e seções como `[Intro]` e `[Refrão]`. Essa limpeza não declara que a fonte ofereceu uma versão oficial para teclado. Alterações no layout da fonte podem exigir adaptação do leitor.
 - Há um limite de 100.000 caracteres por cifra, 200 por título/artista, uma consulta por aba do Candeia e quatro consultas simultâneas na extensão. Não há truncamento silencioso da cifra.
 - O manifest declara scripts somente nos três sites acima. Não pede `tabs`, `<all_urls>`, clipboard, cookies, debugger ou webRequest e não realiza chamadas de API, proxy ou `fetch` adicional.
 - Nenhuma senha, sessão do Supabase ou token é lido. Os dados transferidos não são gravados em serviços pela extensão. O Candeia recebe uma prévia/rascunho; revisar, substituir conteúdo existente e salvar seguem o fluxo do aplicativo.
@@ -40,7 +43,7 @@ window.postMessage({
 }, window.location.origin);
 ```
 
-`ping` usa o mesmo envelope e responde `type: 'ready'`. `read` responde `type: 'response'` com `result: { sourceUrl, title, artist, text, displayedKey? }` ou `error`. `cancel` usa o `requestId` da leitura ativa. O código da página deve aceitar somente mensagens com `event.source === window`, origem própria, canal/versão/schema corretos e ID da solicitação ativa; fechar o editor deve cancelar a leitura e ignorar respostas antigas.
+`ping` usa o mesmo envelope e responde `type: 'ready', importerVersion: '1.1.0', capabilities: ['written-key-capo']`. A capability só é anunciada quando o worker confirmar esse suporte. Uma resposta antiga sem essa capability indica que os arquivos da extensão e a aba precisam ser atualizados antes de importar. `read` responde `type: 'response'`, com a mesma metadata de versão e `result: { sourceUrl, title, artist, text, displayedKey?, soundingKey?, capo?, keyUnknownReason? }` ou `error`. `cancel` usa o `requestId` da leitura ativa. O código da página deve aceitar somente mensagens com `event.source === window`, origem própria, canal/versão/schema corretos e ID da solicitação ativa; fechar o editor deve cancelar a leitura e ignorar respostas antigas.
 
 O content script da página usa mensagens internas `runtime.sendMessage` para falar com o worker. Apenas abas criadas e registradas no worker recebem uma autorização de leitura. A resposta jamais contém HTML executável; o aplicativo deve tratar os campos como texto e reaproveitar a conversão de acordes existente.
 

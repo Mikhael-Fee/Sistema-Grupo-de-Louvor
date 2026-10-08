@@ -1,15 +1,17 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginAs, setupMockMinistry } from './fixtures';
 
+const MANUAL_CHURCH_CONTENT = '[D]Tua luz nos [A/C#]guia\n[Bm7]Seguimos em [G]paz';
+
 async function createSong(page: Page, title = 'Canção de teste') {
   await page.goto('/musicas');
   await page.getByRole('button', { name: 'Nova música', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Título', { exact: true }).fill(title);
   await dialog.getByLabel('Artista / compositor', { exact: true }).fill('Equipe de teste');
-  await dialog.getByRole('combobox', { name: 'Tom original', exact: true }).selectOption('C');
+  await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveCount(0);
   await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('D');
-  await dialog.getByRole('textbox', { name: /^Letra e cifra/ }).fill('[C]Tua luz nos [G/B]guia\n[Am7]Seguimos em [F]paz');
+  await dialog.getByRole('textbox', { name: /^Letra e cifra/ }).fill(MANUAL_CHURCH_CONTENT);
   await dialog.getByRole('button', { name: 'Adoração', exact: true }).click();
   await dialog.getByRole('button', { name: 'Gratidão', exact: true }).click();
   return dialog;
@@ -41,7 +43,8 @@ test('cadastra uma música, valida o vídeo, transpõe sem alterar o cadastro e 
   await page.getByRole('searchbox', { name: 'Buscar por título ou artista' }).fill('Equipe de teste');
   const row = page.getByRole('article').filter({ hasText: 'Canção de teste' });
   await expect(row).toHaveCount(1);
-  await expect(row).toContainText('Original: C');
+  await expect(row).not.toContainText('Original:');
+  await expect(row.locator('.songs-key-badge')).toHaveText('D');
   await row.getByRole('link', { name: 'Canção de teste Equipe de teste', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Canção de teste', exact: true })).toBeVisible();
   await expect(page.getByLabel('Tom da visualização')).toHaveValue('D');
@@ -54,9 +57,9 @@ test('cadastra uma música, valida o vídeo, transpõe sem alterar o cadastro e 
   await expect(page.getByRole('heading', { name: 'Canção de teste', exact: true })).toBeVisible();
   await expect(page.getByLabel('Tom da visualização')).toHaveValue('D');
   await page.getByRole('button', { name: 'Editar música', exact: true }).click();
-  await expect(page.getByRole('dialog').getByRole('combobox', { name: 'Tom original', exact: true })).toHaveValue('C');
+  await expect(page.getByRole('dialog').getByRole('combobox', { name: 'Tom original', exact: true })).toHaveCount(0);
   await expect(page.getByRole('dialog').getByRole('combobox', { name: 'Tom na igreja', exact: true })).toHaveValue('D');
-  await expect(page.getByRole('dialog').getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('[C]Tua luz nos [G/B]guia\n[Am7]Seguimos em [F]paz');
+  await expect(page.getByRole('dialog').getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(MANUAL_CHURCH_CONTENT);
 });
 
 test('combina todas as etiquetas selecionadas e os filtros de tom e pesquisa', async ({ page }) => {
@@ -133,13 +136,13 @@ test('planeja culto, escala e repertório ordenado com um tom independente da bi
   await expect(page.locator('.service-team-list')).toContainText('Ana Clara');
   await expect(page.locator('.service-team-list')).toContainText('Teclado');
 
+  await page.getByRole('button', { name: 'Selecionar músicas', exact: true }).click();
+  dialog = page.getByRole('dialog');
   for (const title of ['Casa de paz', 'Teu amor nos guia']) {
-    await page.getByRole('button', { name: 'Adicionar música', exact: true }).click();
-    dialog = page.getByRole('dialog');
-    await dialog.getByRole('radio', { name: new RegExp(`^${title} `) }).check();
-    await dialog.getByRole('button', { name: 'Adicionar música', exact: true }).click();
-    await expect(dialog).toBeHidden();
+    await dialog.getByRole('checkbox', { name: `Selecionar ${title}`, exact: true }).check();
   }
+  await dialog.getByRole('button', { name: 'Adicionar selecionadas (2)', exact: true }).click();
+  await expect(dialog).toBeHidden();
   await page.getByRole('button', { name: 'Mover Teu amor nos guia para cima', exact: true }).click();
   const repertoire = page.locator('.service-setlist > li');
   await expect(repertoire).toHaveCount(2);
@@ -169,7 +172,7 @@ test('planeja culto, escala e repertório ordenado com um tom independente da bi
   await page.goto('/musicas');
   await page.getByRole('button', { name: 'Editar Casa de paz', exact: true }).click();
   dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveValue('G');
+  await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveCount(0);
   await expect(dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true })).toHaveValue('G');
   await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await page.getByRole('button', { name: 'Excluir Casa de paz', exact: true }).click();
@@ -187,7 +190,7 @@ test('músico consulta e transpõe sem ações de edição', async ({ page }) =>
   await expect(page.getByRole('button', { name: 'Novo culto', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: 'Ver culto' }).first().click();
   await expect(page.getByRole('button', { name: 'Editar culto', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Adicionar música', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Selecionar músicas', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^(Selecionar|Editar) equipe$/ })).toHaveCount(0);
   await page.getByRole('link', { name: 'Casa de paz', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Editar música', exact: true })).toHaveCount(0);
@@ -211,7 +214,7 @@ test('líder planeja cultos e escala sem editar a biblioteca', async ({ page }) 
   await expect(page.getByRole('button', { name: 'Novo culto', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Ver culto' }).first().click();
   await expect(page.getByRole('button', { name: 'Editar culto', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Adicionar música', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Selecionar músicas', exact: true })).toBeVisible();
 });
 
 test('funciona em 390 px sem rolagem horizontal, inclusive música e formulário', async ({ page }) => {
@@ -251,7 +254,7 @@ test('preserva rascunho de nova música ao fechar e navegar, e Cancelar descarta
   await expect(dialog.getByLabel('Título', { exact: true })).toHaveValue('Canção ainda em preparação');
   await expect(dialog.getByLabel('Artista / compositor', { exact: true })).toHaveValue('Equipe de teste');
   await expect(dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true })).toHaveValue('D');
-  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('[C]Tua luz nos [G/B]guia\n[Am7]Seguimos em [F]paz');
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(MANUAL_CHURCH_CONTENT);
   await expect(dialog.getByLabel('Observações gerais')).toHaveValue('Introdução que ainda será revisada');
   await expect(dialog.getByRole('button', { name: 'Adoração', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await clickBackdrop(page);
@@ -553,6 +556,7 @@ test('entra sem cadastro e consulta culto, equipe e cifra com transposição tem
 interface SourceFixture {
   id: string; title: string; artist: string; source: 'Cifra Club' | 'LRCLIB';
   kind: 'chords' | 'lyrics'; sourceUrl: string; content?: string; originalKey?: string;
+  capo?: number; soundingKey?: string; keyUnknownReason?: string;
 }
 
 async function mockUnifiedSources(page: Page, options: { chords?: SourceFixture[]; lyrics?: { id: number; trackName: string; artistName: string; plainLyrics: string; instrumental?: boolean }[]; chordError?: string; lyricError?: boolean; previewError?: string } = {}) {
@@ -626,7 +630,7 @@ test('pesquisa única prioriza versões do Cifra Club, importa cifra e deriva a 
   await dialog.getByLabel('Título', { exact: true }).fill('Luz da equipe');
   await dialog.getByLabel('Artista / compositor', { exact: true }).fill('Minha equipe');
   await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('E');
-  await expect(dialog.getByRole('textbox', { name: /^Texto copiado do Cifra Club/ })).toBeHidden();
+  await expect(dialog.getByRole('textbox', { name: /^Texto copiado do Cifra Club/ })).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
   const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
   await expect(source.locator('.songs-source-results > li')).toHaveCount(3);
@@ -645,7 +649,8 @@ test('pesquisa única prioriza versões do Cifra Club, importa cifra e deriva a 
   await source.getByRole('button', { name: 'Importar cifra e letra', exact: true }).click();
   await expect(dialog.getByLabel('Título', { exact: true })).toHaveValue(sourceSong.title);
   await expect(dialog.getByLabel('Artista / compositor', { exact: true })).toHaveValue(sourceSong.artist);
-  await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveValue('D');
+  await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('[E]Uma luz nos [B/D#]guia\n[C#m7]Seguimos [A]em paz');
   await expect(dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true })).toHaveValue('E');
   await expect(dialog.getByLabel('Observações gerais')).toHaveValue(`Fonte da cifra: Cifra Club — ${sourceSong.sourceUrl}`);
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
@@ -660,10 +665,209 @@ test('pesquisa única prioriza versões do Cifra Club, importa cifra e deriva a 
   await expect(page.locator('.song-chord')).toHaveCount(0);
   await page.getByRole('button', { name: 'Editar música', exact: true }).click();
   const restored = page.getByRole('dialog');
-  await expect(restored.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(sourceSong.content!);
-  await expect(restored.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveValue('D');
+  await expect(restored.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('[E]Uma luz nos [B/D#]guia\n[C#m7]Seguimos [A]em paz');
+  await expect(restored.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveCount(0);
   await expect(restored.getByRole('combobox', { name: 'Tom na igreja', exact: true })).toHaveValue('E');
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
+  expect(fixture.data.songs.find(song => song.title === sourceSong.title)).toMatchObject({ originalKey: 'E', churchKey: 'E', content: '[E]Uma luz nos [B/D#]guia\n[C#m7]Seguimos [A]em paz' });
+});
+
+for (const importBeforeSave of [true, false]) {
+  test(`dados da fonte completam artista vazio e salvam ${importBeforeSave ? 'após importar' : 'diretamente da prévia'} sem redigitar campos`, async ({ page }) => {
+    const fixture = await loginAs(page);
+    const sourceSong: SourceFixture = {
+      id: 'https://www.cifraclub.com.br/equipe/metadata-completa/',
+      title: 'Luz da fonte encontrada', artist: 'Artista retornado na busca', source: 'Cifra Club', kind: 'chords',
+      sourceUrl: 'https://www.cifraclub.com.br/equipe/metadata-completa/',
+      originalKey: 'D', content: '[D]Uma luz nos [A/C#]guia',
+    };
+    await mockUnifiedSources(page, { chords: [sourceSong] });
+    await page.goto('/musicas');
+    await page.getByRole('button', { name: 'Nova música', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Título', { exact: true }).fill('Luz procurada');
+    await expect(dialog.getByLabel('Artista / compositor', { exact: true })).toHaveValue('');
+    await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('E');
+    await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+    const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
+    await source.getByRole('button', { name: `Ver prévia de ${sourceSong.title}`, exact: true }).click();
+    await source.getByRole('checkbox', { name: 'Atualizar título e artista com os dados da fonte', exact: true }).check();
+    await expect(dialog.getByLabel('Título', { exact: true })).toHaveValue(sourceSong.title);
+    await expect(dialog.getByLabel('Artista / compositor', { exact: true })).toHaveValue(sourceSong.artist);
+    await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('');
+    expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(0);
+    if (importBeforeSave) {
+      await source.getByRole('button', { name: 'Importar cifra e letra', exact: true }).click();
+      await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('[E]Uma luz nos [B/D#]guia');
+    }
+    await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    expect(fixture.data.songs.find(song => song.title === sourceSong.title)).toMatchObject({
+      artist: sourceSong.artist, originalKey: 'E', churchKey: 'E', content: '[E]Uma luz nos [B/D#]guia',
+    });
+    expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
+    await page.reload();
+    await page.getByRole('article').filter({ hasText: sourceSong.title }).getByRole('link', { name: `${sourceSong.title} ${sourceSong.artist}`, exact: true }).click();
+    await expect(page.getByLabel('Tom da visualização')).toHaveValue('E');
+    await expect(page.locator('.song-chord')).toHaveText(['E', 'B/D#']);
+  });
+}
+
+test('salvar com dados da fonte ativos preserva a cifra já preenchida sem substituição confirmada', async ({ page }) => {
+  const fixture = await loginAs(page);
+  const sourceSong: SourceFixture = {
+    id: 'https://www.cifraclub.com.br/equipe/outro-arranjo/',
+    title: 'Canção com arranjo da equipe', artist: 'Equipe retornada na busca', source: 'Cifra Club', kind: 'chords',
+    sourceUrl: 'https://www.cifraclub.com.br/equipe/outro-arranjo/',
+    originalKey: 'G', content: '[G]Outro arranjo ainda não aprovado',
+  };
+  await mockUnifiedSources(page, { chords: [sourceSong] });
+  const dialog = await createSong(page, 'Arranjo em preparação');
+  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
+  await source.getByRole('button', { name: `Ver prévia de ${sourceSong.title}`, exact: true }).click();
+  await source.getByRole('checkbox', { name: 'Atualizar título e artista com os dados da fonte', exact: true }).check();
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(MANUAL_CHURCH_CONTENT);
+  await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect(fixture.data.songs.find(song => song.title === sourceSong.title)).toMatchObject({
+    artist: sourceSong.artist, originalKey: 'D', churchKey: 'D', content: MANUAL_CHURCH_CONTENT,
+  });
+  expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
+});
+
+test('importa acordes em G com capotraste 3 para Bb e visualiza em C sem somar o capotraste duas vezes', async ({ page }) => {
+  const fixture = await loginAs(page);
+  const sourceSong: SourceFixture = {
+    id: 'https://www.cifraclub.com.br/equipe/luz-com-capo/',
+    title: 'Luz com capotraste', artist: 'Equipe de teste', source: 'Cifra Club', kind: 'chords',
+    sourceUrl: 'https://www.cifraclub.com.br/equipe/luz-com-capo/',
+    originalKey: 'G', capo: 3, soundingKey: 'Bb',
+    content: '[G]Tua luz nos [D/F#]guia\n[Em7]Seguimos em [C]paz',
+  };
+  const churchContent = '[Bb]Tua luz nos [F/A]guia\n[Gm7]Seguimos em [Eb]paz';
+  await mockUnifiedSources(page, { chords: [sourceSong] });
+  await page.goto('/musicas');
+  await page.getByRole('button', { name: 'Nova música', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Título', { exact: true }).fill(sourceSong.title);
+  await dialog.getByLabel('Artista / compositor', { exact: true }).fill(sourceSong.artist);
+  await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('Bb');
+  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
+  await source.getByRole('button', { name: `Ver prévia de ${sourceSong.title}`, exact: true }).click();
+  await expect(source.getByLabel('Prévia do conteúdo para importar', { exact: true })).toHaveText(sourceSong.content!);
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('');
+  expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(0);
+  await source.getByRole('button', { name: 'Importar cifra e letra', exact: true }).click();
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(churchContent);
+  await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect(fixture.data.songs.find(song => song.title === sourceSong.title)).toMatchObject({ originalKey: 'Bb', churchKey: 'Bb', content: churchContent });
+  await page.reload();
+  await page.getByRole('article').filter({ hasText: sourceSong.title }).getByRole('link', { name: `${sourceSong.title} ${sourceSong.artist}`, exact: true }).click();
+  await expect(page.getByLabel('Tom da visualização')).toHaveValue('Bb');
+  await expect(page.locator('.song-chord')).toHaveText(['Bb', 'F/A', 'Gm7', 'Eb']);
+  await page.getByLabel('Tom da visualização').selectOption('C');
+  await expect(page.locator('.song-chord')).toHaveText(['C', 'G/B', 'Am7', 'F']);
+  await page.getByRole('button', { name: 'Somente letra', exact: true }).click();
+  await expect(page.locator('.song-lyrics-only')).toHaveText('Tua luz nos guia\nSeguimos em paz');
+  expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
+});
+
+test('uma cifra sem tom confiável exige confirmação dos acordes antes de importar', async ({ page }) => {
+  const fixture = await loginAs(page);
+  const sourceSong: SourceFixture = {
+    id: 'https://www.cifraclub.com.br/equipe/tom-nao-informado/',
+    title: 'Canção sem tom confirmado', artist: 'Equipe de teste', source: 'Cifra Club', kind: 'chords',
+    sourceUrl: 'https://www.cifraclub.com.br/equipe/tom-nao-informado/',
+    content: '[G]Uma voz nos [D]guia', capo: 3,
+    keyUnknownReason: 'O capotraste foi informado, mas o tom dos acordes não foi identificado com segurança.',
+  };
+  await mockUnifiedSources(page, { chords: [sourceSong] });
+  await page.goto('/musicas');
+  await page.getByRole('button', { name: 'Nova música', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Título', { exact: true }).fill(sourceSong.title);
+  await dialog.getByLabel('Artista / compositor', { exact: true }).fill(sourceSong.artist);
+  await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('Bb');
+  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
+  await source.getByRole('button', { name: `Ver prévia de ${sourceSong.title}`, exact: true }).click();
+  const receivedKey = source.getByRole('combobox', { name: 'Tom dos acordes recebidos', exact: true });
+  await expect(receivedKey).toHaveValue('');
+  await expect(source.getByRole('button', { name: 'Importar cifra e letra', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('');
+  expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(0);
+  await receivedKey.selectOption('G');
+  await expect(source.getByRole('button', { name: 'Importar cifra e letra', exact: true })).toBeEnabled();
+  await source.getByRole('button', { name: 'Importar cifra e letra', exact: true }).click();
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('[Bb]Uma voz nos [F]guia');
+  await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect(fixture.data.songs.find(song => song.title === sourceSong.title)).toMatchObject({ originalKey: 'Bb', churchKey: 'Bb', content: '[Bb]Uma voz nos [F]guia' });
+});
+
+test('trocar o tom na igreja altera os acordes do formulário e preserva a base correta ao salvar', async ({ page }) => {
+  const fixture = await loginAs(page);
+  const dialog = await createSong(page, 'Canção com tom ajustado');
+  const content = dialog.getByRole('textbox', { name: /^Letra e cifra/ });
+  await expect(content).toHaveValue(MANUAL_CHURCH_CONTENT);
+  await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('Bb');
+  await expect(content).toHaveValue('[Bb]Tua luz nos [F/A]guia\n[Gm7]Seguimos em [Eb]paz');
+  await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('C');
+  await expect(content).toHaveValue('[C]Tua luz nos [G/B]guia\n[Am7]Seguimos em [F]paz');
+  expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(0);
+  await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect(fixture.data.songs.find(song => song.title === 'Canção com tom ajustado')).toMatchObject({ originalKey: 'C', churchKey: 'C', content: '[C]Tua luz nos [G/B]guia\n[Am7]Seguimos em [F]paz' });
+  await page.reload();
+  await page.getByRole('article').filter({ hasText: 'Canção com tom ajustado' }).getByRole('link', { name: 'Canção com tom ajustado Equipe de teste', exact: true }).click();
+  await expect(page.getByLabel('Tom da visualização')).toHaveValue('C');
+  await expect(page.locator('.song-chord')).toHaveText(['C', 'G/B', 'Am7', 'F']);
+  await page.getByLabel('Tom da visualização').selectOption('Bb');
+  await expect(page.locator('.song-chord')).toHaveText(['Bb', 'F/A', 'Gm7', 'Eb']);
+});
+
+test('normaliza cadastro legado e permite corrigir acordes em G que estavam identificados como Bb', async ({ page }) => {
+  const fixture = await setupMockMinistry(page);
+  const originalContent = '[G]Tua luz nos [D/F#]guia\n[Em7]Seguimos em [C]paz';
+  const churchContent = '[Bb]Tua luz nos [F/A]guia\n[Gm7]Seguimos em [Eb]paz';
+  const legacy = fixture.data.songs[0];
+  Object.assign(legacy, { title: 'Legada com tons diferentes', originalKey: 'G', churchKey: 'Bb', content: originalContent });
+  const mislabeled = fixture.data.songs[1];
+  Object.assign(mislabeled, { title: 'Legada identificada errado', originalKey: 'Bb', churchKey: 'Bb', content: originalContent });
+  await fixture.login();
+  await page.goto('/musicas');
+  await page.getByRole('button', { name: 'Editar Legada com tons diferentes', exact: true }).click();
+  let dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(churchContent);
+  await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true })).toHaveValue('Bb');
+  expect(legacy.content).toBe(originalContent);
+  expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(0);
+  await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect(fixture.data.songs.find(song => song.id === legacy.id)).toMatchObject({ originalKey: 'Bb', churchKey: 'Bb', content: churchContent });
+  await page.getByRole('button', { name: 'Editar Legada identificada errado', exact: true }).click();
+  dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(originalContent);
+  await dialog.locator('summary').filter({ hasText: 'Corrigir cifra com tom incorreto' }).click();
+  await dialog.getByRole('combobox', { name: 'Tom dos acordes atuais', exact: true }).selectOption('G');
+  await dialog.getByRole('button', { name: 'Aplicar correção do tom', exact: true }).click();
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(churchContent);
+  await expect(dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true })).toHaveValue('Bb');
+  expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
+  await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await page.reload();
+  const restored = fixture.data.songs.find(song => song.id === mislabeled.id);
+  expect(restored).toMatchObject({ originalKey: 'Bb', churchKey: 'Bb', content: churchContent });
+  await page.getByRole('article').filter({ hasText: 'Legada identificada errado' }).getByRole('link', { name: 'Legada identificada errado Composição de demonstração', exact: true }).click();
+  await expect(page.locator('.song-chord')).toHaveText(['Bb', 'F/A', 'Gm7', 'Eb']);
+  await page.getByLabel('Tom da visualização').selectOption('C');
+  await expect(page.locator('.song-chord')).toHaveText(['C', 'G/B', 'Am7', 'F']);
+  expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(2);
 });
 
 test('busca sem resultados ou com fontes indisponíveis mantém campos e permite tentar novamente', async ({ page }) => {
@@ -718,7 +922,7 @@ test('fechar uma busca cancela a resposta antiga e uma nova busca mantém soment
     await oldFinished;
     await expect(source.getByRole('button', { name: 'Ver prévia de Resposta antiga', exact: true })).toHaveCount(0);
     await expect(source.getByRole('button', { name: 'Ver prévia de Resposta nova', exact: true })).toBeVisible();
-    await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('[C]Tua luz nos [G/B]guia\n[Am7]Seguimos em [F]paz');
+    await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(MANUAL_CHURCH_CONTENT);
   } finally { releaseOld(); }
 });
 
@@ -742,50 +946,32 @@ test('renovação da sessão e retorno de outra aba preservam o editor aberto', 
     await page.bringToFront();
     await expect(dialog).toBeVisible();
     await expect(dialog.getByLabel('Título', { exact: true })).toHaveValue('Canção preservada ao voltar');
-    await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('[C]Tua luz nos [G/B]guia\n[Am7]Seguimos em [F]paz');
+    await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(MANUAL_CHURCH_CONTENT);
   } finally { await otherTab.close(); }
 });
 
-test('importa texto alinhado do Cifra Club com tom e fonte preservados após salvar', async ({ page }) => {
+test('colar texto no campo único limpa tablatura, converte o tom e preserva os acordes depois de salvar', async ({ page }) => {
   const fixture = await loginAs(page);
-  const sourceUrl = 'https://www.cifraclub.com.br/equipe-de-teste/luz-da-equipe/';
-  const pastedText = 'Tom: D\n\nD           A/C#\nUma luz nos guia\nBm7      G\nSeguimos em paz';
-  const chordPro = '[D]Uma luz nos [A/C#]guia\n[Bm7]Seguimos [G]em paz';
+  const pastedText = 'Tom: D\n\ne|--0-2-3--|\nB|--0-1-3--|\nG|--0-0-0--|\nD           A/C#\nUma luz nos guia\nBm7      G\nSeguimos em paz';
+  const churchChordPro = '[E]Uma luz nos [B/D#]guia\n[C#m7]Seguimos [A]em paz';
   await page.goto('/musicas');
   await page.getByRole('button', { name: 'Nova música', exact: true }).click();
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Título', { exact: true }).fill('Luz da equipe de teste');
   await dialog.getByLabel('Artista / compositor', { exact: true }).fill('Equipe de teste');
   await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('E');
-  const existingContent = '[C]Meu rascunho anterior deve permanecer até importar';
-  await dialog.getByRole('textbox', { name: /^Letra e cifra/ }).fill(existingContent);
-  await expect(dialog.getByRole('textbox', { name: /^Texto copiado do Cifra Club/ })).toBeHidden();
-  await dialog.locator('summary').filter({ hasText: 'Importar texto manualmente' }).click();
-  const primarySource = dialog.getByRole('region', { name: 'Importar cifra do Cifra Club', exact: true });
-  await expect(primarySource).toBeVisible();
-  await expect(primarySource.getByRole('link', { name: 'Consultar no Cifra Club', exact: true })).toHaveAttribute('href', /^https:\/\/www\.cifraclub\.com\.br\//);
+  const content = dialog.getByRole('textbox', { name: /^Letra e cifra/ });
+  await expect(content).toHaveCount(1);
+  await expect(dialog.getByRole('textbox', { name: /^Texto copiado do Cifra Club/ })).toHaveCount(0);
+  await expect(dialog.locator('summary').filter({ hasText: 'Importar texto manualmente' })).toHaveCount(0);
+  await expect(dialog.getByRole('textbox', { name: /^Link da cifra no Cifra Club/ })).toHaveCount(0);
   await expect(dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true })).toBeVisible();
-  await dialog.getByRole('textbox', { name: /^Link da cifra no Cifra Club/ }).fill(`${sourceUrl}?utm_source=fixture#cifra`);
-  await dialog.getByRole('textbox', { name: /^Texto copiado do Cifra Club/ }).fill(pastedText);
-  await expect(dialog.getByLabel('Prévia da cifra colada', { exact: true })).toHaveText(chordPro);
-  await expect(primarySource).toContainText('Ao importar, a letra e cifra atuais serão substituídas.');
-  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(existingContent);
-  await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveValue('C');
+  await content.fill(pastedText);
+  await dialog.getByLabel('Título', { exact: true }).click();
+  await expect(content).toHaveValue(churchChordPro);
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(0);
-  await dialog.getByRole('button', { name: 'Importar texto do Cifra Club', exact: true }).click();
-  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(existingContent);
-  await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveValue('C');
-  await dialog.getByRole('button', { name: 'Manter conteúdo atual', exact: true }).click();
-  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(existingContent);
-  await dialog.getByRole('button', { name: 'Importar texto do Cifra Club', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Substituir letra e cifra', exact: true }).click();
-  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(chordPro);
-  await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveValue('D');
+  await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveCount(0);
   await expect(dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true })).toHaveValue('E');
-  await expect(dialog.getByRole('textbox', { name: /^Link da cifra no Cifra Club/ })).toHaveValue(sourceUrl);
-  const notes = await dialog.getByLabel('Observações gerais').inputValue();
-  expect(notes).toContain('Cifra Club');
-  expect(notes).toContain(sourceUrl);
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(dialog).toBeHidden();
   await page.reload();
@@ -793,11 +979,12 @@ test('importa texto alinhado do Cifra Club com tom e fonte preservados após sal
     .getByRole('link', { name: 'Luz da equipe de teste Equipe de teste', exact: true }).click();
   await expect(page.getByLabel('Tom da visualização')).toHaveValue('E');
   await expect(page.locator('.song-chord').filter({ hasText: /^B\/D#$/ })).toHaveCount(1);
-  await expect(page.locator(`a[href="${sourceUrl}"]`)).toBeVisible();
+  await expect(page.locator('.song-chord')).toHaveText(['E', 'B/D#', 'C#m7', 'A']);
+  await expect(page.locator('.song-reader')).not.toContainText('e|');
   await page.getByRole('button', { name: 'Editar música', exact: true }).click();
   dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(chordPro);
-  await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveValue('D');
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(churchChordPro);
+  await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveCount(0);
   await expect(dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true })).toHaveValue('E');
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
   await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
@@ -806,12 +993,88 @@ test('importa texto alinhado do Cifra Club com tom e fonte preservados após sal
   await page.goto('/musicas');
   await page.getByRole('article').filter({ hasText: 'Luz da equipe de teste' })
     .getByRole('link', { name: 'Luz da equipe de teste Equipe de teste', exact: true }).click();
-  await expect(page.getByRole('link', { name: 'Abrir Cifra Club', exact: true })).toHaveAttribute('href', sourceUrl);
   await expect(page.getByRole('button', { name: 'Editar música', exact: true })).toHaveCount(0);
   await page.getByLabel('Tom da visualização').selectOption('F');
   await expect(page.locator('.song-chord').filter({ hasText: /^C\/E$/ })).toHaveCount(1);
   await page.reload();
   await expect(page.getByLabel('Tom da visualização')).toHaveValue('E');
   expect(fixture.data.songs.find(song => song.title === 'Luz da equipe de teste')?.churchKey).toBe('E');
+  expect(fixture.data.songs.find(song => song.title === 'Luz da equipe de teste')?.originalKey).toBe('E');
+  expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
+});
+
+test('cifra colada com capotraste e tom ambíguo mantém a confirmação pendente ao fechar e impede salvar no tom errado', async ({ page }) => {
+  const fixture = await loginAs(page);
+  const pastedText = 'Tom: Bb\nCapotraste: 3ª casa\n\nG           D/F#\nUma luz nos guia\nEm7      C\nSeguimos em paz';
+  const churchContent = '[Bb]Uma luz nos [F/A]guia\n[Gm7]Seguimos [Eb]em paz';
+  await page.goto('/musicas');
+  await page.getByRole('button', { name: 'Nova música', exact: true }).click();
+  let dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Título', { exact: true }).fill('Cifra colada com capotraste');
+  await dialog.getByLabel('Artista / compositor', { exact: true }).fill('Equipe de teste');
+  await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('Bb');
+  await dialog.getByRole('textbox', { name: /^Letra e cifra/ }).fill(pastedText);
+  await dialog.getByLabel('Título', { exact: true }).click();
+  await expect(dialog.getByRole('combobox', { name: 'Tom dos acordes recebidos', exact: true })).toHaveValue('');
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(pastedText);
+  await dialog.getByRole('button', { name: 'Fechar', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await navigate(page, 'Cultos');
+  await navigate(page, 'Biblioteca');
+  await page.getByRole('button', { name: 'Nova música', exact: true }).click();
+  dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(pastedText);
+  await expect(dialog.getByRole('combobox', { name: 'Tom dos acordes recebidos', exact: true })).toHaveValue('');
+  await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('alert')).toContainText(/tom|capotraste/i);
+  expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(0);
+  await dialog.getByRole('combobox', { name: 'Tom dos acordes recebidos', exact: true }).selectOption('G');
+  await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(churchContent);
+  await expect(dialog.getByRole('combobox', { name: 'Tom dos acordes recebidos', exact: true })).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect(fixture.data.songs.find(song => song.title === 'Cifra colada com capotraste')).toMatchObject({
+    originalKey: 'Bb', churchKey: 'Bb', content: churchContent,
+  });
+  expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
+});
+
+test('colar um trecho com tom conhecido converte só o trecho e preserva os acordes existentes no tom da igreja', async ({ page }) => {
+  const fixture = await loginAs(page);
+  await page.goto('/musicas');
+  await page.getByRole('button', { name: 'Nova música', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Título', { exact: true }).fill('Cifra com trecho acrescentado');
+  await dialog.getByLabel('Artista / compositor', { exact: true }).fill('Equipe de teste');
+  await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('Bb');
+  const content = dialog.getByRole('textbox', { name: /^Letra e cifra/ });
+  const prefix = '[Bb]Primeira parte preservada\n';
+  await content.fill(prefix);
+  async function paste(text: string) {
+    return content.evaluate((element, clipboardText) => {
+      if (!(element instanceof HTMLTextAreaElement)) throw new Error('Campo de cifra indisponível.');
+      element.focus();
+      element.setSelectionRange(element.value.length, element.value.length);
+      const clipboardData = new DataTransfer();
+      clipboardData.setData('text/plain', clipboardText);
+      const event = new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true });
+      element.dispatchEvent(event);
+      return event.defaultPrevented;
+    }, text);
+  }
+  expect(await paste('Tom: G\nG           D/F#\nUma luz nos guia')).toBe(true);
+  const expectedContent = `${prefix}[Bb]Uma luz nos [F/A]guia`;
+  await expect(content).toHaveValue(expectedContent);
+  // A fragment without a source key must not leave two different key bases in one sheet.
+  expect(await paste('G         D\nOutro trecho sem tom informado')).toBe(true);
+  await expect(content).toHaveValue(expectedContent);
+  await expect(dialog.getByRole('alert')).toContainText(/inclua o cabeçalho|selecione todo o campo/i);
+  expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(0);
+  await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect(fixture.data.songs.find(song => song.title === 'Cifra com trecho acrescentado')).toMatchObject({
+    originalKey: 'Bb', churchKey: 'Bb', content: expectedContent,
+  });
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
 });

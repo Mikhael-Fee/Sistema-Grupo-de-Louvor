@@ -42,7 +42,7 @@ function extensionChromiumExecutable(): string {
 
 interface BridgeReply {
   channel: string; version: number; type: string; requestId: string;
-  result?: { sourceUrl: string; title: string; artist: string; text: string; displayedKey?: string };
+  result?: { sourceUrl: string; title: string; artist: string; text: string; displayedKey?: string; soundingKey?: string; capo?: number };
   error?: string;
 }
 
@@ -257,8 +257,8 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(ORIGINAL);
       expect(mock.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(0);
       await dialog.getByRole('button', { name: 'Substituir letra e cifra', exact: true }).click();
-      await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(/\[F\].*Uma luz/);
-      await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveValue('F');
+      await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('[D]Uma luz nos [A/C#]guia\n[Bm7]Seguimos em [G]paz');
+      await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveCount(0);
       await expect(dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true })).toHaveValue('D');
       await expect(dialog.getByLabel('Título', { exact: true })).toHaveValue('Título mantido no rascunho');
       await expect(dialog.getByLabel('Artista / compositor', { exact: true })).toHaveValue('Minha equipe');
@@ -266,9 +266,43 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
       await expect(dialog).toBeHidden();
       const saved = mock.data.songs.find(song => song.title === 'Título mantido no rascunho')!;
-      expect(saved.originalKey).toBe('F');
+      expect(saved.originalKey).toBe('D');
       expect(saved.churchKey).toBe('D');
       expect(saved.notes).toContain(CIFRA);
+      expect(mock.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
+    } finally { await harness.dispose(); }
+  });
+
+  test('capotraste e tabs da página real do navegador resultam em teclado Bb e visualização C', async () => {
+    const html = CIFRA_HTML.replace('Tom: <a>F</a>', 'Tom: <a>Bb</a> (forma dos acordes no tom de G)')
+      .replace('<pre data-original-key="C">', '<div class="cifra_capo">Capotraste: 3</div><pre data-original-key="C">')
+      .replace('<b>F</b>', '<b>G</b>').replace('<b>C/E</b>', '<b>D/F#</b>')
+      .replace('<b>Dm7</b>', '<b>Em7</b>').replace('<b>Bb</b>', '<b>C</b>')
+      .replace('</pre>', '\ne|--0--2--3--|\nB|--1--3--0--|</pre>');
+    const harness = await createHarness(html);
+    try {
+      const mock = await setupMockMinistry(harness.page);
+      await mock.login();
+      await harness.page.goto('/musicas');
+      await harness.page.getByRole('button', { name: 'Nova música', exact: true }).click();
+      const dialog = harness.page.getByRole('dialog');
+      await dialog.getByLabel('Título', { exact: true }).fill('Luz');
+      await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('Bb');
+      await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+      await dialog.getByRole('button', { name: `Ver prévia de ${SOURCE.title}`, exact: true }).click();
+      await expect(dialog.getByLabel('Prévia do conteúdo para importar', { exact: true })).toHaveText('[G]Uma luz nos [D/F#]guia\n[Em7]Seguimos em [C]paz');
+      await expect(dialog).toContainText('Capotraste na fonte: 3ª casa');
+      await dialog.getByRole('checkbox', { name: 'Atualizar título e artista com os dados da fonte', exact: true }).check();
+      await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
+      await expect(dialog).toBeHidden();
+      const saved = mock.data.songs.find(song => song.title === SOURCE.title)!;
+      expect(saved.originalKey).toBe('Bb');
+      expect(saved.churchKey).toBe('Bb');
+      expect(saved.content).toBe('[Bb]Uma luz nos [F/A]guia\n[Gm7]Seguimos em [Eb]paz');
+      await harness.page.goto(`/musicas/${saved.id}`);
+      await harness.page.getByLabel('Tom da visualização').selectOption('C');
+      await expect(harness.page.locator('.song-chord').filter({ hasText: /^C$/ })).toHaveCount(1);
+      await expect(harness.page.locator('.song-chord').filter({ hasText: /^G\/B$/ })).toHaveCount(1);
       expect(mock.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
     } finally { await harness.dispose(); }
   });
