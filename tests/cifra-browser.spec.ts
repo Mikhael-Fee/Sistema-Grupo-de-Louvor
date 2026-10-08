@@ -14,6 +14,7 @@ const EXTENSION = resolve('browser-extension/candeia-cifraclub');
 const DIST = resolve('dist');
 const ORIGINAL = '[C]Conteúdo anterior que precisa de confirmação.';
 const CIFRA_HTML = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cifra de teste</title></head><body>
+  <nav aria-label="Menu principal"><h2>Menu principal</h2></nav>
   <h1>Luz da equipe</h1><h2><a href="/equipe-de-teste/">Equipe da fonte</a></h2>
   <div id="cifra_tom">Tom: <a>F</a></div>
   <pre data-original-key="C"><b>F</b>           <b>C/E</b>

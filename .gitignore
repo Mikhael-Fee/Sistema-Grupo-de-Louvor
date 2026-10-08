@@ -8,3 +8,5 @@ playwright-report/
 test-results/
 .netlify/
 /public/downloads/candeia-cifraclub.zip
+/public/downloads/candeia-cifra-celular.txt
+/public/downloads/candeia-cifra-iphone.js

@@ -121,6 +121,41 @@
       ...(!written && capo ? { keyUnknownReason: 'A fonte informa capotraste, mas não o tom das posições dos acordes. Confirme o tom dos acordes escritos antes de importar.' } : {}) };
   }
 
+  function musicLabel(value) {
+    const label = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
+    return /^(?:menu principal|main menu|navegação principal|cifra club)$/i.test(label) ? '' : label;
+  }
+
+  function metadataFromTitle(value, heading, linkedArtist) {
+    if (typeof value !== 'string' || value.length > 1_200 || !/\s+-\s+Cifra Club\s*$/i.test(value)) return {};
+    const full = value.replace(/\s+-\s+Cifra Club\s*$/i, '').trim();
+    if (heading && full.startsWith(`${heading} - `)) return { title: heading, artist: musicLabel(full.slice(heading.length + 3)) };
+    if (linkedArtist && full.endsWith(` - ${linkedArtist}`)) return { title: musicLabel(full.slice(0, -linkedArtist.length - 3)), artist: linkedArtist };
+    const separator = full.lastIndexOf(' - ');
+    return separator < 0 ? {} : { title: musicLabel(full.slice(0, separator)), artist: musicLabel(full.slice(separator + 3)) };
+  }
+
+  function musicMetadata(document, sourceUrl) {
+    const heading = musicLabel((document.querySelector('h1.t1') || document.querySelector('h1'))?.textContent);
+    const artistPath = `/${new URL(sourceUrl).pathname.split('/')[1]}/`;
+    let linkedArtist = '';
+    const links = document.querySelectorAll('h2 a[href], .cifra_artista a[href], [itemprop="byArtist"] a[href]');
+    for (let index = 0; index < Math.min(links.length, 100); index++) {
+      const link = links[index];
+      if (link.closest?.('nav, [role="navigation"], footer, aside')) continue;
+      try {
+        const url = new URL(link.getAttribute('href'), sourceUrl);
+        if (!['www.cifraclub.com.br', 'cifraclub.com.br'].includes(url.hostname) || url.protocol !== 'https:'
+          || url.username || url.password || url.port || `${url.pathname.replace(/\/$/, '')}/` !== artistPath) continue;
+        linkedArtist = musicLabel(link.textContent);
+        if (linkedArtist) break;
+      } catch { /* A navigation link is not song metadata. */ }
+    }
+    const og = metadataFromTitle(document.querySelector('meta[property="og:title"]')?.getAttribute('content'), heading, linkedArtist);
+    const page = metadataFromTitle(document.title, heading, linkedArtist);
+    return { title: og.title || heading || page.title || '', artist: og.artist || linkedArtist || page.artist || '' };
+  }
+
   /** Return null while the chart has not appeared; throw for a clear failure. */
   function readDocument(document, selectedUrl, currentUrl = document.location?.href) {
     const sourceUrl = normalizeSourceUrl(selectedUrl);
@@ -137,10 +172,8 @@
       }
       return null;
     }
-    const metadata = /^(.*?)\s+-\s+(.*?)\s+-\s+Cifra Club\s*$/i.exec(document.querySelector('meta[property="og:title"]')?.getAttribute('content') || '');
-    const title = (document.querySelector('h1')?.textContent?.trim() || metadata?.[1] || '').trim().slice(0, 200);
-    const artist = (document.querySelector('h2')?.textContent?.trim() || metadata?.[2] || '').trim().slice(0, 200);
-    if (!title || !artist) return null;
+    const { title, artist } = musicMetadata(document, sourceUrl);
+    if (!title) return null;
     const text = readPlainText(pre, document);
     if (!text.trim()) return null;
     return { sourceUrl, title, artist, text, ...displayedKey(document, text) };

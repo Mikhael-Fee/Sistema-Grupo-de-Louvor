@@ -48,7 +48,7 @@ const publicFlag = async () => (await db.query('select public.get_public_access(
 
 try {
   await db.exec(await readFile(new URL('./auth-stub.sql', import.meta.url), 'utf8'));
-  for (const filename of ['001_initial.sql', '002_public_consultation.sql']) {
+  for (const filename of ['001_initial.sql', '002_public_consultation.sql', '003_custom_service_types.sql']) {
     await db.exec(await readFile(new URL(`../../supabase/migrations/${filename}`, import.meta.url), 'utf8'));
   }
   for (const [name, role, approved] of [
@@ -90,7 +90,7 @@ try {
   await db.query('select public.save_song($1)', [songA]);
   await db.query('select public.save_song($1)', [songB]);
   const service = {
-    id: ids.service, date: '2099-01-01', time: '19:00', type: 'Especial', notes: 'Ensaio às 18h.',
+    id: ids.service, date: '2099-01-01', time: '19:00', type: 'Santa Ceia', notes: 'Ensaio às 18h.',
     assignments: [{ id: ids.assignment, personId: ids.person, function: 'Voz' }],
     repertoire: [
       { id: ids.itemB, songId: ids.songB, key: 'Eb', notes: 'Introdução com violão.' },

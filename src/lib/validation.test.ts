@@ -76,7 +76,7 @@ describe('service planning validation', () => {
     expect(validateService({ ...service, repertoire: [], assignments: [] }, data)).toBeNull();
   });
 
-  it('checks actual calendar dates, leap years, time and supported service type', () => {
+  it('checks actual calendar dates, leap years and time', () => {
     for (const date of ['2026-02-30', '2026-02-29', '2026-13-01', '2026-00-01', '06/10/2026', '']) {
       expect(validateService({ ...service, date }, data)).toBeTruthy();
     }
@@ -84,7 +84,15 @@ describe('service planning validation', () => {
     for (const time of ['24:00', '18:60', '6:00', '18:30:00', '']) {
       expect(validateService({ ...service, time }, data)).toBeTruthy();
     }
-    expect(validateService({ ...service, type: 'Invalid' }, data)).toBeTruthy();
+  });
+
+  it('accepts a custom service theme and requires a name of at most 100 characters', () => {
+    for (const type of ['Santa Ceia', 'Culto de Sábado', 'Culto de Louvor', 'Adoração em família', 'A'.repeat(100)]) {
+      expect(validateService({ ...service, type }, data)).toBeNull();
+    }
+    for (const type of ['', '   ', '\n\t', 'A'.repeat(101)]) {
+      expect(validateService({ ...service, type }, data)).toBeTruthy();
+    }
   });
 
   it('checks references and a scheduled function against that person’s current capabilities', () => {

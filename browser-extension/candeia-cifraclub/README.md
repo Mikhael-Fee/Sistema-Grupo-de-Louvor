@@ -16,9 +16,19 @@ Para testar a versão local:
 4. Confira os sites permitidos: somente `louvor-grupo-fxebsy.netlify.app`, `www.cifraclub.com.br` e `cifraclub.com.br`. Atualize a aba do Candeia após instalar.
 5. Entre com seu perfil administrador, pesquise a música e use a ação de importação pelo navegador da versão escolhida, quando essa ação estiver disponível no Candeia.
 
-Para atualizar uma instalação anterior, baixe o ZIP atualizado, substitua os arquivos da mesma pasta e clique em **Recarregar** na extensão. Depois, recarregue a aba do Candeia. A versão **1.1.0** reconhece o tom das posições dos acordes quando há capotraste e ignora blocos de tablatura identificados na página.
+Para atualizar uma instalação anterior, baixe o ZIP atualizado, substitua os arquivos da mesma pasta e clique em **Recarregar** na extensão. Depois, recarregue a aba do Candeia. A versão **1.1.1** corrige a identificação do artista, reconhece o tom das posições dos acordes quando há capotraste e ignora blocos de tablatura identificados na página.
 
 É possível desativar ou remover a extensão na mesma tela. Uma futura instalação de um clique pela Chrome Web Store exige publicação e revisão próprias; carregar esta pasta não a publica na loja.
+
+## Importação pelo celular
+
+O guia público `/conectar-cifra-club` oferece duas alternativas sem extensão: um favorito com JavaScript no Chrome do Android e um Atalho para o Safari do iPhone/iPad. A configuração inicial copia somente o código do importador. Em cada uso, o usuário abre a cifra no navegador, executa o favorito/Atalho e recebe uma prévia no Candeia; não precisa copiar o texto da música.
+
+O build gera `/downloads/candeia-cifra-celular.txt` e `/downloads/candeia-cifra-iphone.js` com o mesmo leitor DOM da extensão incorporado. O favorito executa no documento aberto e navega para o Candeia. O Atalho usa a ação **Executar JavaScript na Página Web**, recebe **Entrada de Atalho**, chama `completion` uma única vez com o endereço da transferência em caso de sucesso e depois usa **Abrir URLs**. Se houver erro, lança uma mensagem de execução prefixada por “Candeia”, limitada a 300 caracteres, e interrompe o atalho antes de abrir URLs. O script do Atalho não usa `alert`, `prompt` ou `confirm`: a Apple documenta que esses diálogos podem ultrapassar o limite de tempo da ação. A configuração do Atalho segue o recurso documentado pela [Apple](https://support.apple.com/guide/shortcuts/run-javascript-on-a-webpage-apd218e2187d/ios).
+
+A transferência usa o fragmento `#candeia-cifra=` na rota `/importar-cifra`, com JSON UTF-8 `{ version: 1, result }` codificado em base64url. O fragmento não é enviado ao servidor HTTP. Há limite de 100.000 caracteres codificados, sem truncamento; cifras maiores exigem o importador do computador. O receptor precisa validar URL da fonte, schema e limites, tratar os campos como texto, retirar o fragmento e pedir revisão antes de salvar. Esse endereço representa um conteúdo fornecido pelo usuário, sem garantia criptográfica de origem.
+
+O leitor só funciona se a página pública da cifra abrir normalmente, com acordes visíveis. Não usa `fetch`, scripts remotos, clipboard, cookies, `window.opener`, iframe ou mudanças em requisições para obter a cifra. O aplicativo nativo do Cifra Club não executa o favorito ou o Atalho. O Chrome precisa aceitar e executar favoritos JavaScript; no Android, o guia orienta selecionar o favorito sugerido pelo nome na barra de endereço. Alguns navegadores podem rejeitar esse endereço. Os testes de DOM e transferência em navegador de teste não equivalem a testes em aparelhos físicos Android ou iPhone.
 
 ## Conteúdo e permissões
 
@@ -43,7 +53,7 @@ window.postMessage({
 }, window.location.origin);
 ```
 
-`ping` usa o mesmo envelope e responde `type: 'ready', importerVersion: '1.1.0', capabilities: ['written-key-capo']`. A capability só é anunciada quando o worker confirmar esse suporte. Uma resposta antiga sem essa capability indica que os arquivos da extensão e a aba precisam ser atualizados antes de importar. `read` responde `type: 'response'`, com a mesma metadata de versão e `result: { sourceUrl, title, artist, text, displayedKey?, soundingKey?, capo?, keyUnknownReason? }` ou `error`. `cancel` usa o `requestId` da leitura ativa. O código da página deve aceitar somente mensagens com `event.source === window`, origem própria, canal/versão/schema corretos e ID da solicitação ativa; fechar o editor deve cancelar a leitura e ignorar respostas antigas.
+`ping` usa o mesmo envelope e responde `type: 'ready', importerVersion: '1.1.1', capabilities: ['written-key-capo']`. A capability só é anunciada quando o worker confirmar esse suporte. Uma resposta antiga sem essa capability indica que os arquivos da extensão e a aba precisam ser atualizados antes de importar. `read` responde `type: 'response'`, com a mesma metadata de versão e `result: { sourceUrl, title, artist, text, displayedKey?, soundingKey?, capo?, keyUnknownReason? }` ou `error`. `cancel` usa o `requestId` da leitura ativa. O código da página deve aceitar somente mensagens com `event.source === window`, origem própria, canal/versão/schema corretos e ID da solicitação ativa; fechar o editor deve cancelar a leitura e ignorar respostas antigas.
 
 O content script da página usa mensagens internas `runtime.sendMessage` para falar com o worker. Apenas abas criadas e registradas no worker recebem uma autorização de leitura. A resposta jamais contém HTML executável; o aplicativo deve tratar os campos como texto e reaproveitar a conversão de acordes existente.
 

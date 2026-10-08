@@ -24,19 +24,23 @@ function SourceKeyConfirmation({ value, onChange, reason }: { value: string; onC
   </div>;
 }
 
-export function SongEditor({ song, onClose }: { song?: Song; onClose: () => void }) {
+export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onSaved }: { song?: Song; incomingSource?: SongSearchResult; incomingDraftId?: string; onClose: () => void; onSaved?: () => void }) {
   const { data, saveSong, busy } = useMinistry();
-  const { draft, setDraft, discardDraft, hasDraft } = useDraft<Song>(`song:${song?.id || 'new'}`, () => song ? songInChurchKey({ ...song, tagIds: [...song.tagIds] }) : blankSong());
-  const { draft: pastedSource, setDraft: setPastedSource, discardDraft: discardPastedSource } = useDraft<{ unknown: boolean; reason: string }>(`song-pasted-source:${song?.id || 'new'}`, { unknown: false, reason: '' });
+  const editorKey = song?.id || (incomingSource ? `mobile:${incomingDraftId || incomingSource.id}` : 'new');
+  const { draft, setDraft, discardDraft, hasDraft } = useDraft<Song>(`song:${editorKey}`, () => song ? songInChurchKey({ ...song, tagIds: [...song.tagIds] })
+    : incomingSource ? { ...blankSong(), title: incomingSource.title, artist: incomingSource.artist,
+      originalKey: sourceKey(incomingSource.soundingKey) || sourceKey(incomingSource.originalKey) || 'C',
+      churchKey: sourceKey(incomingSource.soundingKey) || sourceKey(incomingSource.originalKey) || 'C' } : blankSong());
+  const { draft: pastedSource, setDraft: setPastedSource, discardDraft: discardPastedSource } = useDraft<{ unknown: boolean; reason: string }>(`song-pasted-source:${editorKey}`, { unknown: false, reason: '' });
   const [repairWrittenKey, setRepairWrittenKey] = useState('');
   const [repairApplied, setRepairApplied] = useState(false);
   const [previewWrittenKey, setPreviewWrittenKey] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [sourceOpen, setSourceOpen] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(Boolean(incomingSource));
   const [sourceResults, setSourceResults] = useState<SongSearchResult[]>([]);
   const [sourceWarnings, setSourceWarnings] = useState<string[]>([]);
-  const [preview, setPreview] = useState<SongSearchResult | null>(null);
+  const [preview, setPreview] = useState<SongSearchResult | null>(incomingSource || null);
   const [previewLyricsOnly, setPreviewLyricsOnly] = useState(false);
   const previewText = useMemo(() => {
     const cleaned = cleanChordSheet(preview?.content || '');
@@ -47,7 +51,7 @@ export function SongEditor({ song, onClose }: { song?: Song; onClose: () => void
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const [imported, setImported] = useState(false);
-  const [useSourceMetadata, setUseSourceMetadata] = useState(false);
+  const [useSourceMetadata, setUseSourceMetadata] = useState(Boolean(incomingSource));
   const [sourceConfirmReplace, setSourceConfirmReplace] = useState(false);
   const sourceRequest = useRef<AbortController | null>(null);
   const [browserConnected, setBrowserConnected] = useState(false);
@@ -159,7 +163,7 @@ export function SongEditor({ song, onClose }: { song?: Song; onClose: () => void
     if (invalid) { setError(invalid); return; }
     setError(null);
     setSaving(true);
-    try { await saveSong(cleaned); discardDraft(); discardPastedSource(); onClose(); }
+    try { await saveSong(cleaned); discardDraft(); discardPastedSource(); onSaved?.(); onClose(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível salvar a música. Tente novamente.'); }
     finally { setSaving(false); }
   }

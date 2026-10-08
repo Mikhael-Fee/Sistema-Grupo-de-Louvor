@@ -22,6 +22,10 @@ describe('cifra recebida do navegador', () => {
     expect(parsed.title).toBe(source.title);
     expect(parsed.artist).toBe(source.artist);
   });
+  it('ignora Menu principal retornado por um importador anterior e usa o artista da versão escolhida', () => {
+    expect(parseBrowserCifra(source, { ...payload, artist: ' Menu principal ' }).artist).toBe(source.artist);
+    expect(parseBrowserCifra(source, { ...payload, artist: '' }).artist).toBe(source.artist);
+  });
   it('preserva o tom das posições escritas separado do som com capotraste', () => {
     const parsed = parseBrowserCifra(source, { ...payload, displayedKey: 'G', soundingKey: 'Bb', capo: 3,
       text: 'G D/F#\nNossa luz\ne|--0--2--3--|\nB|--1--3--0--|' });

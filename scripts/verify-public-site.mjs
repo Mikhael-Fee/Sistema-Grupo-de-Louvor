@@ -121,7 +121,22 @@ try {
   await page.goto(`${origin}/conectar-cifra-club`);
   await page.getByRole('heading', { name: 'Importar do Cifra Club sem copiar e colar', exact: true }).waitFor();
   expect(await page.getByRole('heading', { name: 'Importar do Cifra Club sem copiar e colar', exact: true }).isVisible(), 'Guia publicado');
-  expect(await page.getByText('Atualização 1.1:', { exact: true }).isVisible(), 'Guia orienta atualização do importador');
+  expect(await page.getByRole('heading', { name: 'Importar pelo celular', exact: true }).isVisible(), 'Guia abre na opção de celular');
+  await page.getByRole('button', { name: 'Copiar favorito de importação', exact: true }).waitFor({ state: 'visible' });
+  await page.waitForFunction(() => !Array.from(document.querySelectorAll('button')).find(button => button.textContent.includes('Copiar favorito de importação'))?.disabled);
+  expect(await page.getByRole('button', { name: 'Copiar favorito de importação', exact: true }).isEnabled(), 'Favorito Android disponível');
+  await page.getByRole('button', { name: 'iPhone / iPad', exact: true }).click();
+  expect(await page.getByRole('heading', { name: 'Configurar no app Atalhos do iPhone', exact: true }).isVisible(), 'Instruções iPhone disponíveis');
+  for (const name of ['candeia-cifra-celular.txt', 'candeia-cifra-iphone.js']) {
+    const downloadedScript = await page.evaluate(async name => {
+      const response = await fetch(`/downloads/${name}`);
+      return { status: response.status, text: await response.text() };
+    }, name);
+    const builtScript = await readFile(new URL(`../dist/downloads/${name}`, import.meta.url), 'utf8');
+    expect(downloadedScript.status === 200 && downloadedScript.text === builtScript, `Importador móvel publicado corresponde ao build: ${name}`);
+  }
+  await page.getByRole('tab', { name: 'Computador', exact: true }).click();
+  expect(await page.getByText('Atualização 1.1.1:', { exact: true }).isVisible(), 'Guia orienta atualização do importador');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Guia cabe no celular');
   const downloading = page.waitForEvent('download');
   await page.getByRole('link', { name: 'Baixar importador', exact: true }).click();
@@ -129,7 +144,7 @@ try {
   expect(download.suggestedFilename() === 'candeia-cifraclub.zip', 'Download recebe o nome esperado');
   const downloaded = await readFile(await download.path());
   const built = await readFile(new URL('../dist/downloads/candeia-cifraclub.zip', import.meta.url));
-  expect(createHash('sha256').update(downloaded).digest('hex') === createHash('sha256').update(built).digest('hex'), 'Download publicado corresponde ao pacote 1.1 do build');
+  expect(createHash('sha256').update(downloaded).digest('hex') === createHash('sha256').update(built).digest('hex'), 'Download publicado corresponde ao pacote 1.1.1 do build');
   stage = 'shell offline';
   // Shared ministry data remains online-only. Test the cached login shell.
   await page.evaluate(() => sessionStorage.removeItem('candeia.public.session'));

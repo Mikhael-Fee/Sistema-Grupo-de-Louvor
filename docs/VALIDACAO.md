@@ -1,6 +1,35 @@
 # Validação da atualização Candeia — 08/10/2026
 
-## Versão atual — tons, campo único, celular e repertório em lote
+## Versão atual — artista, temáticas livres e importação móvel
+
+Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app) com deploy `6ac78b9df6e6f2d4a9b22aac`, confirmado `ready` pelo helper `--check`. Esta versão corrige o artista identificado como **Menu principal** e inclui a extensão **1.1.1**, temáticas livres de cultos e importadores de celular.
+
+A extração de artista usa metadados da música e links canônicos, evitando títulos de navegação. O frontend também rejeita o rótulo recebido de uma extensão antiga e usa o artista da versão escolhida quando disponível. A mesma correção foi aplicada ao parser da função Netlify.
+
+**Tipo de culto** agora aceita uma temática obrigatória de até 100 caracteres, com sugestões e filtros incluindo tipos já usados. A migração `003_custom_service_types.sql` foi aplicada no Supabase existente: a restrição de lista fixa foi substituída, as oito tabelas continuam com RLS e nenhum registro ou conta existente foi alterado. O helper `scripts/configure-service-types.mjs` verificou a aceitação de uma temática livre por inserção em transação desfeita; repetir `--apply` é idempotente.
+
+O guia `/conectar-cifra-club` oferece **Computador** e **Celular**. O build gera `/downloads/candeia-cifra-celular.txt` para um favorito JavaScript no Android e `/downloads/candeia-cifra-iphone.js` para o app Atalhos no iPhone/iPad. Ambos leem a cifra já visível no navegador, preservam acordes/tom/capotraste e abrem `/importar-cifra` com uma prévia. O fragmento próprio é capturado, validado e retirado da URL antes da inicialização de Auth; a sessão da aba guarda a pendência para login/recarregamento. A revisão usa rascunho separado e exige administrador aprovado e salvamento explícito. O transporte limita o fragmento codificado a 100.000 caracteres, rejeitando excesso sem truncamento.
+
+| Verificação desta atualização | Resultado registrado |
+| --- | --- |
+| Vitest | 141 testes passaram |
+| PostgreSQL/PGlite | 166 verificações passaram, com Auth simulado |
+| Build TypeScript/Vite/PWA e importadores | Passou |
+| Playwright completo | 57 cenários passaram em 2 minutos |
+| Atalho iPhone após ajuste final | 2/2 cenários passaram: sucesso existente e novo erro sem diálogo bloqueante; 58 cenários distintos no total, não uma rodada completa de 58 |
+| Supabase real, migração 003 | Tipos livres habilitados; RLS das oito tabelas preservada; nenhum registro existente alterado |
+| Idempotência do helper | Segunda execução confirmou `schema_changed: false`; verificação temporária desfeita |
+| Artefato | 44 arquivos, sem credenciais privadas, `.env` ou source maps; ZIP de 12.365 bytes com seis arquivos idênticos ao código e manifest 1.1.1; favorito de 10.374 caracteres e script Atalhos de 6.892 caracteres |
+| Site publicado | 32 verificações reais passaram em Chromium de 390 px: consulta sem cadastro, PWA/cache estático, shell offline, guias Android/iPhone e três downloads correspondentes ao build |
+| Função Netlify publicada | 4 verificações passaram: busca Cifra Club200 com três versões, prévia502 com aviso do bloqueio da fonte, URL externa400 e POST405; a leitura pelo servidor continua bloqueada |
+| Netlify | Aplicação e função publicadas juntas no mesmo site; deploy confirmado `ready` |
+| Configuração reutilizável Codex | `start_skill` salvo; `install_script` preservado; rascunho com `requires_publish: true`, separado do site Netlify já publicado |
+
+A falha do script para iPhone agora lança um erro em vez de abrir um diálogo que poderia bloquear a execução do Atalhos. Os dois cenários desse ajuste foram executados depois da suíte completa. A configuração do ambiente Codex ainda exige publicação pelo produto; não foi validada uma nova restauração do ambiente. Nenhum cadastro ou senha do proprietário foi alterado.
+
+Limites: a configuração inicial é feita uma vez pelo usuário. O favorito exige um navegador que aceite JavaScript; no Android deve ser acionado pela sugestão da barra de endereço. O atalho exige uma página do Safari e permissão do app Atalhos. Aplicativo do Cifra Club e PWA do Candeia não executam esses leitores. A pesquisa e as verificações do mecanismo usam páginas de teste em Chromium; **não comprovam os menus nativos Android nem o Atalhos/Safari em aparelhos físicos**. A página do Cifra Club precisa abrir normalmente no navegador e o bloqueio HTTP 403 da leitura pelo servidor permanece independente.
+
+## Versão anterior — tons, campo único, celular e repertório em lote
 
 Publicado em https://louvor-grupo-fxebsy.netlify.app com deploy `6ac77b98ac9d5921e56c162c`, confirmado `ready`. O editor tem um único campo editável Letra e cifra, sem painel de colagem separado nem seletor comum de Tom original. A importação converte realmente os acordes escritos para o tom da igreja; a base interna do conteúdo salvo passa a ser esse mesmo tom. Alterar o tom da igreja no editor também transpõe o texto.
 

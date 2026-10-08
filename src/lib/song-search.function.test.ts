@@ -68,6 +68,50 @@ describe('Cifra Club público', () => {
     expect(song.source).toBe('Cifra Club');
   });
 
+  it('usa og:title em vez de um H2 de navegação antes da cifra', () => {
+    const html = '<meta property="og:title" content="Canção da equipe - Equipe local - Cifra Club"><nav><h2>Menu principal</h2></nav><h1 class="t1">Canção da equipe</h1><h2>Menu principal</h2><pre><b>C</b>\nLuz</pre>';
+    expect(parseCifraClubPage(html, 'https://www.cifraclub.com.br/equipe-local/cancao-da-equipe/'))
+      .toMatchObject({ title: 'Canção da equipe', artist: 'Equipe local', content: '[C]Luz' });
+  });
+
+  it('sem og:title seleciona somente o link H2 compatível com o artista da cifra', () => {
+    const html = '<nav><h2>Menu principal</h2><h2><a href="/equipe-local/">Navegação</a></h2></nav><h1 class="t1">Canção da equipe</h1><h2><a href="/outro-artista/">Outro artista</a></h2><h2 class="t3"><a href="https://cifraclub.com.br/equipe-local/?ref=cifra">Equipe local</a></h2><pre><b>C</b>\nLuz</pre>';
+    expect(parseCifraClubPage(html, 'https://www.cifraclub.com.br/equipe-local/cancao-da-equipe/').artist).toBe('Equipe local');
+  });
+
+  it('deixa artista vazio quando há somente menu ou links de outro artista', () => {
+    const html = '<nav><h2>Menu principal</h2></nav><h1>Canção</h1><h2><a href="https://evil.test/equipe-local/">Equipe suspeita</a></h2><h2><a href="/outro-artista/">Outra equipe</a></h2><pre><b>C</b>\nLuz</pre>';
+    const result = parseCifraClubPage(html, 'https://www.cifraclub.com.br/equipe-local/cancao/');
+    expect(result.title).toBe('Canção');
+    expect(result.artist).toBe('');
+    expect(result.sourceUrl).toBe('https://www.cifraclub.com.br/equipe-local/cancao/');
+  });
+
+  it('decodifica entidades e preserva apóstrofos em metadados HTML', () => {
+    const html = `<meta content="Luz &amp; Paz - Equipe D'Amor - Cifra Club" property="og:title"><h1 class="t1">Luz &amp; Paz</h1><h2>Menu principal</h2><pre><b>C</b>\nLuz</pre>`;
+    expect(parseCifraClubPage(html, 'https://www.cifraclub.com.br/equipe-damor/luz-e-paz/'))
+      .toMatchObject({ title: 'Luz & Paz', artist: "Equipe D'Amor" });
+  });
+
+  it('não divide nomes de música e artista que contêm hífen com cabeçalhos dedicados', () => {
+    const html = '<meta property="og:title" content="Luz - Versão ao vivo - Equipe - Ministério local - Cifra Club"><h1 class="t1">Luz - Versão ao vivo</h1><h2 class="t3"><a href="/equipe-local/">Equipe - Ministério local</a></h2><pre><b>C</b>\nLuz</pre>';
+    expect(parseCifraClubPage(html, 'https://www.cifraclub.com.br/equipe-local/luz/'))
+      .toMatchObject({ title: 'Luz - Versão ao vivo', artist: 'Equipe - Ministério local' });
+  });
+
+  it('usa título do documento quando o OG está ausente e não copia menu', () => {
+    const html = '<title>Canção da equipe - Equipe local - Cifra Club</title><h2>Menu principal</h2><pre><b>C</b>\nLuz</pre>';
+    expect(parseCifraClubPage(html, 'https://www.cifraclub.com.br/equipe-local/cancao-da-equipe/'))
+      .toMatchObject({ title: 'Canção da equipe', artist: 'Equipe local' });
+  });
+
+  it('retorna uma prévia com artista vazio para o frontend preservar a versão escolhida', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<h1>Canção</h1><h2>Menu principal</h2><pre><b>C</b>\nLuz</pre>', { status: 200 })));
+    const response = await handler({ httpMethod: 'GET', queryStringParameters: { url: 'https://www.cifraclub.com.br/equipe-local/cancao/' } });
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).song).toMatchObject({ title: 'Canção', artist: '', kind: 'chords', source: 'Cifra Club', content: '[C]Luz' });
+  });
+
   it('não inventa cifras nem tom e recusa URLs fora de páginas públicas', () => {
     const html = '<h1>Canção</h1><h2>Equipe</h2><pre><b>C</b>\nNossa luz</pre>';
     expect(parseCifraClubPage(html, 'https://www.cifraclub.com.br/equipe/cancao/').originalKey).toBeUndefined();

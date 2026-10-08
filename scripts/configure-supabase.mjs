@@ -48,6 +48,7 @@ try {
   if (tables.length) throw new Error('O schema public já contém tabelas. A aplicação automática foi interrompida para preservar os dados existentes; revise o projeto antes de aplicar migrações.');
   const migration = await readFile(new URL('supabase/migrations/001_initial.sql', root), 'utf8');
   await query(migration);
+  await query(await readFile(new URL('supabase/migrations/003_custom_service_types.sql', root), 'utf8'));
   const ready = rows(await query("select tablename, rowsecurity from pg_tables where schemaname = 'public' order by tablename"));
   if (!expected.every(name => ready.some(t => t.tablename === name && t.rowsecurity))) throw new Error('Migração executada; a verificação de tabelas/RLS exige diagnóstico.');
   console.log('Migração aplicada: 8 tabelas com RLS ativo. Nenhum usuário foi promovido.');

@@ -23,7 +23,20 @@ await db.query('insert into public.tags(id,name,color) values($1,$2,$3)',[ids.ta
 await db.query('insert into public.people(id,name,email,functions) values($1,$2,$3,$4)',[ids.person,'Pessoa','',['Voz','Violão']]);
 await db.query('select public.save_song($1)',[song]); checked++;
 await db.query('select public.save_service($1)',[service]); checked++;
+await db.exec('reset role');
+await db.exec(await readFile(new URL('../../supabase/migrations/003_custom_service_types.sql', import.meta.url), 'utf8'));
+await as(ids.admin);
+assert.equal((await db.query('select type from public.services where id=$1',[ids.service])).rows[0].type,service.type); checked++;
 for (const table of ['songs','song_tags','services','assignments','repertoire']) await count(table,1);
+for (const type of ['Santa Ceia', 'Culto de Sábado', 'Culto de Louvor', 'A'.repeat(100)]) {
+  await db.query('select public.save_service($1)',[{...service,type}]); checked++;
+  assert.equal((await db.query('select type from public.services where id=$1',[ids.service])).rows[0].type,type); checked++;
+}
+for (const type of ['', ' \n \t ', 'A'.repeat(101)]) {
+  await rejected('select public.save_service($1)',[{...service,type,notes:'Alteração perdida'}],'23514');
+}
+assert.equal((await db.query('select notes from public.services where id=$1',[ids.service])).rows[0].notes,''); checked++;
+await db.query('select public.save_service($1)',[service]);
 await rejected('delete from public.songs where id=$1',[ids.song],'23503');
 await rejected('delete from public.people where id=$1',[ids.person],'23503');
 await rejected('update public.people set functions=$1 where id=$2',[['Violão'],ids.person],'23514');
@@ -61,7 +74,7 @@ await as(ids.secondAdmin);
 await rejected('select public.update_profile($1)',[{id:ids.secondAdmin,name:'Admin 2',role:'musician',approved:true}],'23514');
 await as(ids.leader);
 await count('songs',1); await count('profiles',1);
-await db.query('select public.save_service($1)',[{...service,notes:'Planejado por líder'}]); checked++;
+await db.query('select public.save_service($1)',[{...service,type:'Culto de Louvor',notes:'Planejado por líder'}]); checked++;
 await rejected('select public.save_song($1)',[song],'42501');
 await rejected('insert into public.tags(name,color) values($1,$2)',['Não permitido','#112233'],'42501');
 await rejected('select public.update_profile($1)',[{id:ids.leader,name:'Líder',role:'admin',approved:true}],'42501');

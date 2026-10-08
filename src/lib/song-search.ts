@@ -17,6 +17,13 @@ export interface SongSearchResult {
   album?: string;
 }
 
+/** A navigation heading must never replace the artist of the chosen search result. */
+export function sourceArtist(value: unknown, fallback = ''): string {
+  const usable = (candidate: unknown) => typeof candidate === 'string'
+    && candidate.trim() && !/^(?:menu\s+principal|main\s+menu|navegação\s+principal|cifra\s+club)$/i.test(candidate.trim());
+  return usable(value) ? (value as string).trim() : usable(fallback) ? fallback.trim() : '';
+}
+
 export function cifraClubSearchUrl(title: string, artist: string): string {
   return buildCifraClubSearchUrl(title, artist);
 }
@@ -147,5 +154,5 @@ export async function previewSongSource(result: SongSearchResult, signal?: Abort
   }
   const body = await response.json().catch(() => null);
   if (!response.ok || !body?.song || typeof body.song.content !== 'string') throw new Error(body?.error || 'Não foi possível abrir a prévia desta cifra.');
-  return body.song;
+  return { ...body.song, artist: sourceArtist(body.song.artist, result.artist) };
 }

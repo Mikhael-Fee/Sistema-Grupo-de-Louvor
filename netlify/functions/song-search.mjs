@@ -220,6 +220,62 @@ function decode(value) {
 
 function text(value) { return decode(value.replace(/<[^>]*>/g, '')); }
 
+function htmlAttribute(tag, name) {
+  const match = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i').exec(tag);
+  return decode(match?.[1] ?? match?.[2] ?? '');
+}
+
+function metadataLabel(value) {
+  const label = value.replace(/\s+/g, ' ').trim();
+  return /^(?:menu(?:\s+principal)?|main\s+menu|navigation|navega(?:ção|cao)(?:\s+principal)?)$/i.test(label) ? '' : label;
+}
+
+function cifraClubMetadata(value, heading, artistHeading) {
+  if (!/\s+-\s+Cifra Club\s*$/i.test(value)) return null;
+  const label = value.replace(/\s+-\s+Cifra Club\s*$/i, '').replace(/\s+/g, ' ').trim();
+  // A dedicated song or artist heading disambiguates names containing " - ".
+  if (heading && label.toLowerCase().startsWith(`${heading.toLowerCase()} - `)) {
+    return { title: heading, artist: metadataLabel(label.slice(heading.length + 3)) };
+  }
+  if (artistHeading && label.toLowerCase().endsWith(` - ${artistHeading.toLowerCase()}`)) {
+    return { title: metadataLabel(label.slice(0, -artistHeading.length - 3)), artist: artistHeading };
+  }
+  const separator = label.lastIndexOf(' - ');
+  return separator < 0 ? null : { title: metadataLabel(label.slice(0, separator)), artist: metadataLabel(label.slice(separator + 3)) };
+}
+
+/** Song metadata never comes from the navigation's first global H2. */
+function cifraClubPageLabels(html, canonical) {
+  const page = html.replace(/<(script|style|template|noscript|nav|header|footer|aside)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
+  const headings = [...page.matchAll(/<h1\b([^>]*)>([\s\S]*?)<\/h1>/gi)];
+  const dedicatedTitle = headings.find(match => /(?:^|\s)t1(?:\s|$)/.test(htmlAttribute(match[1], 'class')));
+  const heading = metadataLabel(text((dedicatedTitle || headings[0])?.[2] || ''));
+  const artistPath = `/${new URL(canonical).pathname.split('/')[1]}/`;
+  const artistHeadings = [...page.matchAll(/<h2\b([^>]*)>([\s\S]*?)<\/h2>/gi)];
+  let linkedArtist = '';
+  for (const item of artistHeadings) {
+    for (const anchor of item[2].matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+      try {
+        const target = new URL(htmlAttribute(anchor[1], 'href'), canonical);
+        if (target.protocol !== 'https:' || target.username || target.password || target.port
+          || !['www.cifraclub.com.br', 'cifraclub.com.br'].includes(target.hostname)
+          || target.pathname.toLowerCase() !== artistPath.toLowerCase()) continue;
+        linkedArtist = metadataLabel(text(anchor[2]));
+        if (linkedArtist) break;
+      } catch { /* Ignore links that do not identify this page's artist. */ }
+    }
+    if (linkedArtist) break;
+  }
+  const dedicatedArtist = artistHeadings.find(match => /(?:^|\s)t3(?:\s|$)/.test(htmlAttribute(match[1], 'class')));
+  const fallbackArtist = metadataLabel(text(dedicatedArtist?.[2] || ''));
+  const ogTitle = [...html.matchAll(/<meta\b[^>]*>/gi)].map(match => htmlAttribute(match[0], 'property').toLowerCase() === 'og:title'
+    ? htmlAttribute(match[0], 'content') : '').find(Boolean) || '';
+  const metadata = cifraClubMetadata(ogTitle, heading, linkedArtist || fallbackArtist);
+  const documentMetadata = cifraClubMetadata(text(/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] || ''), heading, linkedArtist || fallbackArtist);
+  return { title: metadata?.title || heading || documentMetadata?.title || '',
+    artist: metadata?.artist || linkedArtist || documentMetadata?.artist || fallbackArtist || '' };
+}
+
 /** The public autocomplete returns JSONP. Parse the JSON payload; never evaluate script. */
 export function parseCifraClubSearch(body) {
   const payload = body.trim().replace(/^suggest_callback\(\s*/, '').replace(/\s*\);?\s*$/, '');
@@ -391,14 +447,8 @@ export function parseCifraClubPage(html, url) {
   const raw = text(pre[1].replace(/<br\s*\/?\s*>/gi, '\n'));
   const content = convertCifraClubRows(raw);
   if (!/\[[A-G](?:#|b)?[^\]\r\n]*\]/.test(content)) throw new Error('Não foi possível reconhecer os acordes públicos desta versão no Cifra Club.');
-  const ogTitle = [...html.matchAll(/<meta\b[^>]*>/gi)].map(match => {
-    const tag = match[0];
-    return /\bproperty=["']og:title["']/i.test(tag) ? decode(/\bcontent=["']([^"']*)["']/i.exec(tag)?.[1] || '') : '';
-  }).find(Boolean) || '';
-  const metadata = /^(.*?)\s+-\s+(.*?)\s+-\s+Cifra Club\s*$/i.exec(ogTitle);
-  const title = text(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1] || '').trim() || metadata?.[1]?.trim();
-  const artist = text(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i.exec(html)?.[1] || '').trim() || metadata?.[2]?.trim();
-  if (!title || !artist) throw new Error('O Cifra Club retornou uma versão sem título ou artista reconhecidos.');
+  const { title, artist } = cifraClubPageLabels(html, canonical);
+  if (!title) throw new Error('O Cifra Club retornou uma versão sem título reconhecido.');
   const keyArea = /<(?:span|div)\b[^>]*(?:id|class)=["'][^"']*\bcifra_tom\b[^"']*["'][^>]*>([\s\S]{0,1200}?)<\/(?:span|div)>/i.exec(html)?.[1] || '';
   const keyLabel = text(keyArea).replace(/\s+/g, ' ').trim();
   const shapeKey = /\bforma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?([A-G](?:[#b♯♭])?(?:m|maj|min)?)(?=\s|$|[)])/i.exec(keyLabel)?.[1];

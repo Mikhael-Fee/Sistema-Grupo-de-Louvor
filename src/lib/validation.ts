@@ -1,4 +1,4 @@
-import { FUNCTIONS, SERVICE_TYPES } from '../types';
+import { FUNCTIONS } from '../types';
 import type { MinistryData, Person, Service, Song, Tag } from '../types';
 import { KEYS } from './music';
 
@@ -52,7 +52,8 @@ function isRealDate(date: string): boolean {
 export function validateService(service: Service, data: MinistryData): string | null {
   if (!isRealDate(service.date)) return 'Informe uma data válida para o culto.';
   if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(service.time)) return 'Informe um horário válido no formato HH:MM.';
-  if (!SERVICE_TYPES.includes(service.type)) return 'Selecione um tipo de culto válido.';
+  if (!service.type.trim()) return 'Informe o tipo de culto.';
+  if ([...service.type.trim()].length > 100) return 'O tipo de culto deve ter no máximo 100 caracteres.';
   const assignments = new Set<string>();
   for (const assignment of service.assignments) {
     const person = data.people.find((item) => item.id === assignment.personId);

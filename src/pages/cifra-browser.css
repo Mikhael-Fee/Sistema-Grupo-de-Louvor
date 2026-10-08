@@ -3,3 +3,23 @@
 .cifra-connect-page p { line-height: 1.65; margin: 18px 0; }
 .cifra-connect-page ol { padding-left: 22px; margin: 24px 0; }
 .cifra-connect-page li { line-height: 1.7; margin-bottom: 12px; }
+.cifra-guide-tabs { display: flex; gap: 10px; margin: 24px 0 10px; }
+.cifra-guide-tabs .button { flex: 1; }
+.cifra-connect-page .button { min-height: 44px; white-space: normal; }
+.cifra-guide-panel { min-width: 0; }
+.cifra-guide-panel h2 { margin-top: 24px; }
+.cifra-guide-panel h3 { margin-top: 28px; }
+.cifra-device-choice { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+.cifra-copy-button { max-width: 100%; }
+.cifra-copy-fallback { margin: 18px 0; }
+.cifra-copy-fallback label { display: block; font-weight: 600; }
+.cifra-copy-fallback textarea { width: 100%; min-height: 104px; font-size: 16px; overflow-wrap: anywhere; }
+.cifra-help-link { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; }
+
+@media (max-width: 480px) {
+  .cifra-connect-page h1 { font-size: 1.6rem; }
+  .cifra-guide-tabs { gap: 8px; }
+  .cifra-guide-tabs .button { padding-inline: 10px; }
+  .cifra-copy-button { width: 100%; }
+  .cifra-connect-page li { overflow-wrap: anywhere; }
+}

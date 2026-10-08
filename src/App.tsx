@@ -17,6 +17,7 @@ const PeoplePage = lazy(() => import('./pages/PeoplePage'));
 const TagsPage = lazy(() => import('./pages/TagsPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const CifraBrowserPage = lazy(() => import('./pages/CifraBrowserPage'));
+const CifraMobileImportPage = lazy(() => import('./pages/CifraMobileImportPage'));
 
 const links = [{ path: '/', label: 'Início', icon: House }, { path: '/cultos', label: 'Cultos', icon: CalendarDays }, { path: '/musicas', label: 'Biblioteca', icon: Music2 }, { path: '/pessoas', label: 'Equipe', icon: Users }, { path: '/etiquetas', label: 'Etiquetas', icon: Tags }];
 function Shell() {
@@ -38,7 +39,7 @@ function Access() {
 }
 function AdminAccess() { const { profile } = useMinistry(); return profile?.role === 'admin' ? <AdminPage /> : <Navigate to="/" replace />; }
 export default function App() {
-  return <Suspense fallback={<main className="loading-page"><LoaderCircle size={26} className="spin" /><p>Carregando…</p></main>}><Routes><Route path="/consulta" element={<PublicEntry />} /><Route path="/redefinir-senha" element={<PasswordPage />} /><Route path="/conectar-cifra-club" element={<CifraBrowserPage />} /><Route element={<Access />}><Route index element={<HomePage />} /><Route path="cultos" element={<ServicesPage />} /><Route path="cultos/:id" element={<ServicePage />} /><Route path="musicas" element={<SongsPage />} /><Route path="musicas/:id" element={<SongPage />} /><Route path="pessoas" element={<PeoplePage />} /><Route path="etiquetas" element={<TagsPage />} /><Route path="administracao" element={<AdminAccess />} /><Route path="*" element={<section className="card"><h1>Página não encontrada</h1><Link to="/" className="button button-primary">Voltar ao início</Link></section>} /></Route></Routes></Suspense>;
+  return <Suspense fallback={<main className="loading-page"><LoaderCircle size={26} className="spin" /><p>Carregando…</p></main>}><Routes><Route path="/consulta" element={<PublicEntry />} /><Route path="/redefinir-senha" element={<PasswordPage />} /><Route path="/conectar-cifra-club" element={<CifraBrowserPage />} /><Route element={<Access />}><Route index element={<HomePage />} /><Route path="cultos" element={<ServicesPage />} /><Route path="cultos/:id" element={<ServicePage />} /><Route path="musicas" element={<SongsPage />} /><Route path="importar-cifra" element={<CifraMobileImportPage />} /><Route path="musicas/:id" element={<SongPage />} /><Route path="pessoas" element={<PeoplePage />} /><Route path="etiquetas" element={<TagsPage />} /><Route path="administracao" element={<AdminAccess />} /><Route path="*" element={<section className="card"><h1>Página não encontrada</h1><Link to="/" className="button button-primary">Voltar ao início</Link></section>} /></Route></Routes></Suspense>;
 }
 
 function PublicEntry() {

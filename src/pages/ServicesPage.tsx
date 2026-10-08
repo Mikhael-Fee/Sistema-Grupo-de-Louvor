@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, CalendarDays, Clock3, Copy, Music2, Pencil, Plus, Search, Users, X } from 'lucide-react';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
@@ -19,6 +19,10 @@ function today() {
 
 export function newService(): Service {
   return { id: crypto.randomUUID(), date: today(), time: '19:00', type: SERVICE_TYPES[0], notes: '', assignments: [], repertoire: [] };
+}
+
+function serviceTypeSuggestions(services: Service[], currentType = ''): string[] {
+  return [...new Set([...SERVICE_TYPES, ...services.map(service => service.type), currentType].map(type => type.trim()).filter(Boolean))];
 }
 
 export interface TeamPickerDraft { selection: Record<string, string>; search: string; additional?: Record<string, string[]> }
@@ -147,6 +151,9 @@ export function ServiceForm({ initial, onSave, onCancel, busy }: { initial: Serv
   const setDraft = (service: Service) => setEditor(current => ({ ...current, service }));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const typeSuggestionsId = useId();
+  const typeHintId = useId();
+  const types = serviceTypeSuggestions(data.services, initial.type);
   const lock = useRef(false);
   const previousService = previousTeamService(draft, data.services);
   const team = restoreTeamPickerDraft(editor.team, draft, data.people);
@@ -179,7 +186,7 @@ export function ServiceForm({ initial, onSave, onCancel, busy }: { initial: Serv
     <div className="form-grid">
       <label className="field"><span>Data</span><input type="date" required value={draft.date} onChange={e => setDraft({ ...draft, date: e.target.value })} /></label>
       <label className="field"><span>Horário</span><input type="time" required value={draft.time} onChange={e => setDraft({ ...draft, time: e.target.value })} /></label>
-      <label className="field service-form-full"><span>Tipo de culto</span><select required value={draft.type} onChange={e => setDraft({ ...draft, type: e.target.value })}>{!SERVICE_TYPES.includes(draft.type) && <option value={draft.type}>{draft.type}</option>}{SERVICE_TYPES.map(type => <option key={type}>{type}</option>)}</select></label>
+      <label className="field service-form-full"><span>Tipo de culto</span><input aria-label="Tipo de culto" aria-describedby={typeHintId} list={typeSuggestionsId} required maxLength={100} value={draft.type} placeholder="Ex.: Santa Ceia ou Culto de Louvor" disabled={busy || saving} onChange={e => setDraft({ ...draft, type: e.target.value })} /><datalist id={typeSuggestionsId}>{types.map(type => <option key={type} value={type} />)}</datalist><small id={typeHintId}>Escolha uma sugestão ou escreva a temática do culto. O nome salvo ficará disponível nos próximos cultos.</small></label>
       <label className="field service-form-full"><span>Observações <span className="muted">(opcional)</span></span><textarea rows={4} placeholder="Orientações para a equipe, tema ou detalhes do culto…" value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} /></label>
     </div>
     <fieldset className="service-editor-team"><legend>Escala do culto <span className="badge">{activeAssignments.length}</span></legend><p className="muted">Monte a equipe agora. A escala será salva junto com o culto.</p>
@@ -221,7 +228,7 @@ export default function ServicesPage() {
     (!typeFilter || service.type === typeFilter) &&
     (!query || `${service.type} ${service.notes} ${formatServiceDate(service.date)} ${service.date}`.toLocaleLowerCase('pt-BR').includes(query))
   ).sort((a, b) => filter === 'past' ? `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`) : `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
-  const types = [...new Set([...SERVICE_TYPES, ...data.services.map(service => service.type)])];
+  const types = serviceTypeSuggestions(data.services);
   return <>
     <PageHeader eyebrow="PLANEJAMENTO" title="Cultos" description="Cada encontro, preparado com propósito." action={canPlan && <button className="button button-primary" onClick={() => setEditing(newService())} disabled={busy}><Plus size={18} /> Novo culto</button>} />
     <FormError error={error} />

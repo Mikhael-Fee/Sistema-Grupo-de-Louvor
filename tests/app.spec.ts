@@ -121,7 +121,7 @@ test('planeja culto, escala e repertório ordenado com um tom independente da bi
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Data', { exact: true }).fill('2099-11-10');
   await dialog.getByLabel('Horário', { exact: true }).fill('19:30');
-  await dialog.getByRole('combobox', { name: 'Tipo de culto', exact: true }).selectOption('Especial');
+  await dialog.getByRole('combobox', { name: 'Tipo de culto', exact: true }).fill('Especial');
   await dialog.getByLabel('Observações').fill('Planejamento de teste');
   await dialog.getByRole('button', { name: 'Salvar culto', exact: true }).click();
   await expect(dialog).toBeHidden();
@@ -280,7 +280,7 @@ test('preserva rascunho de novo culto ao fechar e navegar, e Cancelar descarta',
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Data', { exact: true }).fill('2099-10-20');
   await dialog.getByLabel('Horário', { exact: true }).fill('20:30');
-  await dialog.getByRole('combobox', { name: 'Tipo de culto', exact: true }).selectOption('Especial');
+  await dialog.getByRole('combobox', { name: 'Tipo de culto', exact: true }).fill('Especial');
   await dialog.getByLabel('Observações').fill('Culto ainda em preparação');
   await dialog.getByRole('button', { name: 'Fechar', exact: true }).click();
   await navigate(page, 'Biblioteca');

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Candeia — Importar do Cifra Club",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Envia ao rascunho do Candeia a cifra que abre normalmente no seu navegador.",
   "minimum_chrome_version": "109",
   "background": { "service_worker": "background.js" },

@@ -13,7 +13,7 @@ const origin = 'https://louvor-grupo-fxebsy.netlify.app';
 const sourceUrl = 'https://www.cifraclub.com.br/equipe/luz/';
 const requestId = 'cd90b390-2f77-47b2-8361-cd8010c58781';
 const alternateId = 'fa34d72b-cf06-4df2-9f7b-88d0a1c437f0';
-const importerMetadata = { importerVersion: '1.1.0', capabilities: ['written-key-capo'] };
+const importerMetadata = { importerVersion: '1.1.1', capabilities: ['written-key-capo'] };
 type Sender = { frameId: number; tab: { id: number }; url: string };
 type Listener = (message: Record<string, unknown>, sender: Sender, respond: (value: unknown) => void) => boolean;
 
@@ -113,6 +113,29 @@ function readerForTests() {
 }
 
 describe('extensão Candeia: leitor puro do DOM da cifra', () => {
+  it('usa os metadados da música quando o primeiro h2 é Menu principal', () => {
+    const pre = fixtureNode('pre', [fixtureNode('b', [fixtureNode(null, [], 'G')]), fixtureNode(null, [], '\nLuz e paz')]);
+    const document = {
+      defaultView: null, title: 'Cifra',
+      querySelectorAll(selector: string) { return selector === 'pre' ? [pre] : []; },
+      querySelector(selector: string) {
+        if (selector === 'h1') return { textContent: 'Canção - Movimento' };
+        if (selector === 'h2') return { textContent: 'Menu principal' };
+        if (selector === 'meta[property="og:title"]') return { getAttribute: () => 'Canção - Movimento - Ministério - Equipe - Cifra Club' };
+        return null;
+      },
+    };
+    expect(readerForTests().readDocument(document, sourceUrl, sourceUrl)).toMatchObject({ title: 'Canção - Movimento', artist: 'Ministério - Equipe' });
+  });
+  it('sem artista confiável entrega vazio para usar o artista da busca, nunca o menu', () => {
+    const pre = fixtureNode('pre', [fixtureNode('b', [fixtureNode(null, [], 'G')]), fixtureNode(null, [], '\nLuz')]);
+    const document = {
+      defaultView: null, title: 'Cifra',
+      querySelectorAll(selector: string) { return selector === 'pre' ? [pre] : []; },
+      querySelector(selector: string) { return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Menu principal' } : null; },
+    };
+    expect(readerForTests().readDocument(document, sourceUrl, sourceUrl)).toMatchObject({ title: 'Luz', artist: '' });
+  });
   it('reconhece cifra só com acordes F7M e Am7M, conserva BR e usa o tom exibido', () => {
     const text = (value: string) => fixtureNode(null, [], value);
     const pre = fixtureNode('pre', [fixtureNode('b', [text('F7M')]), text('    '), fixtureNode('strong', [text('Am7M')]),

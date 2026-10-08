@@ -65,7 +65,7 @@ test('monta o repertório em lote junto com um culto novo e só persiste ao salv
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Data', { exact: true }).fill('2099-11-10');
   await dialog.getByLabel('Horário', { exact: true }).fill('19:30');
-  await dialog.getByRole('combobox', { name: 'Tipo de culto', exact: true }).selectOption('Especial');
+  await dialog.getByRole('combobox', { name: 'Tipo de culto', exact: true }).fill('Especial');
   await dialog.getByRole('button', { name: 'Selecionar músicas', exact: true }).click();
   for (const song of songs) await dialog.getByRole('checkbox', { name: `Selecionar ${song.title}`, exact: true }).check();
   await dialog.getByRole('button', { name: 'Aplicar músicas (2)', exact: true }).click();

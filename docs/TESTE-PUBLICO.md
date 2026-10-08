@@ -6,7 +6,7 @@ Este roteiro valida a versão deste checkout. Ele não registra resultados execu
 
 Execute `npm run typecheck`, `npm test`, `npm run test:db`, `npm run test:e2e` e `npm run build`. Confira o login e a consulta em desktop e largura de 390 px, sem botão de demonstração ou seleção de papel simulado. Fixtures dos testes não devem aparecer no produto ou ser instaladas no banco real.
 
-Verifique que a migração aditiva `002_public_consultation.sql` está presente no banco escolhido; não reaplique `001_initial.sql`. A consulta nasce desativada. Aplique a atualização somente pelo procedimento autorizado, preservando registros existentes.
+Verifique que as migrações `002_public_consultation.sql` e `003_custom_service_types.sql` estão presentes no banco escolhido; não reaplique `001_initial.sql`. A consulta nasce desativada. A terceira migração permite temáticas obrigatórias de até 100 caracteres e preserva os tipos existentes. O helper `node scripts/configure-service-types.mjs` verifica o estado e desfaz sua inserção temporária; `--apply` aplica apenas a restrição ausente no schema conhecido. Aplique atualizações somente no projeto autorizado, preservando registros existentes.
 
 A busca de cifras precisa da função Netlify, além do build estático. Vite e `vite preview` sozinhos não atendem `/.netlify/functions/song-search`; nesse ambiente, valide seu contrato nos testes e o fluxo completo quando houver um servidor de funções compatível ou o deploy Netlify.
 
@@ -21,7 +21,7 @@ node scripts/deploy-netlify.mjs --deploy-dir dist --functions-dir netlify/functi
 
 O deploy deve estar `ready` em `/workspace/scratch/louvor-netlify-state.json`, salvo pelo helper a partir da API Netlify. Use a origem HTTPS observada nesse arquivo; neste site, o endereço existente é `https://louvor-grupo-fxebsy.netlify.app`. O ZIP antigo contendo somente `dist` não publica a função de busca.
 
-1. Confira HTTP 200 na página inicial, `/consulta`, `/musicas`, `/manifest.webmanifest` e `/sw.js`. As rotas de página devem retornar o shell da SPA, sem 404 ao recarregar diretamente.
+1. Confira HTTP 200 na página inicial, `/consulta`, `/musicas`, `/conectar-cifra-club`, `/importar-cifra`, `/manifest.webmanifest` e `/sw.js`. As rotas de página devem retornar o shell da SPA, sem 404 ao recarregar diretamente.
 2. Confira título/brand **Candeia**, favicon de chama, manifest com `short_name: Candeia`, `display: standalone`, ícones 192/512 e cores coerentes com o tema. Manifest e service worker devem ter tipos de conteúdo apropriados.
 3. Confirme que `/.netlify/functions/song-search` responde como função JSON, e não como `index.html` da SPA. Uma consulta sem título pode retornar 400; isso é diferente de uma função ausente.
 4. O build pode conter somente as duas configurações públicas do Supabase. Não inclua `.env.local`, tokens de Netlify/Supabase, senha do banco, chave `service_role` ou dados de contas no artefato.
@@ -71,11 +71,27 @@ Na investigação executada, 40 ciclos produziram memória JavaScript de 4,85 pa
 
 ## Importador automático pelo navegador
 
-1. No computador, abra `/conectar-cifra-club`, baixe e extraia o pacote e carregue a pasta como extensão sem compactação no Chrome/Edge. Para atualização, substitua os arquivos da pasta e recarregue a extensão 1.1.0. Atualize o Candeia e confirme **Importador conectado**; versões antigas precisam indicar atualização antes de importar. Chrome de celular não instala essa extensão.
+1. No computador, abra `/conectar-cifra-club`, selecione **Computador**, baixe e extraia o pacote e carregue a pasta como extensão sem compactação no Chrome/Edge. Para atualização, substitua os arquivos da pasta e recarregue a extensão 1.1.1. Atualize o Candeia e confirme **Importador conectado**. Versões sem o suporte de tom/capotraste exigido precisam indicar atualização; o frontend também rejeita **Menu principal** recebido como artista de versões antigas. Chrome de celular não instala essa extensão.
 2. Pesquise título/artista, escolha uma versão Cifra Club e use **Ver prévia**. A aba temporária deve abrir, fornecer acordes reais visíveis, fechar e retornar ao editor. Se houver bloqueio no próprio navegador, informe a falha; não conte isso como importação aprovada.
-3. Confira tom das posições versus tom sonoro com capotraste. Marque **Ver somente letra na prévia**, confirme a remoção local dos acordes e importe sem tabs/diagramas. Os acordes devem estar realmente no tom da igreja; origem ambígua exige confirmação. Conteúdo anterior exige confirmação de substituição; salvar continua explícito.
+3. Confira título/artista apesar de um cabeçalho de navegação **Menu principal** na página; o leitor deve priorizar metadados e o link do artista. Se não houver artista confiável, complete o campo. Confira tom das posições versus tom sonoro com capotraste. Marque **Ver somente letra na prévia**, confirme a remoção local dos acordes e importe sem tabs/diagramas. Os acordes devem estar realmente no tom da igreja; origem ambígua exige confirmação. Conteúdo anterior exige confirmação de substituição; salvar continua explícito.
 4. Cancele uma consulta e confira que a aba temporária é fechada e nenhuma resposta atrasada modifica o rascunho. Uma aba Cifra Club aberta normalmente antes do teste deve continuar intacta. Verifique destino inválido, conteúdo acima de 100.000 caracteres e falha da fonte.
 5. Para regressão automatizada, a suíte `tests/cifra-browser.spec.ts` carrega a extensão real com respostas HTTPS simuladas e não faz chamadas externas. O Chrome for Testing oficial instalado no cache `/workspace/scratch/playwright-cifra-browsers` permite esses testes; a política do Chromium gerenciado não é alterada. Esses resultados não comprovam acesso a uma cifra real no navegador do usuário.
+
+## Temáticas de cultos
+
+1. Em uma conta temporária de administrador ou líder, crie um culto usando **Santa Ceia**, **Culto de sábado** ou outro texto próprio em **Tipo de culto**. Não deve ser obrigatório escolher um valor da lista de sugestões.
+2. Selecione equipe e várias músicas, salve uma vez e recarregue. Confira temática, ordem e tons; o tipo salvo deve aparecer nas sugestões e no filtro da lista. Editar a temática não deve modificar equipe ou repertório.
+3. Campo vazio, somente espaços ou mais de 100 caracteres deve ser recusado. Valores válidos já existentes devem continuar funcionando. Remova apenas o culto temporário criado para esse teste.
+
+## Importação pelo celular
+
+1. Em `/conectar-cifra-club`, selecione **Celular** e o sistema usado. Confira o layout em 350/390 px, a cópia do código de instalação e a alternativa de seleção manual caso o navegador negue acesso à área de transferência. Copiar código serve somente para configurar o leitor, sem criar um campo extra de letra/cifra no editor.
+2. No **Android**, salve e edite o favorito **Importar para Candeia**, substituindo seu endereço pelo código que começa com `javascript:`. Abra uma cifra no Chrome, espere os acordes e selecione o favorito sugerido ao digitar seu nome na barra de endereço. O menu de favoritos pode não executar JavaScript; registre navegador e versão caso ele remova ou recuse esse endereço.
+3. No **iPhone/iPad**, configure o app Atalhos conforme o guia: receba **Páginas Web do Safari**, execute o script com **Executar JavaScript na Página Web** e passe o resultado a **Abrir URLs**. Abra a cifra no Safari e execute o atalho pela folha de compartilhamento. Registre as permissões de JavaScript pedidas pelo sistema. O aplicativo do Cifra Club e a PWA do Candeia não executam o leitor.
+4. Confira a abertura de `/importar-cifra` com título, artista, origem e prévia; o fragmento da importação deve desaparecer da barra de endereço antes de Auth. Sem login, entre na mesma aba e confira a prévia preservada; recarregue sem perder a importação pendente. Links de recuperação de senha devem continuar usando seu próprio fragmento.
+5. Como administrador aprovado, escolha **Revisar e salvar na biblioteca**. Confira limpeza de tablaturas e conversão G/capo3/somBb→tecladoBb uma única vez, com leitura Bb→C correta. Tom escrito desconhecido exige confirmação. Não deve haver gravação antes de **Salvar música**; fechar a revisão permite retomá-la e um rascunho comum de música nova deve continuar independente. **Descartar importação** limpa somente essa pendência.
+6. Músico/visitante não deve receber ação de salvamento ou escrever no banco. URL de fonte externa, payload inválido e fragmento acima de 100.000 caracteres codificados devem ser recusados sem truncar conteúdo; o limite do fragmento pode recusar cifras cujo texto esteja abaixo do limite geral de 100.000 caracteres.
+7. Confirme que `/downloads/candeia-cifra-celular.txt` e `/downloads/candeia-cifra-iphone.js` retornam código correspondente ao build, sem virar `index.html`, e ficam fora do precache junto com o ZIP. A suíte móvel usa páginas de teste e navegação em Chromium; não substitui essas verificações no menu nativo Android ou Atalhos/Safari em aparelhos reais.
 
 ## Auth e recuperação
 

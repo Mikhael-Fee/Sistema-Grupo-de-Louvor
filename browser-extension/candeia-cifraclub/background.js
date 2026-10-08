@@ -6,7 +6,7 @@ const ORIGIN = 'https://louvor-grupo-fxebsy.netlify.app';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_JOB_TIME = 25_000; // Finish before the MV3 worker's 30s idle deadline.
 const MAX_JOBS = 4;
-const IMPORTER_VERSION = '1.1.0';
+const IMPORTER_VERSION = '1.1.1';
 const CAPABILITIES = ['written-key-capo'];
 const jobsByCandeia = new Map();
 const jobsBySource = new Map();
@@ -28,7 +28,7 @@ function matchingSource(sender, job) {
 function validatedResult(value, job) {
   if (!value || typeof value !== 'object' || CandeiaCifraReader.normalizeSourceUrl(value.sourceUrl) !== job.sourceUrl
     || typeof value.title !== 'string' || !value.title.trim() || value.title.length > 200
-    || typeof value.artist !== 'string' || !value.artist.trim() || value.artist.length > 200
+    || typeof value.artist !== 'string' || value.artist.length > 200
     || typeof value.text !== 'string' || !value.text.trim() || value.text.length > 100_000
     || value.displayedKey !== undefined && (typeof value.displayedKey !== 'string' || !/^[A-G](?:#|b)?(?:maj|min|m)?$/.test(value.displayedKey))
     || value.soundingKey !== undefined && (typeof value.soundingKey !== 'string' || !/^[A-G](?:#|b)?(?:maj|min|m)?$/.test(value.soundingKey))

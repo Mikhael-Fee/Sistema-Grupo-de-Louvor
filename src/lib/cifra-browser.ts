@@ -1,6 +1,6 @@
 import { chordSheetMetadata, normalizeCifraClubUrl, parseCifraClubText } from './cifraclub';
 import { chordSegments } from './music';
-import { sourceKey, type SongSearchResult } from './song-search';
+import { sourceArtist, sourceKey, type SongSearchResult } from './song-search';
 
 const CHANNEL = 'candeia-cifraclub';
 const VERSION = 1;
@@ -89,7 +89,7 @@ export function parseBrowserCifra(result: SongSearchResult, value: unknown): Son
     : typeof raw.keyUnknownReason === 'string' ? raw.keyUnknownReason : metadata.keyUnknownReason;
   const writtenKey = displayedKey || (!unknownReason ? metadata.originalKey : undefined);
   return { ...result, id: requested, sourceUrl: requested, kind: 'chords', title: raw.title.trim() || result.title,
-    artist: raw.artist.trim() || result.artist, content: parsed.content,
+    artist: sourceArtist(raw.artist, result.artist), content: parsed.content,
     originalKey: writtenKey, capo,
     soundingKey: sourceKey(typeof raw.soundingKey === 'string' ? raw.soundingKey : parsed.soundingKey) || undefined,
     keyUnknownReason: writtenKey ? undefined : unknownReason || (capo ? 'A fonte usa capotraste. Confirme o tom dos acordes escritos para converter a cifra.' : undefined) };
