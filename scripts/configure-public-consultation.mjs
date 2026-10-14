@@ -2,8 +2,8 @@
  * Inject SUPABASE_ACCESS_TOKEN securely; curl receives it through stdin only.
  * Default: read-only schema, owner-readiness, RLS and feature-state checks.
  * --apply: install 002 only if public.public_access does not already exist.
- * --enable: enable consultation only for the confirmed, approved owner admin.
- * Flags may be combined. Without --enable, an existing on/off choice is kept.
+ * --enable is retired and always refused without requests or changes.
+ * After006, --apply reports the closed state without rewriting the old RPCs.
  * No account, ministry record, privileged profile or password is created/changed.
  */
 import { execFile } from 'node:child_process';
@@ -13,16 +13,18 @@ const projectRef = process.env.SUPABASE_PROJECT_REF || 'fxebsycpbybhzkpnxzoo';
 const token = process.env.SUPABASE_ACCESS_TOKEN;
 const flags = process.argv.slice(2);
 const apply = flags.includes('--apply');
-const enable = flags.includes('--enable');
 const base = `https://api.supabase.com/v1/projects/${projectRef}`;
 const curlEnvironment = { ...process.env };
 delete curlEnvironment.SUPABASE_ACCESS_TOKEN;
 const ownerEmail = 'mikhaelfernandes8@gmail.com';
 let schemaChanged = false;
-let accessChanged = false;
 
 if (flags.some(flag => !['--apply', '--enable'].includes(flag))) {
   console.error('Use somente --apply e/ou --enable. Nenhuma alteração foi feita.');
+  process.exit(1);
+}
+if (flags.includes('--enable')) {
+  console.error('A consulta sem login foi desativada. --enable não é mais permitido; nenhuma solicitação ou alteração foi feita.');
   process.exit(1);
 }
 if (!/^[a-z]{20}$/.test(projectRef) || !token || /[\r\n]/.test(token)) {
@@ -71,6 +73,8 @@ async function inspect() {
     to_regprocedure('public.get_public_access()') is not null as get_rpc,
     to_regprocedure('public.read_public_ministry()') is not null as read_rpc,
     to_regprocedure('public.save_public_access(boolean)') is not null as save_rpc,
+    exists(select 1 from pg_constraint where conrelid=to_regclass('public.public_access')
+      and conname='public_access_disabled_check') as public_consultation_retired,
     case when to_regclass('public.songs') is not null
       then has_table_privilege('anon', to_regclass('public.songs'), 'SELECT') else false end as anon_direct_song_select`);
   if (rows.length !== 1) throw new Error('A verificação de schema não retornou o formato esperado.');
@@ -103,17 +107,7 @@ try {
   let publicEnabled = installed(state)
     ? (await query('select public.get_public_access() as enabled'))[0]?.enabled === true
     : false;
-  if (enable) {
-    if (!installed(state)) throw new Error('Aplique a migração002 antes de habilitar o acesso público.');
-    if (!ownerReady) throw new Error('Para habilitar, o proprietário precisa de conta confirmada e perfil administrador aprovado. Nenhum perfil foi alterado.');
-    if (!publicEnabled) {
-      await query(`insert into public.public_access(id, public_enabled) values(true, true)
-        on conflict(id) do update set public_enabled = excluded.public_enabled`);
-      accessChanged = true;
-    }
-    publicEnabled = (await query('select public.get_public_access() as enabled'))[0]?.enabled === true;
-    if (!publicEnabled) throw new Error('A consulta após a configuração não confirmou o acesso público.');
-  }
+  if (state.public_consultation_retired && publicEnabled) throw new Error('006 deve manter a consulta pública desativada. Nenhuma configuração foi alterada.');
   const verified = await inspect();
   if (!initialized(verified) || verified.anon_direct_song_select || (state.public_table && !installed(verified))) {
     throw new Error('A verificação final das proteções não passou. Revise o schema; nenhum dado do ministério foi enumerado.');
@@ -121,7 +115,8 @@ try {
   console.log(JSON.stringify({
     schema_initialized: initialized(verified), public_migration_applied: installed(verified),
     public_enabled: publicEnabled, owner_ready: ownerReady, anon_direct_song_select: false,
-    schema_changed: schemaChanged, access_changed: accessChanged,
+    schema_changed: schemaChanged, access_changed: false,
+    public_consultation_retired: verified.public_consultation_retired === true,
   }));
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'Falha ao configurar consulta pública.');

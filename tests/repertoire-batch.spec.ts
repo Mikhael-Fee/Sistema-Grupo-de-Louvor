@@ -9,6 +9,7 @@ test('seleciona várias músicas, mantém a busca e grava uma vez sem duplicar o
   initial.repertoire[0].key = 'Bb';
   initial.repertoire[0].notes = 'Preservar a introdução e o tom do culto';
   const previous = structuredClone(initial.repertoire);
+  const previousSongs = structuredClone(mock.data.songs);
   const first = mock.data.songs[3];
   const second = mock.data.songs[2];
   await mock.login();
@@ -42,7 +43,10 @@ test('seleciona várias músicas, mantém a busca e grava uma vez sem duplicar o
   await expect(dialog).toBeHidden();
   expect(saves(mock)).toHaveLength(1);
   const repertoire = mock.data.services.find(service => service.id === initial.id)!.repertoire;
-  expect(repertoire.slice(0, previous.length)).toEqual(previous);
+  // Loading legacy rows gives the optional per-service video its empty default.
+  // Compare every field and entry in order while accounting for that default.
+  expect(repertoire.slice(0, previous.length)).toEqual(previous.map(item => ({ ...item, youtubeUrl: item.youtubeUrl || '' })));
+  expect(mock.data.songs).toEqual(previousSongs);
   expect(repertoire.slice(previous.length).map(item => ({ songId: item.songId, key: item.key, notes: item.notes }))).toEqual([
     { songId: first.id, key: first.churchKey, notes: '' },
     { songId: second.id, key: second.churchKey, notes: '' },

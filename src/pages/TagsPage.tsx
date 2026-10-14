@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
-import { Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowUpRight, Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react';
 import { useMinistry } from '../context/MinistryContext';
 import { useDraft } from '../hooks/useDraft';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
@@ -7,6 +8,7 @@ import { validateTag } from '../lib/validation';
 import { normalizeSearch } from '../lib/music';
 import type { Tag } from '../types';
 import './people.css';
+import './tags.css';
 
 const COLORS = [
   { value: '#628368', name: 'Verde' }, { value: '#b48649', name: 'Dourado' },
@@ -55,7 +57,12 @@ export default function TagsPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const tags = useMemo(() => data.tags.filter(tag => normalizeSearch(tag.name).includes(normalizeSearch(query.trim()))).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')), [data.tags, query]);
-  const songCount = (tagId: string) => data.songs.filter(song => song.tagIds.includes(tagId)).length;
+  const songCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const song of data.songs) for (const tagId of new Set(song.tagIds)) counts.set(tagId, (counts.get(tagId) || 0) + 1);
+    return counts;
+  }, [data.songs]);
+  const songCount = (tagId: string) => songCounts.get(tagId) || 0;
 
   function openEditor(tag?: Tag) {
     setError(null);
@@ -72,9 +79,15 @@ export default function TagsPage() {
 
   return <>
     <PageHeader eyebrow="Uma biblioteca bem organizada" title="Etiquetas" description="Encontre a música certa para cada momento do culto." action={canEditLibrary && <button className="button button-primary" onClick={() => openEditor()}><Plus size={18} /> Nova etiqueta</button>} />
-    <div className="tags-tip card"><span className="people-summary-icon"><Tags size={22} /></span><div><strong>Uma música, muitos momentos</strong><p className="muted">Combine etiquetas como Adoração e Ceia para encontrar músicas com as duas características.</p></div></div>
+    <div className="tags-tip card"><span className="people-summary-icon"><Tags size={22} /></span><div><strong>Uma música, muitos momentos</strong><p className="muted">Abra uma etiqueta para ver suas músicas. Na biblioteca, combine etiquetas como Adoração e Ceia para encontrar músicas com as duas características.</p></div></div>
     <div className="toolbar"><label className="people-search"><Search size={18} aria-hidden="true" /><span className="people-sr-only">Buscar etiquetas</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar etiqueta…" /></label><span className="muted tags-total">{data.tags.length} {data.tags.length === 1 ? 'etiqueta' : 'etiquetas'}</span></div>
-    {tags.length ? <div className="tags-grid">{tags.map(tag => { const count = songCount(tag.id); return <article className="tags-card card" key={tag.id}><span className="tags-dot" style={{ backgroundColor: tag.color }} aria-hidden="true" /><div className="tags-card-info"><h2>{tag.name}</h2><p className="muted">{count} {count === 1 ? 'música' : 'músicas'}</p></div>{canEditLibrary && <div className="tags-card-actions"><button className="icon-button" onClick={() => openEditor(tag)} aria-label={`Editar etiqueta ${tag.name}`}><Pencil size={16} /></button><button className="icon-button" onClick={() => { setError(null); setRemoving(tag); }} aria-label={`Excluir etiqueta ${tag.name}`}><Trash2 size={16} /></button></div>}</article>; })}</div> : <EmptyState title={data.tags.length ? 'Nenhuma etiqueta encontrada' : 'Dê um sentido ao repertório'} description={data.tags.length ? 'Experimente outro termo de busca.' : 'Crie etiquetas para temas, celebrações e momentos do culto.'} action={canEditLibrary && !data.tags.length && <button className="button button-primary" onClick={() => openEditor()}><Plus size={18} /> Criar etiqueta</button>} />}
+    {tags.length ? <div className="tags-grid">{tags.map(tag => { const count = songCount(tag.id); return <article className="tags-card tags-browse-card card" key={tag.id}>
+      <Link className="tags-browse-link" to={`/musicas?etiqueta=${encodeURIComponent(tag.id)}`} aria-label={`Ver músicas com a etiqueta ${tag.name}`}>
+        <span className="tags-dot" style={{ backgroundColor: tag.color }} aria-hidden="true" />
+        <div className="tags-card-info"><h2>{tag.name}</h2><p className="muted">{count} {count === 1 ? 'música' : 'músicas'}</p><span className="tags-browse-caption">Ver músicas <ArrowUpRight size={13} aria-hidden="true" /></span></div>
+      </Link>
+      {canEditLibrary && <div className="tags-card-actions"><button className="icon-button" onClick={() => openEditor(tag)} aria-label={`Editar etiqueta ${tag.name}`}><Pencil size={16} /></button><button className="icon-button" onClick={() => { setError(null); setRemoving(tag); }} aria-label={`Excluir etiqueta ${tag.name}`}><Trash2 size={16} /></button></div>}
+    </article>; })}</div> : <EmptyState title={data.tags.length ? 'Nenhuma etiqueta encontrada' : 'Dê um sentido ao repertório'} description={data.tags.length ? 'Experimente outro termo de busca.' : 'Crie etiquetas para temas, celebrações e momentos do culto.'} action={canEditLibrary && !data.tags.length && <button className="button button-primary" onClick={() => openEditor()}><Plus size={18} /> Criar etiqueta</button>} />}
     {editing && <Modal title={data.tags.some(tag => tag.id === editing.id) ? 'Editar etiqueta' : 'Nova etiqueta'} onClose={() => { if (!saving && !busy) setEditing(null); }}><TagForm initial={editing} onSaved={() => setEditing(null)} onCancel={() => setEditing(null)} /></Modal>}
     {removing && <Modal title="Excluir etiqueta" onClose={() => { if (!saving) setRemoving(null); }}><p>Excluir a etiqueta <strong>{removing.name}</strong>?</p><p className="muted">{songCount(removing.id) ? `Ela será removida de ${songCount(removing.id)} ${songCount(removing.id) === 1 ? 'música' : 'músicas'}. As músicas serão preservadas.` : 'Esta ação não pode ser desfeita.'}</p><FormError error={error} /><div className="form-actions"><button className="button button-secondary" disabled={saving} onClick={() => setRemoving(null)}>Cancelar</button><button className="button people-danger-button" disabled={saving} onClick={remove}>{saving ? 'Excluindo…' : 'Excluir etiqueta'}</button></div></Modal>}
   </>;

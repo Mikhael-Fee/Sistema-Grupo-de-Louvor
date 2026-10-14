@@ -33,7 +33,7 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin'): Promi
       { id: '20000000-0000-4000-8000-000000000003', name: 'Lucas', role: 'musician', approved: true },
       { id: '20000000-0000-4000-8000-000000000004', name: 'Novo membro', role: 'musician', approved: false },
     ],
-    publicAccess: true,
+    publicAccess: false,
     calls: [],
     storage: { objects: new Map() },
     setRole(nextRole) { mock.profiles.find(profile => profile.id === USER_ID)!.role = nextRole; },
@@ -109,14 +109,14 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin'): Promi
         church_key: song.churchKey, content: song.content, youtube_url: song.youtubeUrl, notes: song.notes,
       }));
       case 'services': return mock.data.services.map(service => ({
-        id: service.id, date: service.date, time: `${service.time}:00`, type: service.type, notes: service.notes,
+        id: service.id, date: service.date, time: `${service.time}:00`, type: service.type, notes: service.notes, is_event: service.isEvent === true,
       }));
       case 'song_tags': return mock.data.songs.flatMap(song => song.tagIds.map(tagId => ({ song_id: song.id, tag_id: tagId })));
       case 'assignments': return mock.data.services.flatMap(service => service.assignments.map((assignment, position) => ({
         id: assignment.id, service_id: service.id, person_id: assignment.personId, function: assignment.function, position,
       })));
       case 'repertoire': return mock.data.services.flatMap(service => service.repertoire.map((item, position) => ({
-        id: item.id, service_id: service.id, song_id: item.songId, key: item.key, notes: item.notes, position,
+        id: item.id, service_id: service.id, song_id: item.songId, key: item.key, notes: item.notes, position, youtube_url: item.youtubeUrl || '',
       })));
       default: return undefined;
     }
@@ -155,23 +155,16 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin'): Promi
     };
     if (path.startsWith('rpc/')) {
       const rpc = path.slice(4);
-      if (rpc === 'get_public_access') return respond(route, mock.publicAccess);
+      if (rpc === 'get_public_access') return denied(route);
       if (rpc === 'read_public_ministry') {
-        if (!mock.publicAccess) return denied(route);
-        const photos = new Map(teamProfilePhotos().map(photo => [photo.personId, photo.photoUrl]));
-        return respond(route, { ...copy(mock.data), people: mock.data.people.map(person => ({
-          id: person.id, name: person.name, email: '', functions: [...person.functions],
-          photoUrl: person.photoUrl || '', accountPhotoUrl: photos.get(person.id) || '',
-        })) });
+        return denied(route);
       }
       if (rpc === 'read_team_profile_photos') {
         if (!authorized('read')) return denied(route);
         return respond(route, teamProfilePhotos());
       }
       if (rpc === 'save_public_access') {
-        if (!authorized('admin')) return denied(route);
-        mock.publicAccess = Boolean(body.p_enabled);
-        return respond(route, null);
+        return denied(route);
       }
       if (rpc === 'save_song') {
         if (!authorized('library')) return denied(route);

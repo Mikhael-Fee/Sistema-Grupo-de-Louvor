@@ -1,0 +1,123 @@
+import { expect, test } from '@playwright/test';
+import { setupMockMinistry, type MockMinistry } from './fixtures';
+
+const LIBRARY_ID = 'dQw4w9WgXcQ';
+const SERVICE_ID = '9bZkp7q19f0';
+const libraryUrl = `https://www.youtube.com/watch?v=${LIBRARY_ID}`;
+const serviceUrl = `https://www.youtube.com/watch?v=${SERVICE_ID}`;
+const saves = (mock: MockMinistry) => mock.calls.filter(call => call.path === '/rest/v1/rpc/save_service');
+const thumbnail = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l8sAAAAASUVORK5CYII=', 'base64');
+
+for (const width of [1200, 320]) {
+  test(`a versão em vídeo do culto é segura, persiste e preserva dados em ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route('https://i.ytimg.com/**', route => route.fulfill({ contentType: 'image/png', body: thumbnail }));
+    const mock = await setupMockMinistry(page, 'leader');
+    const service = mock.data.services[0];
+    const item = service.repertoire[0];
+    const song = mock.data.songs.find(candidate => candidate.id === item.songId)!;
+    song.youtubeUrl = libraryUrl;
+    service.isEvent = true;
+    item.key = 'Bb';
+    item.notes = 'Preservar a introdução do teclado';
+    const original = structuredClone(service);
+    const originalSong = structuredClone(song);
+    await mock.login();
+    await page.goto(`/cultos/${service.id}`);
+    await expect(page.locator('.service-event-indicator')).toHaveText('Evento');
+    const row = () => page.locator('.service-setlist-item').filter({ hasText: song.title });
+    const card = () => row().getByRole('link', { name: `Assistir ${song.title} no YouTube`, exact: true });
+    await expect(card()).toHaveAttribute('href', libraryUrl);
+    await expect(card()).toContainText('Vídeo da biblioteca');
+    await expect(card()).toHaveAttribute('target', '_blank');
+    await expect(card()).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(card().locator('img')).toHaveAttribute('src', `https://i.ytimg.com/vi/${LIBRARY_ID}/hqdefault.jpg`);
+    await expect(card().locator('img')).toHaveAttribute('loading', 'lazy');
+    await expect(page.locator('iframe')).toHaveCount(0);
+
+    await page.getByRole('button', { name: `Editar tom e observação de ${song.title}`, exact: true }).click();
+    let dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('combobox', { name: 'Tom neste culto', exact: true })).toHaveValue('Bb');
+    await expect(dialog.getByLabel('Observação')).toHaveValue(item.notes);
+    const input = dialog.getByLabel(/^Vídeo do YouTube neste culto/);
+    await input.fill(`https://youtube.com.evil.invalid/watch?v=${SERVICE_ID}`);
+    await dialog.getByRole('button', { name: 'Salvar ajustes', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toHaveText('Informe um link válido de vídeo do YouTube ou deixe o campo vazio.');
+    expect(saves(mock)).toHaveLength(0);
+    await input.fill(`https://youtu.be/${SERVICE_ID}?si=tracking-discarded`);
+    await expect(dialog.getByRole('link', { name: `Assistir ${song.title} no YouTube`, exact: true })).toHaveAttribute('href', serviceUrl);
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    await dialog.getByRole('button', { name: 'Salvar ajustes', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(card()).toHaveAttribute('href', serviceUrl);
+    await expect(card()).toContainText('Versão deste culto');
+    expect(saves(mock)).toHaveLength(1);
+    const saved = () => mock.data.services.find(candidate => candidate.id === service.id)!;
+    expect(saved().repertoire[0]).toEqual({ ...original.repertoire[0], youtubeUrl: serviceUrl });
+    expect(saved().assignments).toEqual(original.assignments);
+    expect(mock.data.songs.find(candidate => candidate.id === song.id)).toEqual(originalSong);
+
+    await page.reload();
+    await expect(card()).toHaveAttribute('href', serviceUrl);
+    await page.getByRole('button', { name: `Mover ${song.title} para baixo`, exact: true }).click();
+    await expect(page.locator('.service-setlist-item').nth(1)).toContainText(song.title);
+    expect(saved().repertoire.find(candidate => candidate.id === item.id)).toEqual({ ...original.repertoire[0], youtubeUrl: serviceUrl });
+    await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
+    dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Salvar equipe', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    expect(saved().repertoire.find(candidate => candidate.id === item.id)?.youtubeUrl).toBe(serviceUrl);
+    expect(saved().isEvent).toBe(true);
+    await expect(card()).toHaveAttribute('href', serviceUrl);
+
+    await row().getByRole('link', { name: song.title, exact: true }).click();
+    await expect(page.getByRole('heading', { name: song.title, exact: true })).toBeVisible();
+    const readerCard = page.getByRole('link', { name: `Assistir ${song.title} no YouTube`, exact: true });
+    await expect(readerCard).toHaveAttribute('href', serviceUrl);
+    await expect(readerCard).toContainText('Versão deste culto');
+    await page.getByLabel('Tom da visualização').selectOption('B');
+    await page.getByRole('button', { name: 'Salvar tom no culto', exact: true }).click();
+    await expect(page.getByRole('status')).toHaveText('Tom salvo no repertório.');
+    expect(saved().repertoire.find(candidate => candidate.id === item.id)).toEqual({ ...original.repertoire[0], key: 'B', youtubeUrl: serviceUrl });
+    await page.goto(`/musicas/${song.id}`);
+    await expect(readerCard).toHaveAttribute('href', libraryUrl);
+    await expect(readerCard).toContainText('Vídeo da biblioteca');
+    await page.goto(`/cultos/${service.id}`);
+
+    await page.getByRole('button', { name: `Editar tom e observação de ${song.title}`, exact: true }).click();
+    dialog = page.getByRole('dialog');
+    await dialog.getByLabel(/^Vídeo do YouTube neste culto/).fill('');
+    await dialog.getByRole('button', { name: 'Salvar ajustes', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(card()).toHaveAttribute('href', libraryUrl);
+    await expect(card()).toContainText('Vídeo da biblioteca');
+    expect(saved().repertoire.find(candidate => candidate.id === item.id)).toEqual({ ...original.repertoire[0], key: 'B', youtubeUrl: '' });
+    expect(mock.data.songs.find(candidate => candidate.id === song.id)).toEqual(originalSong);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    expect(await card().evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+    await expect(page.locator('iframe')).toHaveCount(0);
+  });
+}
+
+test('conta aprovada sem edição consulta vídeos e links antigos inseguros não viram cards', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.route('https://i.ytimg.com/**', route => route.fulfill({ contentType: 'image/png', body: thumbnail }));
+  const mock = await setupMockMinistry(page, 'musician');
+  const service = mock.data.services[0];
+  const first = service.repertoire[0];
+  const second = service.repertoire[1];
+  const firstSong = mock.data.songs.find(candidate => candidate.id === first.songId)!;
+  const secondSong = mock.data.songs.find(candidate => candidate.id === second.songId)!;
+  first.youtubeUrl = `https://www.youtube.com/shorts/${SERVICE_ID}`;
+  second.youtubeUrl = `https://youtube.com.evil.invalid/watch?v=${SERVICE_ID}`;
+  firstSong.youtubeUrl = libraryUrl;
+  secondSong.youtubeUrl = 'javascript:alert(1)';
+  await mock.login();
+  await page.goto(`/cultos/${service.id}`);
+  await expect(page.getByRole('link', { name: `Assistir ${firstSong.title} no YouTube`, exact: true })).toHaveAttribute('href', serviceUrl);
+  await expect(page.getByRole('link', { name: `Assistir ${secondSong.title} no YouTube`, exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Editar tom e observação/ })).toHaveCount(0);
+  await expect(page.locator('iframe')).toHaveCount(0);
+  expect(saves(mock)).toHaveLength(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+});

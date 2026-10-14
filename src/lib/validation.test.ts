@@ -71,6 +71,21 @@ describe('YouTube address validation', () => {
 });
 
 describe('service planning validation', () => {
+  it('accepts event flags and optional repertoire versions without changing the library song', () => {
+    for (const isEvent of [undefined, false, true]) expect(validateService({ ...service, isEvent }, data)).toBeNull();
+    for (const youtubeUrl of [undefined, '', '   ', 'https://youtu.be/AbCdEfG_123']) {
+      expect(validateService({ ...service, repertoire: service.repertoire.map(item => ({ ...item, youtubeUrl })) }, data)).toBeNull();
+    }
+    expect(data.songs[0].youtubeUrl).toBe('');
+  });
+
+  it('rejects unsafe repertoire video links and malformed event flags', () => {
+    for (const youtubeUrl of ['javascript:alert(1)', 'https://youtube.com.evil.invalid/watch?v=AbCdEfG_123', 'https://youtube.com/playlist?list=PLtest', `https://youtu.be/AbCdEfG_123?data=${'a'.repeat(2000)}`]) {
+      expect(validateService({ ...service, repertoire: [{ ...service.repertoire[0], youtubeUrl }] }, data)).toBeTruthy();
+    }
+    expect(validateService({ ...service, isEvent: 'true' as unknown as boolean }, data)).toBeTruthy();
+  });
+
   it('accepts each seeded service and an empty draft repertoire/scale', () => {
     data.services.forEach((item) => expect(validateService(item, data)).toBeNull());
     expect(validateService({ ...service, repertoire: [], assignments: [] }, data)).toBeNull();

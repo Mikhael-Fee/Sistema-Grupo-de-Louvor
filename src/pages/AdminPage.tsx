@@ -7,7 +7,6 @@ import { normalizeSearch } from '../lib/music';
 import { getProfilePhoto } from '../lib/avatars';
 import ProfileAvatar from '../components/ProfileAvatar';
 import './people.css';
-import PublicAccessSettings from '../components/PublicAccessSettings';
 
 const readableError = (error: unknown) => error instanceof Error ? error.message : 'Não foi possível concluir a operação. Tente novamente.';
 
@@ -68,7 +67,6 @@ export default function AdminPage() {
   return <>
     <PageHeader eyebrow="Cuidado com o ministério" title="Administração" description="Gerencie quem pode acessar e organizar as informações." action={<button className="button button-secondary" disabled={loading || saving} onClick={() => void loadProfiles()}><RefreshCw size={17} /> Atualizar</button>} />
 
-    <PublicAccessSettings />
     <div className="admin-stats"><div className="card admin-stat"><Users size={21} /><div><strong>{profiles.length}</strong><span>Usuários</span></div></div><div className="card admin-stat"><UserCheck size={21} /><div><strong>{profiles.filter(user => user.approved).length}</strong><span>Aprovados</span></div></div><div className="card admin-stat"><Clock3 size={21} /><div><strong>{pendingCount}</strong><span>Aguardando aprovação</span></div></div></div>
     <div className="toolbar people-toolbar"><label className="people-search"><Search size={18} aria-hidden="true" /><span className="people-sr-only">Buscar usuários</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar usuário…" /></label><label className="people-function-filter"><span className="people-sr-only">Filtrar usuários por aprovação</span><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="">Todos os usuários</option><option value="pending">Aguardando aprovação</option><option value="approved">Aprovados</option></select></label></div>
     <FormError error={error} />

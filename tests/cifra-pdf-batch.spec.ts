@@ -123,8 +123,11 @@ for (const role of ['guest', 'musician'] as const) test(`${role} não recebe aç
   const mock = await setupMockMinistry(page, role === 'guest' ? 'admin' : role);
   if (role === 'musician') await mock.login();
   await page.goto('/musicas');
-  if (role === 'guest') await page.getByRole('button', { name: 'Entrar sem cadastro', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Biblioteca de músicas', exact: true })).toBeVisible();
+  if (role === 'guest') {
+    await expect(page.getByRole('button', { name: 'Entrar no ministério', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Biblioteca de músicas', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Entrar sem cadastro', exact: true })).toHaveCount(0);
+  } else await expect(page.getByRole('heading', { name: 'Biblioteca de músicas', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Importar PDFs', exact: true })).toHaveCount(0);
   expect(savedCalls(mock.calls)).toHaveLength(0);
 });

@@ -3,10 +3,10 @@ import { setupMockMinistry } from './fixtures';
 
 test.use({ trace: 'off', screenshot: 'off' });
 
-for (const scenario of [{ width: 1200, guest: false }, { width: 320, guest: true }]) {
-  test(`painel resume observação específica do repertório em uma linha (${scenario.width}px, ${scenario.guest ? 'visitante' : 'administrador'})`, async ({ page }) => {
+for (const scenario of [{ width: 1200, role: 'admin' }, { width: 320, role: 'musician' }] as const) {
+  test(`painel resume observação específica do repertório em uma linha (${scenario.width}px, ${scenario.role === 'musician' ? 'músico aprovado' : 'administrador'})`, async ({ page }) => {
     await page.setViewportSize({ width: scenario.width, height: 900 });
-    const mock = await setupMockMinistry(page);
+    const mock = await setupMockMinistry(page, scenario.role);
     const service = mock.data.services[0];
     const firstLine = 'Ensaio às 16h30; começar com piano e voz.';
     const secondLine = 'SEGUNDA LINHA DE TESTE QUE NÃO DEVE APARECER NO PAINEL';
@@ -16,10 +16,11 @@ for (const scenario of [{ width: 1200, guest: false }, { width: 320, guest: true
     service.repertoire[1].notes = ' \r\n\t\r\n  ';
     service.repertoire[2].notes = `${longLine}\n${secondLine}`;
     for (const item of service.repertoire) mock.data.songs.find(song => song.id === item.songId)!.notes = songNotes;
-    if (scenario.guest) {
-      await page.goto('/');
-      await page.getByRole('button', { name: 'Entrar sem cadastro', exact: true }).click();
-    } else await mock.login();
+    await mock.login();
+    if (scenario.role === 'musician') {
+      await expect(page.getByRole('link', { name: 'Administração', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /Novo culto|Editar culto|Editar equipe/ })).toHaveCount(0);
+    }
 
     await expect(page.getByRole('link', { name: 'Abrir culto', exact: true })).toHaveAttribute('href', `/cultos/${service.id}`);
     const rows = page.locator('.home-song-list li');
@@ -56,7 +57,6 @@ for (const scenario of [{ width: 1200, guest: false }, { width: 320, guest: true
     if (Number.isFinite(geometry.lineHeight)) expect(geometry.height).toBeLessThanOrEqual(geometry.lineHeight + 1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(mock.calls.filter(call => !['GET', 'HEAD', 'OPTIONS'].includes(call.method)
-      && /\/(?:rest|storage)\/v1\//.test(call.path)
-      && !/\/rpc\/(?:get_public_access|read_public_ministry)$/.test(call.path))).toHaveLength(0);
+      && /\/(?:rest|storage)\/v1\//.test(call.path))).toHaveLength(0);
   });
 }

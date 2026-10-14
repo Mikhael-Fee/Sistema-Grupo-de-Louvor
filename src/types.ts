@@ -7,9 +7,9 @@ export interface Song {
   content: string; youtubeUrl: string; notes: string; tagIds: string[];
 }
 export interface Assignment { id: string; personId: string; function: string }
-export interface SetlistItem { id: string; songId: string; key: string; notes: string }
+export interface SetlistItem { id: string; songId: string; key: string; notes: string; youtubeUrl?: string }
 export interface Service {
-  id: string; date: string; time: string; type: string; notes: string;
+  id: string; date: string; time: string; type: string; notes: string; isEvent?: boolean;
   assignments: Assignment[]; repertoire: SetlistItem[];
 }
 export interface MinistryData { songs: Song[]; tags: Tag[]; people: Person[]; services: Service[] }

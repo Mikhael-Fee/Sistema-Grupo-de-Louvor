@@ -1,0 +1,4 @@
+/* Scroll remains available by wheel, touch and keyboard without a visible track. */
+.sidebar { scrollbar-width: none; -ms-overflow-style: none; }
+.sidebar::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.sidebar:focus-visible { outline: 2px solid #f0a340; outline-offset: -3px; }

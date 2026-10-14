@@ -5,15 +5,16 @@ const chart = '[Intro] [G][A][D]\n[Cmaj7][G/B][Am7][F#7(b9)/C#][Dmaj7][G/B][Am7]
 
 async function openInstrumentalChart(page: Page, width: number) {
   await page.setViewportSize({ width, height: 800 });
-  const mock = await setupMockMinistry(page);
+  const mock = await setupMockMinistry(page, 'musician');
   const song = mock.data.songs[0];
   song.originalKey = 'D';
   song.churchKey = 'D';
   song.content = chart;
-  await page.goto('/consulta');
-  await expect(page.getByRole('heading', { name: 'Cultos', exact: true })).toBeVisible();
+  await mock.login();
   await page.goto(`/musicas/${song.id}`);
   await expect(page.getByRole('heading', { name: song.title, exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Editar música', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Administração', exact: true })).toHaveCount(0);
   return { mock, song };
 }
 

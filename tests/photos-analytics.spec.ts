@@ -3,7 +3,7 @@ import { loginAs, setupMockMinistry, type MockMinistry } from './fixtures';
 
 test.use({ trace: 'off', screenshot: 'off' });
 const isWrite = (call: { method: string; path: string }) => !['GET', 'HEAD', 'OPTIONS'].includes(call.method)
-  && /\/(?:rest|storage)\/v1\//.test(call.path) && !/\/rpc\/(?:get_public_access|read_public_ministry)$/.test(call.path);
+  && /\/(?:rest|storage)\/v1\//.test(call.path);
 const uploads = (mock: MockMinistry) => mock.calls.filter(call => call.method === 'POST' && call.path.startsWith('/storage/v1/object/avatars/'));
 
 async function photo(page: Page) {
@@ -137,11 +137,10 @@ test('gráficos deduplicam pessoa e música por culto e filtram datas sem gravar
   expect(mock.calls.filter(isWrite)).toHaveLength(0);
 });
 
-test('consulta pública vê gráficos no celular, sem e-mails ou ações de edição', async ({ page }) => {
+test('músico aprovado vê gráficos no celular sem administração ou ações de edição', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const mock = await setupMockMinistry(page); analyticsData(mock);
+  const mock = await setupMockMinistry(page, 'musician'); analyticsData(mock); await mock.login();
   await page.goto('/graficos');
-  await page.getByRole('button', { name: 'Entrar sem cadastro', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Gráficos', exact: true })).toBeVisible();
   await kpi(page, 'Cultos no período', '3');
   await page.getByLabel('Buscar músicas nas análises', { exact: true }).fill('Casa');
@@ -149,5 +148,7 @@ test('consulta pública vê gráficos no celular, sem e-mails ou ações de edi�
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Salvar|Nova pessoa|Editar música/ })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Administração', exact: true })).toHaveCount(0);
+  await expect(page.locator('.admin-user-row')).toHaveCount(0);
   expect(mock.calls.filter(isWrite)).toHaveLength(0);
 });

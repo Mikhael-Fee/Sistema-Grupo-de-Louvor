@@ -128,8 +128,9 @@ try {
   if (!anonymousKey || !serviceKey || /[\r\n]/.test(anonymousKey + serviceKey)) throw new Error('As chaves de verificação não estão disponíveis.');
   const schema = await query(`select to_regprocedure('public.update_my_profile_photo(text)') is not null as ready,
     to_regprocedure('public.read_team_profile_photos()') is not null as linked_ready,
+    exists(select 1 from pg_constraint where conrelid='public.public_access'::regclass and conname='public_access_disabled_check') as private_ready,
     exists(select 1 from storage.buckets where id='avatars' and public and file_size_limit=2097152) as bucket_ready`);
-  if (!schema[0]?.ready || !schema[0]?.linked_ready || !schema[0]?.bucket_ready) throw new Error('As migrações004/005 precisam estar instaladas antes da verificação.');
+  if (!schema[0]?.ready || !schema[0]?.linked_ready || !schema[0]?.private_ready || !schema[0]?.bucket_ready) throw new Error('As migrações004/005/006 precisam estar instaladas antes da verificação.');
   imageDirectory = await mkdtemp(join(tmpdir(), 'candeia-photo-check-'));
   const pngFile = join(imageDirectory, 'pixel.png');
   const svgFile = join(imageDirectory, 'rejected.svg');
@@ -222,21 +223,15 @@ try {
     && linkedProfile.role === 'musician' && linkedProfile.approved,
   'vínculo preserva foto própria, papel e aprovação');
   expect(refused(await rest(null, 'rpc/read_team_profile_photos', { method: 'POST', body: {} })), 'visitante não executa RPC privada de fotos de contas');
-  const publicEnabled = success(await rest(null, 'rpc/get_public_access', { method: 'POST', body: {} }), 'verificação da consulta pública sem alterar configuração');
+  const publicAvailability = await rest(null, 'rpc/get_public_access', { method: 'POST', body: {} });
   const publicResponse = await rest(null, 'rpc/read_public_ministry', { method: 'POST', body: {} });
-  if (publicEnabled) {
-    const publicPerson = success(publicResponse, 'consulta pública de fotos vinculadas').people.find(person => person.id === personId);
-    expect(publicPerson?.photoUrl === publicUrl(personPath) && publicPerson?.accountPhotoUrl === publicUrl(linkedPath)
-      && publicPerson.email === '' && Object.keys(publicPerson).sort().join(',') === 'accountPhotoUrl,email,functions,id,name,photoUrl',
-    'consulta pública recebe fotos da pessoa e conta vinculada sem contatos ou campos de perfil');
-  } else expect(refused(publicResponse), 'consulta pública desligada mantém fotos vinculadas privadas');
+  expect(refused(publicAvailability) && publicAvailability.data?.code === '42501'
+    && refused(publicResponse) && publicResponse.data?.code === '42501', 'visitante não consulta disponibilidade ou dados pelo RPC público aposentado');
   await link(personId, false);
   expect(refused(await rest(musician, 'rpc/read_team_profile_photos', { method: 'POST', body: {} })), 'conta suspensa não consulta fotos da equipe');
   expect(!(await teamPhotos(admin)).some(row => row.personId === personId), 'revogar aprovação remove a foto vinculada da equipe');
-  if (publicEnabled) {
-    const revokedPerson = success(await rest(null, 'rpc/read_public_ministry', { method: 'POST', body: {} }), 'consulta após revogação').people.find(person => person.id === personId);
-    expect(!revokedPerson.accountPhotoUrl && revokedPerson.photoUrl === publicUrl(personPath), 'revogação pública remove selfie e conserva foto explícita da pessoa');
-  }
+  const suspendedPublicRead = await rest(musician, 'rpc/read_public_ministry', { method: 'POST', body: {} });
+  expect(refused(suspendedPublicRead) && suspendedPublicRead.data?.code === '42501', 'conta suspensa não obtém fotos/contatos por RPC público legado');
   await link(null);
   expect(!(await teamPhotos(admin)).some(row => row.personId === personId)
     && (await ownProfile(musician)).person_id === null, 'desvincular conta remove foto da equipe sem apagar selfie');

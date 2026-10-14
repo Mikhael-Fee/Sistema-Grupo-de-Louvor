@@ -3,17 +3,18 @@ import { loginAs, setupMockMinistry } from './fixtures';
 
 const longVerse = 'Uma frase comprida para acompanhar a música no celular e manter cada acorde junto da sua letra. ';
 
-async function openPublicSong(page: Page) {
-  const mock = await setupMockMinistry(page);
+async function openMusicianSong(page: Page) {
+  const mock = await setupMockMinistry(page, 'musician');
   const song = mock.data.songs[0];
   song.originalKey = 'G';
   song.churchKey = 'Bb';
   song.content = `[G]${longVerse.repeat(3)}[D/F#]Seguimos em paz\n[C]${'Esperança'.repeat(35)}\n\ne|--0--2--3--|\nB|--1--3--0--|\nG|--0--2--0--|\nD|--2--0--0--|\nA|--3--0--2--|\nE|--0--0--3--|\n\n[G]Uma nova canção`;
   const storedContent = song.content;
-  await page.goto('/consulta');
-  await expect(page.getByRole('heading', { name: 'Cultos', exact: true })).toBeVisible();
+  await mock.login();
   await page.goto(`/musicas/${song.id}`);
   await expect(page.getByRole('heading', { name: song.title, exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Editar música', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Administração', exact: true })).toHaveCount(0);
   return { mock, song, storedContent };
 }
 
@@ -23,9 +24,9 @@ async function expectNoHorizontalOverflow(page: Page) {
 }
 
 for (const width of [320, 350, 390]) {
-  test(`leitor público em ${width}px mantém acordes corretos e versos dentro da tela`, async ({ page }) => {
+  test(`leitor de músico aprovado em ${width}px mantém acordes corretos e versos dentro da tela`, async ({ page }) => {
     await page.setViewportSize({ width, height: 740 });
-    const { mock, song, storedContent } = await openPublicSong(page);
+    const { mock, song, storedContent } = await openMusicianSong(page);
     await expect(page.getByLabel('Tom da visualização')).toHaveValue('Bb');
     await expect(page.locator('.song-chord').filter({ hasText: /^Bb$/ })).toHaveCount(2);
     await expect(page.locator('.song-chord').filter({ hasText: /^F\/A$/ })).toHaveCount(1);
@@ -55,7 +56,7 @@ for (const width of [320, 350, 390]) {
 
 test('modo leitura no celular ocupa a tela e preserva tom e fonte ao sair', async ({ page }) => {
   await page.setViewportSize({ width: 350, height: 740 });
-  await openPublicSong(page);
+  await openMusicianSong(page);
   for (const control of await page.locator('.song-reader-toolbar button, .song-reader-toolbar select').all()) {
     const box = await control.boundingBox();
     expect(box?.width).toBeGreaterThanOrEqual(44);

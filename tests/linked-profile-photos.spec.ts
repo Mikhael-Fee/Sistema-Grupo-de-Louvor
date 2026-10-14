@@ -143,7 +143,7 @@ test('foto própria da pessoa tem prioridade na equipe; remover selfie usa cadas
   await expectPhoto(teamRow(page, person.name), personPhoto);
 });
 
-test('remover foto do cadastro revela selfie vinculada também na consulta pública, sem contatos ou perfis', async ({ page }) => {
+test('remover foto do cadastro revela selfie vinculada ao músico aprovado, sem edição ou perfis de outras contas', async ({ page }) => {
   const mock = await setupMockMinistry(page);
   await page.goto('/');
   const person = mock.data.people[0];
@@ -164,25 +164,44 @@ test('remover foto do cadastro revela selfie vinculada também na consulta públ
   const projected = mock.calls.filter(call => call.path === '/rest/v1/rpc/read_team_profile_photos');
   expect(projected.length).toBeGreaterThan(0);
   expect(projected.every(call => call.method === 'GET')).toBe(true);
-  await page.getByRole('button', { name: 'Sair', exact: true }).click();
-  await page.goto('/pessoas');
-  const responsePromise = page.waitForResponse(response => new URL(response.url()).pathname === '/rest/v1/rpc/read_public_ministry');
-  await page.getByRole('button', { name: 'Entrar sem cadastro', exact: true }).click();
+  const readOnlyStart = mock.calls.length;
+  const responsePromise = page.waitForResponse(response => new URL(response.url()).pathname === '/rest/v1/rpc/read_team_profile_photos');
+  await mock.login('musician');
   const body = await (await responsePromise).json();
-  const publicPerson = body.people.find((candidate: { id: string }) => candidate.id === person.id);
-  expect(publicPerson.accountPhotoUrl).toBe(selfie);
-  expect(publicPerson.email).toBe('');
-  expect(Object.keys(publicPerson).sort()).toEqual(['accountPhotoUrl', 'email', 'functions', 'id', 'name', 'photoUrl']);
-  expect(body.profiles).toBeUndefined();
+  const linkedPhoto = body.find((candidate: { personId: string }) => candidate.personId === person.id);
+  expect(linkedPhoto.photoUrl).toBe(selfie);
+  // The shared photo projection remains restricted to person/photo pairs;
+  // it never exposes another account's role, approval, name, or profile ID.
+  expect(body.every((candidate: object) => Object.keys(candidate).sort().join(',') === 'personId,photoUrl')).toBe(true);
+  const readableProfileIds = await page.evaluate(async () => {
+    const backendPath = '/src/lib/backend.ts';
+    const { supabase } = await import(backendPath);
+    const { data, error } = await supabase.from('profiles').select('id');
+    if (error) throw new Error(error.message);
+    return data.map((profile: { id: string }) => profile.id);
+  });
+  expect(readableProfileIds).toEqual([mock.profiles[0].id]);
+  await page.goto('/pessoas');
   await expectPhoto(personCard(page, person.name), selfie);
-  await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
+  // Approved members can read registered team contacts. The previous anonymous
+  // contact whitelist no longer applies because all ministry access uses Auth.
+  await expect(personCard(page, person.name).locator('a[href^="mailto:"]')).toHaveAttribute('href', `mailto:${person.email}`);
+  await expect(page.getByRole('button', { name: `Editar ${person.name}`, exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: `Excluir ${person.name}`, exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Administração', exact: true })).toHaveCount(0);
   await page.setViewportSize({ width: 320, height: 700 });
   await page.goto('/');
   await expectNextService(page, mock);
   await expectPhoto(homeTeamRow(page, person.name), selfie);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await expect(page.getByRole('link', { name: 'Meu perfil', exact: true })).toHaveCount(0);
+  await expectPhoto(page.locator('.topbar-profile-link'), selfie);
   await page.goto(`/cultos/${mock.data.services[0].id}`);
   await expectPhoto(teamRow(page, person.name), selfie);
   await expect(page.getByRole('button', { name: 'Editar equipe', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Editar culto|Editar repertório|Excluir culto/ })).toHaveCount(0);
+  await page.goto('/administracao');
+  await expect(page).toHaveURL('/');
+  await expect(page.locator('.admin-user-row')).toHaveCount(0);
+  expect(mock.calls.slice(readOnlyStart).filter(call => !['GET', 'HEAD', 'OPTIONS'].includes(call.method)
+    && /\/(?:rest|storage)\/v1\//.test(call.path))).toHaveLength(0);
 });

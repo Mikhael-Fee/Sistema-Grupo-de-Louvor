@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Check, ExternalLink, FileText, Maximize2, Minus, Music2, Pencil, Plus, Save, StickyNote, X } from 'lucide-react';
 import { EmptyState, FormError } from '../components/ui';
+import YoutubeVideoCard from '../components/YoutubeVideoCard';
 import { useMinistry } from '../context/MinistryContext';
 import { chordSegments, KEYS, stripChords, transposeContent } from '../lib/music';
 import { cleanChordSheet } from '../lib/cifraclub';
-import { isSafeYoutubeUrl } from '../lib/validation';
+import { normalizeYouTubeUrl } from '../lib/youtube';
 import { cifraClubUrlFromNotes, cifraClubSearchUrl } from '../lib/song-search';
 import { SongEditor } from './SongsPage';
 import './songs.css';
@@ -95,7 +96,8 @@ export default function SongPage() {
 
   if (!song) return <><Link className="song-back" to="/musicas"><ArrowLeft size={16} />Voltar à biblioteca</Link><div className="card"><EmptyState title="Música não encontrada" description="Ela pode ter sido removida da biblioteca." action={<Link className="button button-primary" to="/musicas">Abrir biblioteca</Link>} /></div></>;
   const songTags = data.tags.filter(tag => song.tagIds.includes(tag.id));
-  const hasVideo = Boolean(song.youtubeUrl) && isSafeYoutubeUrl(song.youtubeUrl);
+  const serviceVideoUrl = normalizeYouTubeUrl(setlistItem?.youtubeUrl);
+  const referenceVideoUrl = serviceVideoUrl || normalizeYouTubeUrl(song.youtubeUrl);
   const cifraClubUrl = cifraClubUrlFromNotes(song.notes) || cifraClubSearchUrl(song.title, song.artist);
   const serviceLabel = service ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long' }).format(new Date(`${service.date}T12:00:00`)) : '';
 
@@ -119,7 +121,7 @@ export default function SongPage() {
     </section>
     {!reading && <>
       {setlistItem && service && canPlan && <div className="song-save-key card"><div><h3>Tom para este culto</h3><p>Salve {viewKey} no repertório de {serviceLabel}. Os demais cultos continuam com seus próprios tons.</p><FormError error={saveError} />{saved && <p className="song-save-success" role="status"><Check size={15} />Tom salvo no repertório.</p>}</div><button className="button button-primary" disabled={saving || busy || viewKey === setlistItem.key} onClick={saveKey}><Save size={16} />{saving ? 'Salvando…' : 'Salvar tom no culto'}</button></div>}
-      <div className="song-detail-grid"><section className="card song-note-card"><h2><StickyNote size={18} />Observações da música</h2><p className={!song.notes ? 'muted' : ''}>{song.notes || 'Nenhuma observação cadastrada para esta música.'}</p></section>{setlistItem && <section className="card song-note-card"><h2><StickyNote size={18} />Observações deste culto</h2><p className={!setlistItem.notes ? 'muted' : ''}>{setlistItem.notes || 'Nenhuma orientação específica no repertório.'}</p></section>}{hasVideo && <section className="card song-video-card"><span className="song-video-icon"><Music2 size={22} /></span><div><h2>Ouça a referência</h2><p>Um momento para conhecer a canção.</p></div><a className="button button-secondary" href={song.youtubeUrl} target="_blank" rel="noopener noreferrer">Abrir YouTube<ExternalLink size={15} /></a></section>}</div>
+      <div className="song-detail-grid"><section className="card song-note-card"><h2><StickyNote size={18} />Observações da música</h2><p className={!song.notes ? 'muted' : ''}>{song.notes || 'Nenhuma observação cadastrada para esta música.'}</p></section>{setlistItem && <section className="card song-note-card"><h2><StickyNote size={18} />Observações deste culto</h2><p className={!setlistItem.notes ? 'muted' : ''}>{setlistItem.notes || 'Nenhuma orientação específica no repertório.'}</p></section>}{referenceVideoUrl && <section className="card song-video-reference"><h2><Music2 size={18} />Ouça a referência</h2><YoutubeVideoCard url={referenceVideoUrl} title={song.title} caption={serviceVideoUrl ? 'Versão deste culto' : 'Vídeo da biblioteca'} /></section>}</div>
     </>}
     {editing && <SongEditor song={song} onClose={() => setEditing(false)} />}
   </div>;

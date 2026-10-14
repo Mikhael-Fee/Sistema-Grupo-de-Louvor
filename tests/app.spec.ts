@@ -52,7 +52,7 @@ test('cadastra uma música, valida o vídeo, transpõe sem alterar o cadastro e 
   await expect(page.locator('.song-chord').filter({ hasText: /^B\/D#$/ })).toHaveCount(1);
   await page.getByRole('button', { name: 'Somente letra', exact: true }).click();
   await expect(page.locator('.song-lyrics-only')).toHaveText('Tua luz nos guia\nSeguimos em paz');
-  await expect(page.getByRole('link', { name: 'Abrir YouTube' })).toHaveAttribute('href', 'https://youtu.be/dQw4w9WgXcQ');
+  await expect(page.getByRole('link', { name: 'Assistir Canção de teste no YouTube', exact: true })).toHaveAttribute('href', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Canção de teste', exact: true })).toBeVisible();
   await expect(page.getByLabel('Tom da visualização')).toHaveValue('D');
@@ -117,6 +117,7 @@ test('cadastra pessoas com várias funções e etiquetas e recupera após recarr
 test('planeja culto, escala e repertório ordenado com um tom independente da biblioteca', async ({ page }) => {
   await loginAs(page);
   await page.goto('/cultos');
+  await page.getByRole('button', { name: 'Cards', exact: true }).click();
   await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Data', { exact: true }).fill('2099-11-10');
@@ -187,6 +188,7 @@ test('músico consulta e transpõe sem ações de edição', async ({ page }) =>
   await expect(page.getByRole('button', { name: 'Editar Casa de paz', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Excluir Casa de paz', exact: true })).toHaveCount(0);
   await page.goto('/cultos');
+  await page.getByRole('button', { name: 'Cards', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Novo culto', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: 'Ver culto' }).first().click();
   await expect(page.getByRole('button', { name: 'Editar culto', exact: true })).toHaveCount(0);
@@ -211,6 +213,7 @@ test('líder planeja cultos e escala sem editar a biblioteca', async ({ page }) 
   await page.goto('/musicas');
   await expect(page.getByRole('button', { name: 'Nova música', exact: true })).toHaveCount(0);
   await page.goto('/cultos');
+  await page.getByRole('button', { name: 'Cards', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Novo culto', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Ver culto' }).first().click();
   await expect(page.getByRole('button', { name: 'Editar culto', exact: true })).toBeVisible();
@@ -226,6 +229,7 @@ test('funciona em 390 px sem rolagem horizontal, inclusive música e formulário
     expect(await page.evaluate(() => document.documentElement.scrollWidth), `largura de ${path}`).toBeLessThanOrEqual(390);
   }
   await page.goto('/cultos');
+  await page.getByRole('button', { name: 'Cards', exact: true }).click();
   await page.getByRole('link', { name: 'Ver culto' }).first().click();
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -276,6 +280,7 @@ test('preserva rascunho de nova música ao fechar e navegar, e Cancelar descarta
 test('preserva rascunho de novo culto ao fechar e navegar, e Cancelar descarta', async ({ page }) => {
   await loginAs(page);
   await page.goto('/cultos');
+  await page.getByRole('button', { name: 'Cards', exact: true }).click();
   await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Data', { exact: true }).fill('2099-10-20');
@@ -330,6 +335,7 @@ test('rascunho de edição permanece entre biblioteca e detalhes sem alterar a m
 test('monta escala de três pessoas em lote antes de salvar o novo culto', async ({ page }) => {
   await loginAs(page);
   await page.goto('/cultos');
+  await page.getByRole('button', { name: 'Cards', exact: true }).click();
   await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Data', { exact: true }).fill('2099-11-20');
@@ -356,6 +362,7 @@ test('preserva a seleção ativa ao remover do resumo e reutilizar a última esc
   await loginAs(page);
   async function prepareService(date: string, note: string, team: [string, string][]) {
     await page.goto('/cultos');
+  await page.getByRole('button', { name: 'Cards', exact: true }).click();
     await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Data', { exact: true }).fill(date);
@@ -409,6 +416,7 @@ test('preserva a seleção ativa ao remover do resumo e reutilizar a última esc
 test('edita a equipe inteira em lote, troca funções e remove pessoas sem duplicar pares', async ({ page }) => {
   await loginAs(page);
   await page.goto('/cultos');
+  await page.getByRole('button', { name: 'Cards', exact: true }).click();
   await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Data', { exact: true }).fill('2099-11-21');
@@ -455,6 +463,7 @@ test('edita a equipe inteira em lote, troca funções e remove pessoas sem dupli
 test('preserva funções múltiplas e rascunho no editor único de equipe, e permite limpar a escala', async ({ page }) => {
   await loginAs(page);
   await page.goto('/cultos');
+  await page.getByRole('button', { name: 'Cards', exact: true }).click();
   await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Data', { exact: true }).fill('2099-11-22');
@@ -479,6 +488,7 @@ test('preserva funções múltiplas e rascunho no editor único de equipe, e per
   await dialog.getByRole('checkbox', { name: 'Também Ana Clara em Teclado', exact: true }).uncheck();
   await dialog.getByRole('button', { name: 'Fechar', exact: true }).click();
   await page.goto('/cultos');
+  await page.getByRole('button', { name: 'Cards', exact: true }).click();
   await page.goto(serviceUrl);
   await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
   dialog = page.getByRole('dialog');
@@ -521,10 +531,11 @@ test('mostra a marca Candeia no login e no cabeçalho mobile com menu fechado', 
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
-test('entra sem cadastro e consulta culto, equipe e cifra com transposição temporária', async ({ page }) => {
-  const fixture = await setupMockMinistry(page);
+test('músico aprovado consulta culto, equipe e cifra com transposição temporária', async ({ page }) => {
+  const fixture = await setupMockMinistry(page, 'musician');
+  await fixture.login();
   await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Entrar sem cadastro', exact: true }).click();
+  await page.getByRole('button', { name: 'Cards', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Cultos', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Novo culto', exact: true })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Administração', exact: true })).toHaveCount(0);
@@ -547,10 +558,10 @@ test('entra sem cadastro e consulta culto, equipe e cifra com transposição tem
   await page.goto('/pessoas');
   await expect(page.getByRole('heading', { name: 'Nossa equipe', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Nova pessoa', exact: true })).toHaveCount(0);
-  await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
-  expect(fixture.calls.filter(call => call.path.includes('/auth/v1/token'))).toHaveLength(0);
+  await expect(page.getByRole('link', { name: 'Administração', exact: true })).toHaveCount(0);
+  expect(fixture.calls.filter(call => call.path.includes('/auth/v1/token')).length).toBeGreaterThan(0);
   expect(fixture.calls.filter(call => call.path.startsWith('/rest/v1/rpc/save_'))).toHaveLength(0);
-  expect(fixture.calls.some(call => call.path === '/rest/v1/rpc/read_public_ministry')).toBe(true);
+  expect(fixture.calls.some(call => call.path === '/rest/v1/rpc/read_public_ministry')).toBe(false);
 });
 
 interface SourceFixture {
@@ -989,7 +1000,7 @@ test('colar texto no campo único limpa tablatura, converte o tom e preserva os 
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
   await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await page.getByRole('button', { name: 'Sair', exact: true }).click();
-  await page.getByRole('button', { name: 'Entrar sem cadastro', exact: true }).click();
+  await fixture.login('musician');
   await page.goto('/musicas');
   await page.getByRole('article').filter({ hasText: 'Luz da equipe de teste' })
     .getByRole('link', { name: 'Luz da equipe de teste Equipe de teste', exact: true }).click();

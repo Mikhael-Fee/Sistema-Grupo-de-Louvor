@@ -4,12 +4,10 @@ import { validatePerson, validateService, validateSong, validateTag } from '../l
 import type { MinistryData, Person, Profile, Service, Song, Tag } from '../types';
 
 const EMPTY: MinistryData = { songs: [], tags: [], people: [], services: [] };
-const PUBLIC_SESSION = 'candeia.public.session';
-const PUBLIC_PROFILE: Profile = { id: 'public-reader', name: 'Visitante', role: 'musician', approved: true };
 interface MinistryContextValue {
   data: MinistryData; profile: Profile | null; mode: 'supabase' | 'public'; loading: boolean;
   busy: boolean; error: string | null; canEditLibrary: boolean; canPlan: boolean;
-  enterPublic(): Promise<void>; signOut(): Promise<void>; refresh(): Promise<void>;
+  signOut(): Promise<void>; refresh(): Promise<void>;
   saveSong(song: Song): Promise<void>; deleteSong(id: string): Promise<void>;
   savePerson(person: Person, photoChange?: Blob | null): Promise<void>; deletePerson(id: string): Promise<void>;
   saveTag(tag: Tag): Promise<void>; deleteTag(id: string): Promise<void>;
@@ -23,8 +21,8 @@ const check = (message: string | null) => { if (message) throw new Error(message
 export function MinistryProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<MinistryData>(EMPTY);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [mode, setMode] = useState<'supabase' | 'public'>('supabase');
-  const modeRef = useRef<'supabase' | 'public'>('supabase');
+  // Keep the existing account draft namespace; access now always requires Auth.
+  const mode = 'supabase';
   const sessionUser = useRef<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -44,41 +42,22 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
     } catch (e) { if (seq === sequence.current) { if (blocking) { setProfile(null); setData(EMPTY); } setError(e instanceof Error ? e.message : 'Não foi possível carregar o ministério.'); } }
     finally { if (seq === sequence.current) setLoading(false); }
   }, []);
-  const enterPublic = useCallback(async () => {
-    const seq = ++sequence.current;
-    modeRef.current = 'public'; sessionUser.current = undefined;
-    setLoading(true); setError(null);
-    try {
-      const nextData = await repository.loadPublicData();
-      if (seq !== sequence.current) return;
-      try { sessionStorage.setItem(PUBLIC_SESSION, '1'); } catch { /* In-memory view still works. */ }
-      modeRef.current = 'public'; setMode('public'); setProfile(PUBLIC_PROFILE); setData(nextData);
-    } catch (e) {
-      if (seq === sequence.current) {
-        try { sessionStorage.removeItem(PUBLIC_SESSION); } catch { /* Storage can be unavailable. */ }
-        modeRef.current = 'supabase'; setMode('supabase'); setProfile(null); setData(EMPTY);
-        setError(e instanceof Error ? e.message : 'A consulta pública não está disponível agora.');
-      }
-      throw e;
-    } finally { if (seq === sequence.current) setLoading(false); }
-  }, []);
   useEffect(() => {
-    let publicSession = false;
     try {
-      publicSession = sessionStorage.getItem(PUBLIC_SESSION) === '1';
+      // Discard old guest sessions without touching authenticated sessions or drafts.
+      sessionStorage.removeItem('candeia.public.session');
       sessionStorage.removeItem('louvor.demo.session');
       localStorage.removeItem('louvor.demo.v1');
     } catch { /* Browser storage may be disabled. */ }
-    if (publicSession) void enterPublic().catch(() => {});
     if (!supabase) { setLoading(false); return; }
     let active = true;
     void supabase.auth.getSession().then(({ data: session, error: authError }) => {
       if (!active) return;
-      if (authError && modeRef.current === 'supabase') { setError(authError.message); setLoading(false); }
-      else if (!publicSession && modeRef.current === 'supabase') void loadUser(session.session?.user.id);
+      if (authError) { setError(authError.message); setLoading(false); }
+      else void loadUser(session.session?.user.id);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!active || modeRef.current !== 'supabase') return;
+      if (!active) return;
       const userId = session?.user.id;
       // Supabase repeats SIGNED_IN on tab focus and TOKEN_REFRESHED regularly.
       // Reloading with a blocking spinner would unmount every open editor.
@@ -87,15 +66,15 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
         sequence.current++; sessionUser.current = undefined; setProfile(null); setData(EMPTY); setLoading(false); return;
       }
       setTimeout(() => {
-        if (!active || modeRef.current !== 'supabase') return;
+        if (!active) return;
         if (userId === sessionUser.current && ['SIGNED_IN', 'TOKEN_REFRESHED', 'INITIAL_SESSION'].includes(event)) return;
         void loadUser(userId, userId !== sessionUser.current);
       }, 0);
     });
     return () => { active = false; listener.subscription.unsubscribe(); sequence.current++; };
-  }, [loadUser, enterPublic]);
+  }, [loadUser]);
   const authorize = (kind: 'library' | 'plan' | 'admin') => {
-    if (mode === 'public' || !profile?.approved || (kind === 'plan' ? !['admin', 'leader'].includes(profile.role) : profile.role !== 'admin')) throw new Error('Seu perfil não tem permissão para esta ação.');
+    if (!profile?.approved || (kind === 'plan' ? !['admin', 'leader'].includes(profile.role) : profile.role !== 'admin')) throw new Error('Seu perfil não tem permissão para esta ação.');
   };
   const mutate = async (kind: 'library' | 'plan' | 'admin', remote: () => Promise<void>) => {
     authorize(kind);
@@ -105,7 +84,7 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
     try {
       await remote();
       const nextData = await repository.loadData();
-      if (modeRef.current === 'supabase' && sessionUser.current === actor) setData(nextData);
+      if (sessionUser.current === actor) setData(nextData);
     } catch (e) { throw e instanceof Error ? e : new Error('Não foi possível salvar.'); }
     finally { lock.current = false; setBusy(false); }
   };
@@ -117,22 +96,17 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
     data, profile, mode, loading, busy, error,
     canEditLibrary: Boolean(profile?.approved && profile.role === 'admin'),
     canPlan: Boolean(profile?.approved && ['admin', 'leader'].includes(profile.role)),
-    enterPublic,
     async signOut() {
-      if (mode === 'supabase' && supabase) { const { error: e } = await supabase.auth.signOut(); if (e) throw e; }
+      if (supabase) { const { error: e } = await supabase.auth.signOut(); if (e) throw e; }
       try {
-        sessionStorage.removeItem(PUBLIC_SESSION);
+        sessionStorage.removeItem('candeia.public.session');
         const prefix = `candeia.draft.v1:${mode}:${profile?.id || 'guest'}:`;
         for (const key of Object.keys(sessionStorage)) if (key.startsWith(prefix)) sessionStorage.removeItem(key);
       } catch { /* Logging out does not depend on browser storage. */ }
-      sequence.current++; sessionUser.current = undefined; modeRef.current = 'supabase';
-      setProfile(null); setData(EMPTY); setMode('supabase'); setError(null); setLoading(false);
-      if (mode === 'public' && supabase) {
-        const { data: session } = await supabase.auth.getSession();
-        if (session.session) await loadUser(session.session.user.id);
-      }
+      sequence.current++; sessionUser.current = undefined;
+      setProfile(null); setData(EMPTY); setError(null); setLoading(false);
     },
-    async refresh() { if (mode === 'supabase') await loadUser(profile?.id, false); else if (mode === 'public') await enterPublic(); },
+    async refresh() { await loadUser(profile?.id, false); },
     async saveSong(song) {
       check(validateSong(song));
       if (song.tagIds.some(id => !data.tags.some(t => t.id === id))) throw new Error('Uma etiqueta selecionada não existe.');
@@ -184,7 +158,7 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
       await repository.updateProfile(nextProfile); await loadUser(profile?.id, false);
     },
     async updateProfilePhoto(photo) {
-      if (mode !== 'supabase' || !profile || !supabase) throw new Error('Entre na sua conta para alterar a foto.');
+      if (!profile?.approved || !supabase) throw new Error('Entre na sua conta para alterar a foto.');
       if (lock.current) throw new Error('Aguarde a alteração em andamento.');
       const actor = profile.id;
       const previous = profile.photoUrl;
@@ -198,7 +172,7 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
           if (uploaded) await repository.deleteAvatar(uploaded).catch(() => {});
           throw e;
         }
-        if (modeRef.current === 'supabase' && sessionUser.current === actor) {
+        if (sessionUser.current === actor) {
           setProfile(current => current?.id === actor ? { ...current, photoUrl: nextUrl || undefined } : current);
           if (profile.approved && profile.personId) {
             setData(current => ({ ...current, people: current.people.map(person => person.id === profile.personId

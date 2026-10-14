@@ -1,6 +1,59 @@
-# Validação da atualização Candeia — 08/10/2026
+# Validação da atualização Candeia — 14/10/2026
 
-## Versão atual — fotos e observações no início
+## Versão atual — calendário, eventos, etiquetas, vídeos e acesso aprovado
+
+Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app), com deploy de produção `6acfb79bdbdd1aa89fbe41af` confirmado `ready`. A migração `006_calendar_videos_private_access.sql` foi aplicada no Supabase existente e reinspecionada como idempotente. O draft Netlify `6acfb669eeafbadd07540184` e o domínio de produção concluíram separadamente 184 verificações de acesso privado. A checagem final percorreu 24 rotas em desktop e 320 px, sem dados do ministério na interface/API anônima e sem escrita.
+
+**Cultos** abre o calendário mensal, com alternativa **Cards**, meses/Hoje e filtros Próximos/Anteriores/Todos. Dias ocupados abrem o encontro ou permitem escolher entre cultos do mesmo dia; administradores criam pelo dia livre com data preenchida. **É um evento** usa destaque próprio, sem alterar escala/repertório. Dias ocupados fora dos filtros permanecem identificados. O card da etiqueta abre suas músicas na biblioteca filtrada; a importação fecha resultados/prévia e mantém o texto editável.
+
+O editor oferece sugestões YouTube após importar ou por **Sugerir vídeos**, com seleção explícita. Cada item do repertório pode indicar a versão do culto com capa/link, usando o vídeo da biblioteca quando não houver uma versão própria. A busca exige sessão válida e aprovação conferidas no servidor. Sem chave opcional da YouTube Data API, depende dos metadados públicos da busca; indisponibilidade mantém o link de busca externa e a colagem do vídeo. A capa abre o YouTube, sem reprodução automática no site.
+
+As telas do ministério exigem login e aprovação. `/consulta` redireciona para o início/login; a 006 fecha a flag e os RPCs públicos antigos também para instalações anteriores. Cadastro, confirmação, recuperação, perfis e rascunhos autenticados continuam. A barra visível da sidebar foi ocultada preservando rolagem e teclado; favicon e ícones 192/512/maskable/Apple usam o contorno Lucide Flame da marca.
+
+| Verificação desta atualização | Resultado registrado |
+| --- | --- |
+| Vitest | 243 testes passaram em 19 arquivos |
+| PostgreSQL/PGlite | 383 verificações passaram: 111 de domínio/RLS, 55 do contrato histórico da 002, 82 de fotos/Storage, 32 de fotos vinculadas e 103 da 006; Auth/Storage simulados |
+| TypeScript e build Vite/PWA | Passaram; 1.694 módulos e 51 entradas de precache, 1.000,24 KiB; PDF/worker continuam sob demanda |
+| Playwright | 108 cenários distintos aprovados no conjunto: 107 passaram na rodada de 9,1 min e o último passou na reexecução específica de 7,7 s; sem casos pulados, sem uma rodada única 108/108 |
+| Migração 006 no Supabase real | Aplicada; reinspeção confirmou `schema_changed: false`, acesso público fechado, RLS e leitura aprovada de fotos preservados |
+| Preservação antes/depois da 006 | Quantidades e hashes das colunas antigas iguais; contas e objetos de avatar existentes preservados, conforme tabela abaixo |
+| Supabase/Auth/browser no domínio publicado | 61 verificações passaram, incluindo papéis aprovados, calendário/evento/cards, filtro por etiqueta, versão de vídeo no culto e limpeza das fixtures |
+| YouTube no domínio publicado | 17 verificações passaram; busca real **Me Atraiu** retornou HTTP 200 com seis opções; sem sessão 401, conta pendente 403; conta temporária removida |
+| Draft Netlify privado | 184 verificações passaram no deploy `6acfb669eeafbadd07540184` |
+| Checagem final privada em produção | 184 verificações passaram: 24 rotas em desktop/320 px, ausência de dados anônimos na interface/API, zero escrita, RPC público rejeitado com 42501, YouTube sem sessão 401, hashes dos ícones/manifest e shell offline |
+| Runtime Netlify | Duas variáveis públicas VITE_SUPABASE configuradas e reinspecionadas para build/funções; nenhum token administrativo publicado |
+| Revisão de artefato | Varredura desta rodada cobriu 217 arquivos sem credenciais privadas; incluiu os novos helpers e os arquivos de documentação existentes |
+| Configuração reutilizável Codex | `start_skill` de 18 passos salvo com `requires_publish: true`; instalação, rede e bindings existentes preservados; publicação futura pelo produto não executada |
+| Publicação Netlify | Deploy de produção `6acfb79bdbdd1aa89fbe41af` confirmado `ready`, no mesmo site/domínio existente |
+
+A comparação real da 006 foi feita sobre valores preexistentes, além das quantidades. Não houve reinstalação da 001, criação de exemplos, redefinição de senha ou troca de imagens/vínculos do proprietário. Novos campos têm padrão não evento/vídeo vazio; `save_service` preserva valores novos quando um cliente antigo os omite. A flag de consulta pública foi fechada conforme a mudança solicitada.
+
+| Registros/objetos existentes | Antes da 006 | Depois da 006 |
+| --- | ---: | ---: |
+| Músicas | 50 | 50 |
+| Pessoas | 17 | 17 |
+| Cultos | 3 | 3 |
+| Perfis | 4 | 4 |
+| Etiquetas | 8 | 8 |
+| Vínculos música/etiqueta | 163 | 163 |
+| Itens de repertório | 14 | 14 |
+| Atribuições de escala | 24 | 24 |
+| Contas Auth | 4 | 4 |
+| Objetos de avatar | 19 | 19 |
+
+A única falha da rodada completa do Playwright estava na asserção de uma fixture antiga que omitia `youtubeUrl`; o adapter vigente retorna esse campo opcional vazio normalizado. A expectativa passou a conferir esse valor sem retirar o teste de preservação, e o cenário reexecutado passou. Isso aprova os 108 cenários no conjunto de execuções, não em uma rodada única. O roteiro real Supabase concluiu 61 verificações com limpeza após atualizar a asserção da biblioteca vigente; uma execução anterior tinha parado após 36 verificações por esperar a indicação antiga **Original: C** na linha da música.
+
+A checagem privada final manteve a regressão da chave antiga de visitante: a preparação do teste foi limitada à janela principal e a asserção aguarda a limpeza da chave, evitando que subframes reintroduzam a fixture. A rodada final de 184 verificações passou sem alterar o comportamento da aplicação nem remover a asserção de login obrigatório.
+
+A configuração reutilizável Codex foi salva como rascunho de 18 passos, separada do deploy Netlify confirmado. `requires_publish: true` ainda exige publicação futura pelo produto; não foi executada nem validada uma restauração completa de um novo ambiente. A instalação e as configurações anteriores de rede/autenticação foram preservadas, sem segredos nas instruções.
+
+As credenciais renovadas foram usadas somente em memória/entrada do processo; não foram persistidas em arquivos, artefatos ou instruções de setup. Os resultados antigos de upload/fotos abaixo permanecem históricos: `verify-profile-photos.mjs` não foi executado nesta rodada. Os testes de PGlite do contrato histórico público não significam que a consulta anônima continua liberada depois da 006.
+
+Limites: viewport móvel no Chromium não valida aparelhos Android/iOS físicos nem menus de impressão ou instalação nativos. A leitura direta de cifras no servidor continua sujeita ao HTTP 403, sem mudança desta rodada. A busca YouTube real funcionou nesta execução, mas o acesso/formato da fonte pode mudar; a alternativa externa permanece. Nenhuma medição nova da RAM total do Chrome ou validação de restauração completa do ambiente é inferida por esses resultados.
+
+
+## Versão anterior — fotos e observações no início (08/10/2026)
 
 Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app) com deploy `6ac8002de7f6373d83519a86`, confirmado pronto no Netlify. A verificação do domínio publicado concluiu 48 checks, incluindo uma observação real do repertório do próximo culto.
 

@@ -1,12 +1,14 @@
-import { useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, CalendarDays, Clock3, Copy, Music2, Pencil, Plus, Search, Users, X } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, Clock3, Copy, LayoutGrid, Music2, Pencil, Plus, Search, Sparkles, Users, X } from 'lucide-react';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
 import ProfileAvatar from '../components/ProfileAvatar';
+import ServicesCalendar from '../components/ServicesCalendar';
 import { useMinistry } from '../context/MinistryContext';
 import { useDraft } from '../hooks/useDraft';
 import { validateService } from '../lib/validation';
 import { getPersonPhoto } from '../lib/avatars';
+import { ministryToday } from '../lib/service-calendar';
 import { SERVICE_TYPES, type Assignment, type Person, type Service, type SetlistItem, type Song } from '../types';
 import './services.css';
 
@@ -14,13 +16,8 @@ export function formatServiceDate(date: string, options: Intl.DateTimeFormatOpti
   return new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', options);
 }
 
-function today() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-export function newService(): Service {
-  return { id: crypto.randomUUID(), date: today(), time: '19:00', type: SERVICE_TYPES[0], notes: '', assignments: [], repertoire: [] };
+export function newService(date = ministryToday()): Service {
+  return { id: crypto.randomUUID(), date, time: '19:00', type: SERVICE_TYPES[0], notes: '', isEvent: false, assignments: [], repertoire: [] };
 }
 
 function serviceTypeSuggestions(services: Service[], currentType = ''): string[] {
@@ -145,10 +142,14 @@ export function TeamPicker({ service, people, value, onChange, disabled, editExi
   </div>;
 }
 
-export function ServiceForm({ initial, onSave, onCancel, busy }: { initial: Service; onSave: (service: Service) => Promise<void>; onCancel: () => void; busy: boolean }) {
+export function ServiceForm({ initial, onSave, onCancel, busy, datePrefill }: { initial: Service; onSave: (service: Service) => Promise<void>; onCancel: () => void; busy: boolean; datePrefill?: string }) {
   const { data } = useMinistry();
   const existing = data.services.some(service => service.id === initial.id);
   const { draft: editor, setDraft: setEditor, discardDraft, hasDraft } = useDraft<ServiceEditorDraft>(`service:${existing ? initial.id : 'new'}`, { service: initial, team: teamPickerFromAssignments(initial.assignments), showTeamPicker: false });
+  // A calendar date wins over an older new-service draft; its other fields remain intact.
+  useEffect(() => {
+    if (datePrefill && !existing) setEditor(current => ({ ...current, service: { ...current.service, date: datePrefill } }));
+  }, [datePrefill, existing, setEditor]);
   const draft = editor.service;
   const setDraft = (service: Service) => setEditor(current => ({ ...current, service }));
   const [error, setError] = useState<string | null>(null);
@@ -173,7 +174,7 @@ export function ServiceForm({ initial, onSave, onCancel, busy }: { initial: Serv
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (lock.current || busy) return;
-    const cleaned = { ...draft, assignments: activeAssignments, repertoire: editor.showRepertoirePicker ? [...draft.repertoire, ...selectedRepertoireItems(selectedSongs, draft, data.songs)] : draft.repertoire, type: draft.type.trim(), notes: draft.notes.trim() };
+    const cleaned = { ...draft, isEvent: draft.isEvent === true, assignments: activeAssignments, repertoire: editor.showRepertoirePicker ? [...draft.repertoire, ...selectedRepertoireItems(selectedSongs, draft, data.songs)] : draft.repertoire, type: draft.type.trim(), notes: draft.notes.trim() };
     const validationError = validateService(cleaned, data);
     if (validationError) { setError(validationError); return; }
     lock.current = true;
@@ -189,6 +190,7 @@ export function ServiceForm({ initial, onSave, onCancel, busy }: { initial: Serv
       <label className="field"><span>Data</span><input type="date" required value={draft.date} onChange={e => setDraft({ ...draft, date: e.target.value })} /></label>
       <label className="field"><span>Horário</span><input type="time" required value={draft.time} onChange={e => setDraft({ ...draft, time: e.target.value })} /></label>
       <label className="field service-form-full"><span>Tipo de culto</span><input aria-label="Tipo de culto" aria-describedby={typeHintId} list={typeSuggestionsId} required maxLength={100} value={draft.type} placeholder="Ex.: Santa Ceia ou Culto de Louvor" disabled={busy || saving} onChange={e => setDraft({ ...draft, type: e.target.value })} /><datalist id={typeSuggestionsId}>{types.map(type => <option key={type} value={type} />)}</datalist><small id={typeHintId}>Escolha uma sugestão ou escreva a temática do culto. O nome salvo ficará disponível nos próximos cultos.</small></label>
+      <label className="service-event-checkbox service-form-full"><input type="checkbox" checked={draft.isEvent === true} disabled={busy || saving} onChange={e => setDraft({ ...draft, isEvent: e.target.checked })} /><span><strong>É um evento</strong><small>Destaca este encontro no calendário.</small></span><Sparkles size={18} aria-hidden="true" /></label>
       <label className="field service-form-full"><span>Observações <span className="muted">(opcional)</span></span><textarea rows={4} placeholder="Orientações para a equipe, tema ou detalhes do culto…" value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} /></label>
     </div>
     <fieldset className="service-editor-team"><legend>Escala do culto <span className="badge">{activeAssignments.length}</span></legend><p className="muted">Monte a equipe agora. A escala será salva junto com o culto.</p>
@@ -215,11 +217,15 @@ export function ServiceForm({ initial, onSave, onCancel, busy }: { initial: Serv
 }
 
 export default function ServicesPage() {
-  const { data, canPlan, busy, error, saveService } = useMinistry();
-  const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming');
+  const { data, profile, canPlan, busy, error, saveService } = useMinistry();
+  const [view, setView] = useState<'calendar' | 'cards'>('calendar');
+  const [month, setMonth] = useState(() => ministryToday().slice(0, 7));
+  const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('all');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [editing, setEditing] = useState<Service | null>(null);
+  const [datePrefill, setDatePrefill] = useState<string | undefined>();
+  function createService(date?: string) { setDatePrefill(date); setEditing(newService(date)); }
   const now = Date.now();
   const isUpcoming = (service: Service) => new Date(`${service.date}T${service.time || '00:00'}`).getTime() >= now;
   const upcoming = data.services.filter(isUpcoming);
@@ -232,15 +238,16 @@ export default function ServicesPage() {
   ).sort((a, b) => filter === 'past' ? `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`) : `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
   const types = serviceTypeSuggestions(data.services);
   return <>
-    <PageHeader eyebrow="PLANEJAMENTO" title="Cultos" description="Cada encontro, preparado com propósito." action={canPlan && <button className="button button-primary" onClick={() => setEditing(newService())} disabled={busy}><Plus size={18} /> Novo culto</button>} />
+    <PageHeader eyebrow="PLANEJAMENTO" title="Cultos" description="Cada encontro, preparado com propósito." action={canPlan && <button className="button button-primary" onClick={() => createService()} disabled={busy}><Plus size={18} /> Novo culto</button>} />
     <FormError error={error} />
     <div className="services-summary"><div><span className="services-summary-icon"><CalendarDays size={20} /></span><p><strong>{upcoming.length}</strong><span>Cultos a caminho</span></p></div><div><span className="services-summary-icon"><Users size={20} /></span><p><strong>{new Set(upcoming.flatMap(service => service.assignments.map(item => item.personId))).size}</strong><span>Pessoas escaladas</span></p></div><div><span className="services-summary-icon"><Music2 size={20} /></span><p><strong>{upcoming.reduce((count, service) => count + service.repertoire.length, 0)}</strong><span>Músicas no repertório</span></p></div></div>
     <div className="toolbar services-toolbar"><div className="chips" aria-label="Período dos cultos">{([{ value: 'upcoming', label: `Próximos (${upcoming.length})` }, { value: 'past', label: `Anteriores (${past.length})` }, { value: 'all', label: 'Todos' }] as const).map(item => <button key={item.value} className={`chip ${filter === item.value ? 'active' : ''}`} aria-pressed={filter === item.value} onClick={() => setFilter(item.value)}>{item.label}</button>)}</div><div className="services-filters"><label className="services-search"><Search size={18} /><input aria-label="Buscar cultos" placeholder="Buscar culto…" value={search} onChange={e => setSearch(e.target.value)} /></label><select aria-label="Filtrar por tipo de culto" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}><option value="">Todos os tipos</option>{types.map(type => <option key={type}>{type}</option>)}</select></div></div>
-    {filtered.length ? <div className="services-list">{filtered.map(service => <article className="card services-card" key={service.id}>
+    <div className="services-view-switch" aria-label="Visualização dos cultos"><button type="button" className={`button ${view === 'calendar' ? 'button-primary' : 'button-secondary'}`} aria-pressed={view === 'calendar'} onClick={() => setView('calendar')}><CalendarDays size={17} /> Calendário</button><button type="button" className={`button ${view === 'cards' ? 'button-primary' : 'button-secondary'}`} aria-pressed={view === 'cards'} onClick={() => setView('cards')}><LayoutGrid size={17} /> Cards</button></div>
+    {view === 'calendar' ? <ServicesCalendar month={month} onMonthChange={setMonth} services={data.services} visibleServices={filtered} canCreate={profile?.approved === true && profile.role === 'admin'} busy={busy} onCreate={createService} /> : filtered.length ? <div className="services-list">{filtered.map(service => <article className="card services-card" key={service.id}>
       <div className="services-date" aria-label={formatServiceDate(service.date)}><span>{formatServiceDate(service.date, { month: 'short' }).replace('.', '')}</span><strong>{service.date.slice(8, 10)}</strong><span>{formatServiceDate(service.date, { weekday: 'short' }).replace('.', '')}</span></div>
-      <div className="services-card-content"><div className="services-card-title"><Link to={`/cultos/${service.id}`}><h2>{service.type}</h2></Link><span className={`badge ${isUpcoming(service) ? 'service-badge-upcoming' : ''}`}>{isUpcoming(service) ? 'Programado' : 'Realizado'}</span></div><div className="services-meta"><span><Clock3 size={15} /> {service.time}</span><span><Users size={15} /> {service.assignments.length} na equipe</span><span><Music2 size={15} /> {service.repertoire.length} músicas</span></div>{service.notes && <p className="services-note">{service.notes}</p>}</div>
-      <div className="services-card-actions">{canPlan && <button className="icon-button" title="Editar culto" aria-label={`Editar ${service.type} de ${formatServiceDate(service.date)}`} onClick={() => setEditing(service)} disabled={busy}><Pencil size={17} /></button>}<Link className="button button-secondary" to={`/cultos/${service.id}`}>Ver culto <ArrowUpRight size={16} /></Link></div>
-    </article>)}</div> : <EmptyState title={query || typeFilter ? 'Nenhum culto encontrado' : filter === 'past' ? 'Ainda não há cultos anteriores' : 'Um novo encontro começa aqui'} description={query || typeFilter ? 'Experimente outro termo ou altere os filtros.' : filter === 'past' ? 'Os cultos realizados aparecerão nesta lista.' : 'Prepare a equipe e o repertório do próximo culto.'} action={canPlan && !query && !typeFilter && <button className="button button-primary" onClick={() => setEditing(newService())} disabled={busy}><Plus size={18} /> Criar culto</button>} />}
-    {editing && <Modal wide title={data.services.some(service => service.id === editing.id) ? 'Editar culto' : 'Novo culto'} onClose={() => { if (!busy) setEditing(null); }}><ServiceForm initial={editing} busy={busy} onCancel={() => setEditing(null)} onSave={async service => { await saveService(service); setEditing(null); }} /></Modal>}
+      <div className="services-card-content"><div className="services-card-title"><Link to={`/cultos/${service.id}`}><h2>{service.type}</h2></Link><span className={`badge ${isUpcoming(service) ? 'service-badge-upcoming' : ''}`}>{isUpcoming(service) ? 'Programado' : 'Realizado'}</span>{service.isEvent && <span className="badge service-event-badge"><Sparkles size={12} /> Evento</span>}</div><div className="services-meta"><span><Clock3 size={15} /> {service.time}</span><span><Users size={15} /> {service.assignments.length} na equipe</span><span><Music2 size={15} /> {service.repertoire.length} músicas</span></div>{service.notes && <p className="services-note">{service.notes}</p>}</div>
+      <div className="services-card-actions">{canPlan && <button className="icon-button" title="Editar culto" aria-label={`Editar ${service.type} de ${formatServiceDate(service.date)}`} onClick={() => { setDatePrefill(undefined); setEditing(service); }} disabled={busy}><Pencil size={17} /></button>}<Link className="button button-secondary" to={`/cultos/${service.id}`}>Ver culto <ArrowUpRight size={16} /></Link></div>
+    </article>)}</div> : <EmptyState title={query || typeFilter ? 'Nenhum culto encontrado' : filter === 'past' ? 'Ainda não há cultos anteriores' : 'Um novo encontro começa aqui'} description={query || typeFilter ? 'Experimente outro termo ou altere os filtros.' : filter === 'past' ? 'Os cultos realizados aparecerão nesta lista.' : 'Prepare a equipe e o repertório do próximo culto.'} action={canPlan && !query && !typeFilter && <button className="button button-primary" onClick={() => createService()} disabled={busy}><Plus size={18} /> Criar culto</button>} />}
+    {editing && <Modal wide title={data.services.some(service => service.id === editing.id) ? 'Editar culto' : 'Novo culto'} onClose={() => { if (!busy) setEditing(null); }}><ServiceForm initial={editing} datePrefill={datePrefill} busy={busy} onCancel={() => setEditing(null)} onSave={async service => { await saveService(service); setEditing(null); }} /></Modal>}
   </>;
 }

@@ -30,7 +30,7 @@ function MobileImporter() {
     </ol>
     <Link className="button button-primary cifra-pdf-guide-link" to="/musicas"><FileText size={17} />Abrir biblioteca para importar</Link>
     <p>Use um PDF com texto selecionável, de até 8 MB. Fotos e PDFs digitalizados não podem ser lidos por esta opção. A leitura acontece no seu navegador.</p>
-    <p>A cifra precisa abrir normalmente no Cifra Club para você salvá-la. Uma conta administradora pode importar e salvar; consultar músicas e trocar o tom continua disponível sem cadastro.</p>
+    <p>A cifra precisa abrir normalmente no Cifra Club para você salvá-la. Uma conta administradora pode importar e salvar; as contas aprovadas podem consultar músicas e trocar o tom.</p>
   </section>;
 }
 

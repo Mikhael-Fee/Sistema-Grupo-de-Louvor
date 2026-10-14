@@ -210,12 +210,18 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
     } finally { await h.dispose(); }
   });
 
-  for (const role of ['guest', 'musician'] as const) test(`${role} pode consultar transferência sem conseguir salvar`, async () => {
+  for (const role of ['guest', 'musician'] as const) test(`${role} precisa de aprovação para consultar e de administração para salvar`, async () => {
     const h = await harness(role === 'guest' ? 'admin' : role);
     try {
       if (role === 'musician') await h.mock.login();
       await h.page.goto(transfer());
-      if (role === 'guest') await h.page.getByRole('button', { name: 'Entrar sem cadastro', exact: true }).click();
+      if (role === 'guest') {
+        await expect(h.page.getByRole('button', { name: 'Entrar no ministério', exact: true })).toBeVisible();
+        await expect(h.page.getByRole('button', { name: 'Entrar sem cadastro', exact: true })).toHaveCount(0);
+        await expect(h.page.getByRole('button', { name: 'Revisar e salvar na biblioteca', exact: true })).toHaveCount(0);
+        expect(writes(h.mock)).toHaveLength(0);
+        return;
+      }
       await pending(h.page);
       await expect(h.page.getByRole('button', { name: 'Revisar e salvar na biblioteca', exact: true })).toHaveCount(0);
       await expect(h.page.getByRole('button', { name: 'Salvar música', exact: true })).toHaveCount(0);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Check, Download, ExternalLink, ListFilter, LoaderCircle, Music2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
 import CifraPdfPicker from '../components/CifraPdfPicker';
@@ -12,6 +12,7 @@ import { contentInChurchKey, hasWrittenChords, resolveSourceTonality, songInChur
 import { useDraft } from '../hooks/useDraft';
 import { cifraBrowserStatus, readCifraFromBrowser } from '../lib/cifra-browser';
 import { cifraClubUrlFromNotes, notesWithCifraClubSource, previewSongSource, searchUnifiedSongSources, sourceKey, type SongSearchResult } from '../lib/song-search';
+import { buildYouTubeSearchUrl, getYouTubeVideoId, normalizeYouTubeUrl, searchYouTubeVideos, youtubeThumbnailUrl, type YouTubeSuggestion } from '../lib/youtube';
 import type { Song } from '../types';
 import './songs.css';
 
@@ -61,6 +62,11 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
   const [useSourceMetadata, setUseSourceMetadata] = useState(Boolean(incomingSource));
   const [sourceConfirmReplace, setSourceConfirmReplace] = useState(false);
   const sourceRequest = useRef<AbortController | null>(null);
+  const videoRequest = useRef<AbortController | null>(null);
+  const [videoResults, setVideoResults] = useState<YouTubeSuggestion[]>([]);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [videoSearching, setVideoSearching] = useState(false);
+  const [videoSearched, setVideoSearched] = useState(false);
   const [browserConnected, setBrowserConnected] = useState(false);
   const [browserOutdated, setBrowserOutdated] = useState(false);
   useEffect(() => {
@@ -69,6 +75,10 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
     return () => controller.abort();
   }, []);
   useEffect(() => () => sourceRequest.current?.abort(), []);
+  useEffect(() => () => videoRequest.current?.abort(), []);
+  useEffect(() => {
+    videoRequest.current?.abort(); setVideoSearching(false); setVideoResults([]); setVideoError(null); setVideoSearched(false);
+  }, [draft.title, draft.artist]);
   // Older tab drafts still use a separate base key. Rebase once, preserving their actual chords.
   useEffect(() => {
     if (draft.originalKey !== draft.churchKey) setDraft(current => songInChurchKey(current));
@@ -172,11 +182,26 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
 
   function importPreview() {
     if (!preview?.content) return;
-    try { setDraft(current => draftFromPreview(current)); }
+    try { setDraft(draftFromPreview(draft)); }
     catch (cause) { setSourceError(cause instanceof Error ? cause.message : 'Confira o tom da fonte.'); return; }
     setPastedSource({ unknown: false, reason: '' });
-    setPreview(null); setImported(true); setSourceError(null); setSourceConfirmReplace(false);
+    closeSourceSearch(); setImported(true); setSourceError(null);
   }
+
+  async function searchVideos() {
+    videoRequest.current?.abort();
+    const controller = new AbortController(); videoRequest.current = controller;
+    setVideoSearching(true); setVideoSearched(false); setVideoError(null); setVideoResults([]);
+    try {
+      const response = await searchYouTubeVideos(draft.title, draft.artist, controller.signal);
+      if (!controller.signal.aborted) { setVideoResults(response.results); setVideoError(response.warning || null); setVideoSearched(true); }
+    } catch (cause) { if (!controller.signal.aborted) setVideoError(cause instanceof Error ? cause.message : 'Não foi possível buscar vídeos.'); }
+    finally { if (!controller.signal.aborted) setVideoSearching(false); }
+  }
+  useEffect(() => {
+    // One suggestion request after an explicit import; typing never starts a search.
+    if (imported && draft.title.trim().length >= 2) void searchVideos();
+  }, [imported]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -190,7 +215,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
       }
       candidate = prepareContent(candidate);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Confira o tom da cifra.'); return; }
-    const cleaned = { ...candidate, title: candidate.title.trim(), artist: candidate.artist.trim(), youtubeUrl: candidate.youtubeUrl.trim(), notes: notesWithCifraClubSource(candidate.notes, cifraClubUrlFromNotes(candidate.notes)) };
+    const cleaned = { ...candidate, title: candidate.title.trim(), artist: candidate.artist.trim(), youtubeUrl: normalizeYouTubeUrl(candidate.youtubeUrl) || candidate.youtubeUrl.trim(), notes: notesWithCifraClubSource(candidate.notes, cifraClubUrlFromNotes(candidate.notes)) };
     const invalid = validateSong(cleaned);
     if (invalid) { setError(invalid); return; }
     setError(null);
@@ -237,8 +262,8 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
             <button type="button" className="button button-primary" disabled={sourceConfirmReplace || (previewNeedsKey && !previewWrittenKey)} onClick={() => draft.content.trim() ? setSourceConfirmReplace(true) : importPreview()}><Download size={15} />{preview.kind === 'chords' ? 'Importar cifra e letra' : 'Importar letra sem acordes'}</button>
             {sourceConfirmReplace && <div className="songs-cifra-replace" role="group" aria-label="Confirmar substituição do conteúdo importado"><p>Substituir a letra e cifra atuais pela versão selecionada?{preview.kind === 'lyrics' && ' Esta versão não contém acordes.'}</p><div><button type="button" className="button button-primary" disabled={previewNeedsKey && !previewWrittenKey} onClick={importPreview}>Substituir letra e cifra</button><button type="button" className="button button-secondary" onClick={() => setSourceConfirmReplace(false)}>Manter conteúdo atual</button></div></div>}
           </div>}
-          {imported && <p className="songs-source-success" role="status"><Check size={15} />Conteúdo importado no rascunho. A visualização “Letra” oculta os acordes da mesma cifra. Revise os campos e salve a música.</p>}
         </div>}
+        {imported && <p className="songs-source-success songs-import-complete" role="status"><Check size={15} />Conteúdo importado no rascunho. Você pode editar a cifra abaixo e buscar o vídeo da versão escolhida.</p>}
       </section>
       <label className="field">Letra e cifra<textarea className="songs-content-input" required rows={9} maxLength={100000} value={draft.content} onChange={e => { change('content', e.target.value); setError(null); if (!e.target.value.trim()) setPastedSource({ unknown: false, reason: '' }); }} onBlur={() => formatEditedContent()} onPaste={event => {
         const text = event.clipboardData.getData('text/plain');
@@ -271,7 +296,15 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
         <button type="button" className="button button-secondary" disabled={!repairWrittenKey || repairApplied} onClick={() => { setDraft(current => ({ ...current, content: contentInChurchKey(current.content, repairWrittenKey, current.churchKey), originalKey: current.churchKey })); setRepairApplied(true); }}>Aplicar correção do tom</button>
         {repairApplied && <p role="status" className="songs-source-success">Acordes corrigidos no rascunho. Confira e salve a música.</p>}
       </details>}
-      <label className="field">Vídeo no YouTube <span className="songs-optional">opcional</span><input type="url" value={draft.youtubeUrl} onChange={e => change('youtubeUrl', e.target.value)} placeholder="https://www.youtube.com/watch?v=..." /></label>
+      <section className="songs-youtube" aria-label="Vídeo da música no YouTube">
+        <label className="field">Vídeo no YouTube <span className="songs-optional">opcional</span><input type="url" value={draft.youtubeUrl} onChange={e => change('youtubeUrl', e.target.value)} placeholder="https://www.youtube.com/watch?v=..." /></label>
+        <div className="songs-video-search-actions"><button type="button" className="button button-secondary" disabled={videoSearching || draft.title.trim().length < 2} onClick={searchVideos}>{videoSearching ? <LoaderCircle className="songs-spinner" size={15} /> : <Search size={15} />}{videoSearching ? 'Buscando vídeos…' : 'Sugerir vídeos'}</button><a className="button button-ghost" href={buildYouTubeSearchUrl(draft.title, draft.artist)} target="_blank" rel="noopener noreferrer">Abrir busca no YouTube<ExternalLink size={13} /></a>{videoSearching && <button type="button" className="button button-ghost" onClick={() => { videoRequest.current?.abort(); setVideoSearching(false); }}>Cancelar busca de vídeos</button>}</div>
+        <p className="songs-field-hint">Busque pelo título e artista e escolha a versão para a biblioteca. Cada culto pode indicar outra versão no repertório.</p>
+        <FormError error={videoError} />
+        {videoSearched && !videoResults.length && !videoError && <p className="songs-field-hint" role="status">Nenhum vídeo encontrado. Abra a busca no YouTube ou ajuste o título e artista.</p>}
+        {videoResults.length > 0 && <ul className="songs-video-results" aria-label="Sugestões de vídeos">{videoResults.map(video => <li key={video.id}><a href={video.url} target="_blank" rel="noopener noreferrer" aria-label={`Assistir ${video.title} no YouTube`}><img src={video.thumbnailUrl} alt="" loading="lazy" decoding="async" /><span><strong>{video.title}</strong><small>{video.channel || 'YouTube'}</small></span></a><button type="button" className={`button ${getYouTubeVideoId(draft.youtubeUrl) === video.id ? 'button-primary' : 'button-secondary'}`} aria-label={`Selecionar vídeo ${video.title}`} aria-pressed={getYouTubeVideoId(draft.youtubeUrl) === video.id} onClick={() => { change('youtubeUrl', video.url); setVideoResults([]); setVideoError(null); setVideoSearched(false); }}><Check size={14} />Selecionar</button></li>)}</ul>}
+        {getYouTubeVideoId(draft.youtubeUrl) && <a className="songs-selected-video" href={normalizeYouTubeUrl(draft.youtubeUrl)!} target="_blank" rel="noopener noreferrer"><img src={youtubeThumbnailUrl(draft.youtubeUrl)!} alt="" loading="lazy" decoding="async" /><span><strong>Vídeo selecionado</strong><small>Assistir à versão no YouTube</small></span><ExternalLink size={16} /></a>}
+      </section>
       <label className="field">Observações gerais <span className="songs-optional">opcional</span><textarea rows={3} value={draft.notes} onChange={e => change('notes', e.target.value)} placeholder="Introdução, dinâmica, andamento ou outras orientações" /></label>
       <fieldset className="songs-tags-field"><legend>Etiquetas</legend>{data.tags.length ? <div className="chips">{data.tags.map(tag => {
         const selected = draft.tagIds.includes(tag.id);
@@ -287,7 +320,12 @@ export default function SongsPage() {
   const { data, canEditLibrary, deleteSong, busy, error } = useMinistry();
   const [query, setQuery] = useState('');
   const [keyFilter, setKeyFilter] = useState('');
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedTags = useMemo(() => searchParams.getAll('etiqueta').filter((id, index, values) => id && values.indexOf(id) === index), [searchParams]);
+  const setSelectedTags = (value: string[] | ((current: string[]) => string[])) => {
+    const tags = typeof value === 'function' ? value(selectedTags) : value;
+    setSearchParams(current => { const next = new URLSearchParams(current); next.delete('etiqueta'); tags.forEach(id => next.append('etiqueta', id)); return next; });
+  };
   const [editor, setEditor] = useState<Song | 'new' | null>(null);
   const [batchImport, setBatchImport] = useState(false);
   const [deleting, setDeleting] = useState<Song | null>(null);

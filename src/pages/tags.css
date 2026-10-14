@@ -1,0 +1,8 @@
+.tags-browse-card{padding:0;gap:0}
+.tags-browse-link{display:flex;align-items:center;gap:15px;flex:1;min-width:0;min-height:108px;padding:22px 23px;border-radius:var(--radius);transition:background .15s}
+.tags-browse-link:hover{background:var(--flame-soft)}
+.tags-browse-link>.tags-dot{width:16px;height:16px;box-shadow:0 0 0 7px #f6f7f1}
+.tags-browse-caption{display:inline-flex;align-items:center;gap:4px;margin-top:8px;color:var(--flame);font-size:11px;font-weight:600}
+.tags-browse-card>.tags-card-actions{padding-right:17px;flex-shrink:0}
+@media(max-width:700px){.tags-browse-card{padding:0}.tags-browse-link{padding:19px;gap:13px}.tags-browse-card>.tags-card-actions{padding-right:13px}.tags-browse-card .icon-button{min-width:40px;min-height:44px}}
+@media(prefers-reduced-motion:reduce){.tags-browse-link{transition:none}}

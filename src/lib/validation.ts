@@ -54,6 +54,7 @@ export function validateService(service: Service, data: MinistryData): string | 
   if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(service.time)) return 'Informe um horário válido no formato HH:MM.';
   if (!service.type.trim()) return 'Informe o tipo de culto.';
   if ([...service.type.trim()].length > 100) return 'O tipo de culto deve ter no máximo 100 caracteres.';
+  if (service.isEvent !== undefined && typeof service.isEvent !== 'boolean') return 'Indique se o culto é um evento.';
   const assignments = new Set<string>();
   for (const assignment of service.assignments) {
     const person = data.people.find((item) => item.id === assignment.personId);
@@ -67,6 +68,8 @@ export function validateService(service: Service, data: MinistryData): string | 
   for (const item of service.repertoire) {
     if (!data.songs.some((song) => song.id === item.songId)) return 'Uma música do repertório não foi encontrada. Atualize a biblioteca.';
     if (!KEYS.includes(item.key)) return 'Selecione um tom válido para cada música do repertório.';
+    const video = item.youtubeUrl?.trim() || '';
+    if (video && (video.length > 2000 || !isSafeYoutubeUrl(video))) return 'Informe uma URL HTTPS de vídeo do YouTube para o repertório ou deixe o campo vazio.';
     if (songs.has(item.songId)) return 'Uma música não pode aparecer duas vezes no mesmo repertório.';
     songs.add(item.songId);
   }
