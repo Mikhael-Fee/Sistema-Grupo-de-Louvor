@@ -113,7 +113,16 @@ Na investigação executada, 40 ciclos produziram memória JavaScript de 4,85 pa
 2. Selecione equipe e várias músicas, salve uma vez e recarregue. Confira temática, ordem e tons; o tipo salvo deve aparecer nas sugestões e no filtro da lista. Editar a temática não deve modificar equipe ou repertório.
 3. Campo vazio, somente espaços ou mais de 100 caracteres deve ser recusado. Valores válidos já existentes devem continuar funcionando. Remova apenas o culto temporário criado para esse teste.
 
+## Atualização do aplicativo em rotas internas
+
+1. Salve edições e recarregue uma vez ao migrar da versão antiga. A partir daí, confira a atualização em `/cultos/ID`, `/perfil` e na página inicial, mantendo o endereço atual.
+2. O aviso de nova versão não oferece adiamento indefinido. Um editor aberto, operação, foto pendente ou formulário de acesso preenchido deve adiar a recarga; concluir ou fechar a edição deve permitir a atualização automática, sem perder rascunhos e sessão.
+3. Voltar o foco sem uma versão nova não deve recarregar nem descartar o trabalho. Teste também a abertura offline do shell; dados compartilhados continuam exigindo conexão.
+4. Para reproduzir a troca real de JavaScript, use `node scripts/verify-pwa-updates.mjs`. O roteiro usa Auth/REST fictícios, builds A/B com hashes diferentes e um 404 de arquivo antigo; não escreve no banco real. O fallback deve manter o atualizador vivo até terminar a operação, recuperando a rota automaticamente.
+
 ## Importação pelo celular
+
+O guia **Celular → Android** também apresenta o teste do importador para Firefox. O pacote precisa estar assinado pela Mozilla antes de aparecer o download de instalação. Enquanto a assinatura estiver pendente, não deve oferecer instalar o XPI de desenvolvimento; o PDF permanece disponível. No aparelho, instale o Firefox, baixe o XPI assinado e siga [a instalação por arquivo documentada pela Mozilla](https://extensionworkshop.com/documentation/publish/install-self-distributed/#install-addon-from-file-android): **Configurações → Sobre o Firefox → tocar cinco vezes no logotipo → voltar às Configurações → Instalar extensão de arquivo**. Abra Candeia e Cifra Club no próprio Firefox e verifique a conexão. O Candeia aberto pelo Chrome ou pela PWA dele não recebe a extensão do Firefox. Teste primeiro uma prévia sem salvar; só depois confira os dados e salve. Se falhar, o PDF continua sendo a alternativa. A interface verificada em Chromium com viewport móvel não equivale a validação do importador em Firefox Android físico.
 
 1. Em `/conectar-cifra-club`, selecione **Celular** e o sistema usado. Confira instruções de impressão em 350/390 px e a ação de abrir a biblioteca. O guia não deve recomendar favoritos JavaScript ou Atalhos, retirados após a falha relatada no Chrome/Xiaomi.
 2. No **Android**, abra uma cifra no navegador e use **⋮ → Compartilhar → Imprimir → Salvar como PDF**. No **iPhone/iPad**, use **Safari → Compartilhar → Imprimir**, amplie a prévia com dois dedos e escolha **Compartilhar → Salvar em Arquivos**. Os nomes e posições desses menus precisam ser conferidos no aparelho; teste com uma música temporária própria.

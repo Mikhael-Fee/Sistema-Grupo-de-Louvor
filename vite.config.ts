@@ -9,7 +9,11 @@ export default defineConfig({
   worker: { format: 'es' },
   build: { rollupOptions: { output: { manualChunks: { supabase: ['@supabase/supabase-js'] } } } },
   plugins: [react(), VitePWA({
-    registerType: 'prompt',
+    // The global coordinator registers an absolute URL on every route. Workers
+    // activate immediately; each tab reloads only after its own editing guards.
+    injectRegister: null,
+    registerType: 'autoUpdate',
+    scope: '/',
     includeAssets: ['icon.svg', 'pwa-192.png', 'pwa-512.png', 'pwa-maskable-512.png', 'apple-touch-icon.png'],
     manifest: {
       name: 'Candeia — Ministério de Louvor', short_name: 'Candeia',

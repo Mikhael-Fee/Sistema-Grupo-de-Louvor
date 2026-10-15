@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Candeia — Importador de cifras",
+  "version": "1.1.1",
+  "description": "Piloto Firefox Android: importa para o Candeia a cifra que abre normalmente neste navegador.",
+  "background": {
+    "scripts": [
+      "reader.js",
+      "background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://louvor-grupo-fxebsy.netlify.app/*"
+      ],
+      "js": [
+        "candeia-content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://www.cifraclub.com.br/*",
+        "https://cifraclub.com.br/*"
+      ],
+      "js": [
+        "reader.js",
+        "cifra-content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "cifraclub-firefox@candeia.app",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "websiteContent",
+          "browsingActivity"
+        ]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
+    }
+  }
+}

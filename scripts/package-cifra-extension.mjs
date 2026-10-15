@@ -1,9 +1,10 @@
 /** Produce only the public browser importer; no environment files or tokens. */
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { transformWithEsbuild } from 'vite';
+import { FIREFOX_FILES, FIREFOX_SOURCE, firefoxSources, signedFirefoxFor } from './lib/firefox-extension.mjs';
 
 const source = fileURLToPath(new URL('../browser-extension/candeia-cifraclub/', import.meta.url));
 const destination = fileURLToPath(new URL('../public/downloads/candeia-cifraclub.zip', import.meta.url));
@@ -19,6 +20,28 @@ if (manifest.manifest_version !== 3 || manifest.name !== 'Candeia — Importar d
 await mkdir(fileURLToPath(new URL('../public/downloads/', import.meta.url)), { recursive: true });
 await rm(destination, { force: true });
 await promisify(execFile)('zip', ['-q', '-X', destination, ...files], { cwd: source });
+
+// The Chrome archive above remains unchanged. Android release Firefox requires
+// an AMO-signed XPI: never offer an unsigned development archive as installable.
+const firefox = await firefoxSources();
+if ((await readFile(`${FIREFOX_SOURCE}/reader.js`, 'utf8')) !== await readFile(`${source}/reader.js`, 'utf8')) {
+  throw new Error('Os leitores DOM Chrome e Firefox precisam permanecer equivalentes.');
+}
+const downloads = fileURLToPath(new URL('../public/downloads/', import.meta.url));
+const unsigned = `${downloads}/candeia-cifraclub-firefox-unsigned.xpi`;
+const signedDestination = `${downloads}/candeia-cifraclub-firefox.xpi`;
+await rm(unsigned, { force: true });
+await promisify(execFile)('zip', ['-q', '-X', unsigned, ...FIREFOX_FILES], { cwd: FIREFOX_SOURCE });
+const signedFirefox = await signedFirefoxFor(firefox);
+if (signedFirefox) await copyFile(signedFirefox.path, signedDestination);
+else await rm(signedDestination, { force: true });
+await writeFile(`${downloads}/candeia-cifraclub-firefox.json`, JSON.stringify({
+  status: signedFirefox ? 'signed' : 'unsigned',
+  version: firefox.manifest.version,
+  downloadUrl: signedFirefox ? '/downloads/candeia-cifraclub-firefox.xpi' : null,
+  sha256: signedFirefox?.sha256 ?? null,
+  unsignedDownloadUrl: '/downloads/candeia-cifraclub-firefox-unsigned.xpi',
+}, null, 2) + '\n');
 
 // Both mobile alternatives run in a chart the user has already opened.
 // Inline the same bounded reader as the desktop extension: no remote script,
@@ -46,4 +69,4 @@ const shortcutCode = await transformWithEsbuild(`(() => { try { ${extract}\ncomp
 const shortcut = shortcutCode.code;
 await writeFile(fileURLToPath(new URL('../public/downloads/candeia-cifra-celular.txt', import.meta.url)), favorite);
 await writeFile(fileURLToPath(new URL('../public/downloads/candeia-cifra-iphone.js', import.meta.url)), shortcut);
-console.log('Importadores Cifra Club para computador e celular preparados para download.');
+console.log(`Importadores preparados. Firefox: ${signedFirefox ? 'XPI assinado disponível' : 'piloto aguarda assinatura Mozilla; XPI de desenvolvimento não instalável no Android estável'}.`);

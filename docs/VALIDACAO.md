@@ -1,6 +1,40 @@
-# Validação da atualização Candeia — 14/10/2026
+# Validação da atualização Candeia — 15/10/2026
 
-## Versão atual — calendário, eventos, etiquetas, vídeos e acesso aprovado
+## Versão atual — Firefox Android e atualização automática
+
+Publicado no mesmo domínio [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app), deploy de produção `6ad11305ee28ece08e0984ca` confirmado `ready`. Aplicativo e funções foram publicados juntos, sem migração ou gravação de dados do ministério.
+
+A extensão Firefox é uma distribuição separada, com o mesmo protocolo de prévia e parser da extensão Chrome. A Mozilla assinou a versão **1.1.1**, GUID `cifraclub-firefox@candeia.app`, em canal **unlisted**; não há listagem pública no catálogo. O XPI oficial tem 19.355 bytes e SHA256 `20d065d7a3793c9360320ad08bcf1c9ec9a9744abd7413f99ecbdd1b8b8293e7`. A recuperação autenticada conferiu a versão, o hash/tamanho da API, as assinaturas e a correspondência com as fontes. A normalização JSON do manifest pela Mozilla é admitida; scripts e demais arquivos precisam corresponder byte a byte. Os arquivos originais da extensão Chrome permanecem idênticos ao HEAD anterior.
+
+O guia **Conectar Cifra Club → Celular → Android** oferece o XPI quando os metadados assinados são válidos. O piloto exige Firefox Android atualizado, instalado por arquivo, com Candeia e Cifra Club dentro do próprio Firefox. A PWA do Chrome não recebe mensagens da extensão de outro navegador. PDF individual e em lote continuam disponíveis. Nenhum teste desta rodada comprova importação em um aparelho Android físico; o primeiro teste no aparelho deve conferir a prévia antes de salvar.
+
+O coordenador global registra `/sw.js` com escopo `/`, verifica versões também em rotas internas e aplica uma mudança real de controller automaticamente. A recarga mantém URL, sessão e rascunhos. Aguarda operações, editores, fotos em memória, campos de acesso preenchidos e o fim da digitação; alternar foco sem versão nova não recarrega. Documentos e rotas profundas revalidam; o worker usa `no-store`, e arquivos com hash permanecem imutáveis. A primeira migração de um aplicativo já aberto com JavaScript antigo pode exigir **uma reabertura/recarga**: o worker novo não força uma navegação que descarte fotos do cliente antigo. Depois dessa migração, o novo coordenador atende as rotas internas.
+
+| Verificação desta atualização | Resultado registrado |
+| --- | --- |
+| Vitest | 275 testes passaram em 20 arquivos, incluindo 19 do coordenador e 32 do contrato dos workers Chrome/Firefox |
+| TypeScript e build Vite/PWA | Passaram; 1.694 módulos, 50 entradas de precache, 1.002,93 KiB; downloads/PDF/worker continuam fora do precache |
+| Playwright específico | 20 cenários passaram: extensão Chrome, guia Firefox e PDF; sem escrita real no ministério |
+| Atualizações PWA com workers reais | 28 verificações passaram: hashes JS A/B diferentes, migração legada, quatro abas, rota profunda, rascunho, sessão, foto em memória, shell offline e recuperação de chunk antigo 404; zero escrita real |
+| Recuperação da assinatura | Quatro testes Node passaram para JWT, destinos oficiais, seleção exata da versão unlisted e rejeição de pacotes inválidos |
+| Firefox desktop | Instalação temporária da extensão em Firefox oficial 158.0 confirmada; não equivale a importação real nem instalação Android |
+| Mozilla | XPI 1.1.1 assinado; addon 3097371, versão 6580880, arquivo 5125012; pacote oficial recuperado por GET autenticado |
+| Draft Netlify | Deploy final `6ad1128cee75039978d3dd72` pronto; 184 verificações privadas em desktop/320 px passaram, sem gravações; prévia anterior também havia passado |
+| Cache e download no draft | Sete GETs confirmaram HTML/entry JS iguais ao build local, revalidação das rotas, assets imutáveis, `no-store`/escopo do worker, metadados assinados e MIME/hash/tamanho do XPI |
+| Revisão de artefato final | 216 arquivos de texto do checkout/dist revisados; nenhum padrão de token administrativo ou JWT de serviço encontrado; XPI assinado preservado |
+| Produção privada | 184 verificações passaram no domínio final: 24 rotas, desktop/320 px, acesso anônimo fechado e shell offline; sem gravações |
+| Artefato em produção | Sete GETs confirmaram build, cache e XPI oficial; HTML comparado após remover somente o comentário/HUD injetados pelo Netlify, JavaScript comparado byte a byte |
+| Publicação Netlify | Deploy `6ad11305ee28ece08e0984ca` confirmado `ready` no mesmo site existente |
+| Dados existentes | Nenhuma migração, edição, criação de conta ou escrita em tabelas/Storage nesta entrega |
+| Configuração reutilizável Codex | `start_skill` de 20 passos salvo; instalação, rede e bindings preservados; rascunho separado do deploy com `requires_publish: true` |
+
+O teste complementar com troca real dos hashes JavaScript encontrou uma falha antes da publicação: após ativar o worker novo, navegar para um chunk antigo podia desmontar toda a raiz React, inclusive o coordenador. A correção contém a falha somente ao redor de `App`, mantendo Auth, operações e atualizador vivos. A nova rodada confirmou interface de recuperação visível, ausência de erro React não tratado, espera pela operação e recarga automática na mesma rota quando seguro. O teste também provocou um 404 real durante uma edição e conferiu a preservação do texto. A rodada final de 28 verificações passou; o resultado pré-correção foi preservado como diagnóstico local.
+
+A recuperação de um pacote já assinado é `node scripts/sign-firefox-extension.mjs --recover-unlisted`; somente `--submit-unlisted` solicita uma assinatura nova. Credenciais ficam em memória e não são incluídas em argumentos de curl, Git ou artefatos. Um build sem o estado assinado válido não apresenta um download instalável. Se as fontes mudarem, o XPI anterior não pode ser reutilizado como se correspondesse à versão nova.
+
+O rascunho do ambiente Codex precisa ser revisado e publicado pelo próprio produto para uma futura restauração; isso não impede o deploy Netlify nem altera o aplicativo publicado. Não foi validada uma restauração completa de outro ambiente. A leitura automatizada da fonte pelo backend continua sujeita a HTTP 403; a alternativa Firefox lê a página aberta pelo navegador do administrador.
+
+## Versão anterior — calendário, eventos, etiquetas, vídeos e acesso aprovado (14/10/2026)
 
 Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app), com deploy de produção `6acfb79bdbdd1aa89fbe41af` confirmado `ready`. A migração `006_calendar_videos_private_access.sql` foi aplicada no Supabase existente e reinspecionada como idempotente. O draft Netlify `6acfb669eeafbadd07540184` e o domínio de produção concluíram separadamente 184 verificações de acesso privado. A checagem final percorreu 24 rotas em desktop e 320 px, sem dados do ministério na interface/API anônima e sem escrita.
 

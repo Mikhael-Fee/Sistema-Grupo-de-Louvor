@@ -8,6 +8,11 @@ const root = new URL('../../browser-extension/candeia-cifraclub/', import.meta.u
 const workerSource = readFileSync(new URL('background.js', root), 'utf8');
 const readerSource = readFileSync(new URL('reader.js', root), 'utf8');
 const contentSource = readFileSync(new URL('candeia-content.js', root), 'utf8');
+const firefoxRoot = new URL('../../browser-extension/candeia-cifraclub-firefox/', import.meta.url);
+const firefoxWorkerSource = readFileSync(new URL('background.js', firefoxRoot), 'utf8');
+const firefoxReaderSource = readFileSync(new URL('reader.js', firefoxRoot), 'utf8');
+const firefoxContentSource = readFileSync(new URL('candeia-content.js', firefoxRoot), 'utf8');
+type ExtensionEngine = 'chrome' | 'firefox';
 const channel = 'candeia-cifraclub';
 const origin = 'https://louvor-grupo-fxebsy.netlify.app';
 const sourceUrl = 'https://www.cifraclub.com.br/equipe/luz/';
@@ -17,7 +22,7 @@ const importerMetadata = { importerVersion: '1.1.1', capabilities: ['written-key
 type Sender = { frameId: number; tab: { id: number }; url: string };
 type Listener = (message: Record<string, unknown>, sender: Sender, respond: (value: unknown) => void) => boolean;
 
-function fakeWorker() {
+function workerForTests(engine: ExtensionEngine) {
   let listener: Listener = () => false;
   let removedListener: (id: number) => void = () => {};
   let nextTab = 500;
@@ -26,11 +31,7 @@ function fakeWorker() {
   const updated: { id: number; properties: Record<string, unknown> }[] = [];
   const removed: number[] = [];
   const timers = new Map<number, { callback: () => void; delay: number }>();
-  const context = createContext({
-    URL,
-    setTimeout(callback: () => void, delay: number) { const id = ++nextTimer; timers.set(id, { callback, delay }); return id; },
-    clearTimeout(id: number) { timers.delete(id); },
-    chrome: {
+  const extensionApi = {
       runtime: { onMessage: { addListener(value: Listener) { listener = value; } } },
       tabs: {
         async create(properties: Record<string, unknown>) { created.push(properties); return { id: nextTab++ }; },
@@ -38,10 +39,16 @@ function fakeWorker() {
         async remove(id: number) { removed.push(id); removedListener(id); },
         onRemoved: { addListener(value: (id: number) => void) { removedListener = value; } },
       },
-    },
-    importScripts() { runInContext(readerSource, context); },
+    };
+  const context = createContext({
+    URL,
+    setTimeout(callback: () => void, delay: number) { const id = ++nextTimer; timers.set(id, { callback, delay }); return id; },
+    clearTimeout(id: number) { timers.delete(id); },
+    [engine === 'firefox' ? 'browser' : 'chrome']: extensionApi,
+    ...(engine === 'chrome' ? { importScripts() { runInContext(readerSource, context); } } : {}),
   });
-  runInContext(workerSource, context);
+  if (engine === 'firefox') runInContext(firefoxReaderSource, context);
+  runInContext(engine === 'firefox' ? firefoxWorkerSource : workerSource, context);
   const sender: Sender = { frameId: 0, tab: { id: 7 }, url: `${origin}/musicas` };
   const sourceSender: Sender = { frameId: 0, tab: { id: 500 }, url: sourceUrl };
   function dispatch(type: string, overrides: Record<string, unknown> = {}, from = sender) {
@@ -54,7 +61,7 @@ function fakeWorker() {
 
 async function flush() { await new Promise<void>(resolve => setImmediate(resolve)); }
 
-async function contentReply(type: 'ping' | 'read', workerResponse: unknown) {
+async function contentReplyFor(type: 'ping' | 'read', workerResponse: unknown, engine: ExtensionEngine) {
   let receive: (event: unknown) => void = () => {};
   const replies: unknown[] = [];
   const browserWindow = {
@@ -64,8 +71,8 @@ async function contentReply(type: 'ping' | 'read', workerResponse: unknown) {
   };
   browserWindow.top = browserWindow;
   const context = createContext({ window: browserWindow, location: { origin },
-    chrome: { runtime: { async sendMessage() { return workerResponse; } } } });
-  runInContext(contentSource, context);
+    [engine === 'firefox' ? 'browser' : 'chrome']: { runtime: { async sendMessage() { return workerResponse; } } } });
+  runInContext(engine === 'firefox' ? firefoxContentSource : contentSource, context);
   receive({ source: browserWindow, origin, data: { channel, version: 1, type, requestId, sourceUrl } });
   await flush();
   return replies;
@@ -113,6 +120,9 @@ function readerForTests() {
 }
 
 describe('extensão Candeia: leitor puro do DOM da cifra', () => {
+  it('mantém o leitor Firefox idêntico ao leitor validado no Chrome', () => {
+    expect(firefoxReaderSource).toBe(readerSource);
+  });
   it('usa os metadados da música quando o primeiro h2 é Menu principal', () => {
     const pre = fixtureNode('pre', [fixtureNode('b', [fixtureNode(null, [], 'G')]), fixtureNode(null, [], '\nLuz e paz')]);
     const document = {
@@ -215,9 +225,11 @@ describe('extensão Candeia: leitor puro do DOM da cifra', () => {
   });
 });
 
-describe('extensão Candeia: validação do worker e ciclo de abas próprias', () => {
+describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação e ciclo de abas próprias', engine => {
+  const fakeWorker = () => workerForTests(engine);
+  const contentReply = (type: 'ping' | 'read', response: unknown) => contentReplyFor(type, response, engine);
   it('mantém o manifest limitado aos sites combinados sem permissões adicionais', () => {
-    const manifest = JSON.parse(readFileSync(new URL('manifest.json', root), 'utf8'));
+    const manifest = JSON.parse(readFileSync(new URL('manifest.json', engine === 'firefox' ? firefoxRoot : root), 'utf8'));
     expect(manifest.manifest_version).toBe(3);
     expect(manifest.permissions).toBeUndefined();
     expect(manifest.host_permissions).toBeUndefined();
@@ -225,6 +237,17 @@ describe('extensão Candeia: validação do worker e ciclo de abas próprias', (
       'https://cifraclub.com.br/*', 'https://louvor-grupo-fxebsy.netlify.app/*', 'https://www.cifraclub.com.br/*',
     ]);
     expect(manifest.content_scripts.every((entry: { all_frames: boolean }) => entry.all_frames === false)).toBe(true);
+    if (engine === 'firefox') {
+      expect(manifest.background).toEqual({ scripts: ['reader.js', 'background.js'] });
+      expect(manifest.browser_specific_settings).toEqual({
+        gecko: { id: 'cifraclub-firefox@candeia.app', strict_min_version: '140.0', data_collection_permissions: { required: ['websiteContent', 'browsingActivity'] } },
+        gecko_android: { strict_min_version: '142.0' },
+      });
+      expect(manifest.minimum_chrome_version).toBeUndefined();
+    } else {
+      expect(manifest.background).toEqual({ service_worker: 'background.js' });
+      expect(manifest.browser_specific_settings).toBeUndefined();
+    }
   });
 
   it('rejeita remetentes externos, iframes e links que não são músicas HTTPS canônicas', () => {

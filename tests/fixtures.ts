@@ -23,8 +23,9 @@ const put = <T extends { id: string }>(items: T[], item: T): T[] =>
     : [...items, copy(item)];
 
 /** Intercept every Auth/PostgREST request; no mock may fall through to Supabase. */
-export async function setupMockMinistry(page: Page, role: Role = 'admin'): Promise<MockMinistry> {
-  let signedIn = false;
+export async function setupMockMinistry(page: Page, role: Role = 'admin', initiallySignedIn = false): Promise<MockMinistry> {
+  // A second tab can reuse Auth storage from the same mock browser context.
+  let signedIn = initiallySignedIn;
   const mock: MockMinistry = {
     data: createDemoData(),
     profiles: [

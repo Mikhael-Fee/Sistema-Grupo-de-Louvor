@@ -11,6 +11,14 @@
 .cifra-guide-panel h3 { margin-top: 28px; }
 .cifra-device-choice { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
 .cifra-pdf-guide-link { max-width: 100%; }
+.cifra-firefox-guide { padding: 20px; border: 1px solid var(--border); border-radius: 16px; background: var(--cream); }
+.cifra-firefox-guide h2 { margin-top: 12px; }
+.cifra-guide-experiment { display: inline-block; padding: 5px 9px; border-radius: 8px; color: var(--flame); background: var(--flame-soft); font-size: .75rem; font-weight: 700; }
+.cifra-firefox-pending { padding: 12px; border-left: 3px solid var(--flame); }
+.cifra-firefox-pending strong { display: block; }
+.cifra-firefox-footnote { font-size: .9rem; }
+.cifra-pdf-guide { margin-top: 28px; }
+.cifra-firefox-guide a { overflow-wrap: anywhere; }
 
 @media (max-width: 480px) {
   .cifra-connect-page h1 { font-size: 1.6rem; }
@@ -18,4 +26,6 @@
   .cifra-guide-tabs .button { padding-inline: 10px; }
   .cifra-pdf-guide-link { width: 100%; }
   .cifra-connect-page li { overflow-wrap: anywhere; }
+  .cifra-firefox-guide { padding: 14px; }
+  .cifra-firefox-guide .button { width: 100%; }
 }
