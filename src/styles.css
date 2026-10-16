@@ -92,3 +92,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .login-approval-note{font-size:12px;line-height:1.5;color:var(--muted);margin:0 0 16px}.next-service .button{margin-top:18px}.next-service .your-assignment+.button{margin-top:0}
 
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);clip-path:inset(50%);white-space:nowrap;border:0}
+
+/* A cached HTML shell can still load the public badge after it is disabled on Netlify. */
+iframe#nl-badge-frame{display:none!important}

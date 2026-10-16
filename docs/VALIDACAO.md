@@ -1,6 +1,27 @@
 # Validação da atualização Candeia — 16/10/2026
 
-## Versão atual — interface compacta e equipe ativa
+## Versão atual — selo do Netlify sem bloquear a navegação
+
+Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app), deploy `6ad23d33e813bc3cb94d44ad` confirmado `ready`. Prévia final: `6ad23cc790d7d60af8e405ce`.
+
+A desativação do selo já era observável nas páginas novas: GETs de `/`, `/musicas`, `/cultos` e `/pessoas` não continham o script público do HUD. Um shell HTML guardado anteriormente ainda pode solicitar esse script. O próprio JavaScript público do Netlify cria `iframe#nl-badge-frame`, fixo no canto inferior direito com `z-index:2147483645`, cobrindo o menu do celular. Diálogos nativos ficam na camada superior do navegador, explicando por que o formulário de música podia aparecer acima dele.
+
+Foi acrescentada somente uma regra global de CSS para ocultar esse iframe específico, mesmo se ele for inserido depois que a aplicação carregar. O menu mantém suas camadas anteriores e outros iframes continuam visíveis. O novo build altera as revisões de HTML/CSS e do worker para ser recebido pelo atualizador existente; a instalação pode receber a correção ao reabrir o app ou recarregar a página.
+
+| Verificação desta correção | Resultado |
+| --- | --- |
+| Reprodução anterior | O script público real do Netlify, carregado em dados fictícios locais, interceptou o clique em Mais em 390 px |
+| Navegação após a correção | Quatro cenários passaram: 320/390 px em navegador e display-mode standalone simulado; Mais, Equipe, retorno à biblioteca e formulário de nova música funcionaram com o iframe presente |
+| Alcance da regra | Um iframe comum continuou visível; os testes não gravaram dados do ministério |
+| Revisão visual | Captura adicional de 390 px passou após aguardar a biblioteca renderizar, mostrando a barra inferior livre |
+| TypeScript/build | Passaram; 1695 módulos, 50 entradas de precache, 1018,19 KiB |
+| Prévia e produção privadas | 186 verificações passaram em cada origem: 24 rotas, desktop/320 px, acesso anônimo fechado e zero gravações |
+| Artefatos publicados | Sete GETs em cada origem confirmaram build, cache, worker e XPI Firefox assinado; HTML e worker têm revisões novas |
+| Netlify em produção | Deploy final confirmado ready; os quatro GETs de páginas continuaram sem injeção do script do selo |
+
+A primeira execução local após a regra já liberava Mais, mas o roteiro tentava fechar o menu tocando o centro de um backdrop que fica coberto pela própria sidebar em 320 px. O clique foi ajustado para a faixa externa visível, sem mudar a aplicação; os quatro cenários passaram. O roteiro de reprodução e suas capturas ficaram fora do checkout, em `/workspace/scratch`. Não houve alteração de Supabase, funções, permissões, dados, extensões ou configuração de implantação nesta correção. Os resultados de banco e das suítes completas abaixo são históricos; não foram reexecutados por uma mudança exclusiva de CSS. Standalone foi simulado no Chromium e não equivale a teste físico no aparelho do usuário.
+
+## Versão anterior — interface compacta e equipe ativa
 
 Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app), deploy `6ad182b2b1effb93f0f1fd9e` confirmado `ready` no mesmo site Netlify. A prévia final foi `6ad181d7ef9d441e2e0e9b0b`.
 
