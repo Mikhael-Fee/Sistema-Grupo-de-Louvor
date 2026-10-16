@@ -1,6 +1,37 @@
 # Validação da atualização Candeia — 16/10/2026
 
-## Versão atual — importação no Firefox Android instalado
+## Versão atual — interface compacta e equipe ativa
+
+Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app), deploy `6ad182b2b1effb93f0f1fd9e` confirmado `ready` no mesmo site Netlify. A prévia final foi `6ad181d7ef9d441e2e0e9b0b`.
+
+A equipe e o seletor de escala mostram dois cards por linha no celular, fotos, nomes com quebra e ações de pelo menos 44 px. As funções aparecem após selecionar a pessoa; múltiplas funções, seleção em lote e rascunhos continuam. Foram retiradas instruções e frases redundantes da escala, biblioteca, equipe, início e login. O aviso de aprovação aparece no cadastro. A interface usa fundo cinza frio, azul escuro no menu/card principal/botões e detalhes de chama em âmbar.
+
+A busca da biblioteca estava reduzida a 51 px: um rótulo `sr-only` sem utilitário CSS aparecia na linha e consumia o espaço. O campo passou a ocupar a linha inteira no celular, com fonte 16 px e texto visível. Tom e etiquetas têm uma linha compacta abaixo. Os cards de músicas agora reservam linhas próprias para etiquetas e ações, sem sobreposição em 320/390 px. O utilitário acessível foi definido globalmente, e diálogos recebem nome acessível pelo título.
+
+**Retirar da equipe** arquiva o integrante. Ele deixa a lista ativa e as novas seleções/cópias de escala, mantendo nome, foto e atribuições dos cultos existentes. Administradores encontram **Pessoas arquivadas** no filtro e podem reativar. A conta vinculada e sua aprovação permanecem; o acesso continua controlado em Administração. O carregamento não descarta inativos, conservando o histórico nos cultos, início, perfis e gráficos.
+
+A migração 007 foi aplicada sozinha com `configure-archived-people.mjs --apply`. Na mesma transação, o instalador comparou contagens e hashes de todas as colunas anteriores nas nove tabelas e confirmou `existing_ministry_and_profile_columns_preserved: true`. A segunda execução confirmou `schema_changed: false`. Nenhuma migração anterior foi reinstalada, pessoa arquivada automaticamente, conta redefinida ou imagem apagada. `people.active` recebeu padrão verdadeiro; o restante dos valores anteriores permaneceu igual. Veja [EQUIPE-ARQUIVADA.md](EQUIPE-ARQUIVADA.md).
+
+| Verificação desta atualização | Resultado |
+| --- | --- |
+| Vitest | 308 testes em 21 arquivos passaram |
+| PostgreSQL/PGlite | 445 verificações passaram, incluindo 62 novas de arquivamento; Auth/Storage simulados, sem rede |
+| TypeScript e build | Passaram; 1695 módulos, 50 entradas de precache e 1018,14 KiB; Firefox 1.1.2 assinado preservado |
+| Playwright | 52 cenários distintos aprovados em rodadas: 31 da aplicação, 5 de retirada/cards/seletor e 16 de biblioteca/fotos/gráficos/acesso; não houve rodada única 52/52 |
+| Ajuste final da biblioteca | Dois cenários 320/390 px passaram novamente, verificando pesquisa/filtros, largura do texto, ausência de sobreposição e alvos 44 px |
+| Revisão visual local | Capturas 390/1280 px de início, equipe e seletor, com dados fictícios interceptados; duas sessões concluídas |
+| Supabase real | 007 instalada e reinspecionada como idempotente; valores anteriores preservados, Auth/Storage intocados |
+| Prévia Netlify | 186 verificações privadas passaram: 24 rotas desktop/320 px, login obrigatório, ausência de chamadas anônimas da UI e zero gravações |
+| Produção privada | 186 verificações passaram no domínio final, com zero gravações e nenhum dado do ministério exposto sem conta |
+| Artefatos da prévia e produção | Sete GETs em cada origem confirmaram HTML/JavaScript do build, cache/revalidação, worker e assinatura do XPI |
+| Netlify | Produção `6ad182b2b1effb93f0f1fd9e` confirmada `ready` no domínio existente |
+| Ambiente reutilizável | `start_skill` com 21 passos salvo; instalação/rede/bindings preservados; rascunho separado do site com `requires_publish: true` |
+
+As duas falhas iniciais de execução local foram diagnosticadas: o teste de arquivamento esperava um diálogo com nome acessível, acrescentado ao componente, e o teste de busca selecionava simultaneamente o título e o link Abrir. Os cenários afetados passaram nas rodadas seguintes. O ajuste final de CSS da biblioteca também teve sua própria rodada 320/390 px. A checagem remota precisou de escrita no NSS do Chromium para usar a CA confiável do ambiente; a execução com esse acesso passou sem desabilitar TLS.
+
+As verificações autenticadas desta entrega usaram Auth/REST/Storage interceptados. Não foram criadas contas reais ou gravados cadastros do ministério para testar a interface. A mudança de banco real limitou-se à instalação 007 com a proteção transacional descrita acima. Não houve alteração nas fontes das extensões nem nova assinatura: XPI Firefox 1.1.2, 20822 bytes, SHA256 `ee847bcea549dd18e2d3200fa6b6843a8d917beb290a52ff93f3083365301df2`. A importação física no Firefox Android instalado continua dependente da confirmação do usuário já registrada na versão anterior; viewport Chromium não demonstra instalação nativa em aparelhos.
+
+## Versão anterior — importação no Firefox Android instalado
 
 Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app), deploy de produção `6ad178a14108d006e6b3ecd3` confirmado `ready`, com extensão Firefox 1.1.2 assinada e funções Netlify no mesmo site existente.
 

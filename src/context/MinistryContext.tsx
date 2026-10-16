@@ -10,6 +10,7 @@ interface MinistryContextValue {
   signOut(): Promise<void>; refresh(): Promise<void>;
   saveSong(song: Song): Promise<void>; deleteSong(id: string): Promise<void>;
   savePerson(person: Person, photoChange?: Blob | null): Promise<void>; deletePerson(id: string): Promise<void>;
+  archivePerson(id: string): Promise<void>; restorePerson(id: string): Promise<void>;
   saveTag(tag: Tag): Promise<void>; deleteTag(id: string): Promise<void>;
   saveService(service: Service): Promise<void>; deleteService(id: string): Promise<void>;
   listProfiles(): Promise<Profile[]>; updateProfile(profile: Profile): Promise<void>;
@@ -144,13 +145,29 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
         if (previous) await repository.deleteAvatar(previous).catch(() => {});
       });
     },
+    async archivePerson(id) {
+      await mutate('library', () => repository.archivePerson(id));
+    },
+    async restorePerson(id) {
+      await mutate('library', () => repository.restorePerson(id));
+    },
     async saveTag(tag) {
       check(validateTag(tag));
       if (data.tags.some(t => t.id !== tag.id && t.name.trim().toLocaleLowerCase() === tag.name.trim().toLocaleLowerCase())) throw new Error('Já existe uma etiqueta com esse nome.');
       await mutate('library', () => repository.saveTag(tag));
     },
     async deleteTag(id) { await mutate('library', () => repository.deleteTag(id)); },
-    async saveService(service) { check(validateService(service, data)); await mutate('plan', () => repository.saveService(service)); },
+    async saveService(service) {
+      check(validateService(service, data));
+      const previous = data.services.find(item => item.id === service.id);
+      for (const assignment of service.assignments) {
+        if (data.people.find(person => person.id === assignment.personId)?.active === false
+          && !previous?.assignments.some(item => item.id === assignment.id && item.personId === assignment.personId && item.function === assignment.function)) {
+          throw new Error('Este integrante foi retirado da equipe ativa. Escolha uma pessoa ativa para novas escalas.');
+        }
+      }
+      await mutate('plan', () => repository.saveService(service));
+    },
     async deleteService(id) { await mutate('plan', () => repository.deleteService(id)); },
     listProfiles,
     async updateProfile(nextProfile) {

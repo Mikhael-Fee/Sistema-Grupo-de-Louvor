@@ -174,6 +174,25 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
         mock.data.songs = put(mock.data.songs, song);
         return respond(route, null);
       }
+      if (rpc === 'save_person') {
+        if (!authorized('library')) return denied(route);
+        const next = body.p_person as Person;
+        const previous = mock.data.people.find(person => person.id === next.id);
+        if (mock.data.services.some(service => service.assignments.some(assignment => assignment.personId === next.id
+          && !next.functions.includes(assignment.function)))) return error(route, '23514', 'Função em uso na escala.');
+        mock.data.people = put(mock.data.people, { ...previous, id: next.id, name: next.name, email: next.email,
+          functions: next.functions, active: previous?.active !== false,
+          photoUrl: Object.hasOwn(next, 'photoUrl') ? next.photoUrl || undefined : previous?.photoUrl });
+        return respond(route, null);
+      }
+      if (rpc === 'set_person_active') {
+        if (!authorized('library')) return denied(route);
+        const previous = mock.data.people.find(person => person.id === body.p_person_id);
+        if (!previous) return error(route, 'P0002', 'Integrante não encontrado.', 404);
+        if (typeof body.p_active !== 'boolean') return error(route, '22023', 'Estado da equipe inválido.');
+        mock.data.people = put(mock.data.people, { ...previous, active: body.p_active });
+        return respond(route, null);
+      }
       if (rpc === 'update_my_profile_photo') {
         if (!authorized('read')) return denied(route);
         const photoUrl = body.p_photo_url;
@@ -194,6 +213,11 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
         if (service.repertoire.some(item => !mock.data.songs.some(song => song.id === item.songId))
           || service.assignments.some(assignment => !mock.data.people.some(person => person.id === assignment.personId))) {
           return error(route, '23503', 'Música ou pessoa inexistente.');
+        }
+        const previous = mock.data.services.find(item => item.id === service.id);
+        if (service.assignments.some(assignment => mock.data.people.find(person => person.id === assignment.personId)?.active === false
+          && !previous?.assignments.some(item => item.id === assignment.id && item.personId === assignment.personId && item.function === assignment.function))) {
+          return error(route, '23514', 'Escolha um integrante da equipe ativa para novas escalas.');
         }
         mock.data.services = put(mock.data.services, service);
         return respond(route, null);
@@ -234,6 +258,7 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
       else {
         const previous = mock.data.people.find(person => person.id === body.id);
         const person = { id: body.id, name: body.name, email: body.email, functions: body.functions,
+          active: previous?.active !== false,
           photoUrl: Object.hasOwn(body, 'photo_url') ? body.photo_url || undefined : previous?.photoUrl } as Person;
         if (mock.data.services.some(service => service.assignments.some(assignment => assignment.personId === person.id
           && !person.functions.includes(assignment.function)))) return error(route, '23514', 'Função em uso na escala.');

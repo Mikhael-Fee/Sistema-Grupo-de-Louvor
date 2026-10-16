@@ -83,6 +83,8 @@ export function selectedTeamAssignments(selection: Record<string, string>, servi
     return [...new Set([personFunction, ...(additional[personId] || [])])].flatMap(selectedFunction => {
       if (!person.functions.includes(selectedFunction)) return [];
       const current = service.assignments.find(item => item.personId === personId && item.function === selectedFunction);
+      // Archived people remain in existing scales, but cannot receive new assignments.
+      if (person.active === false && !current) return [];
       if (current && !includeCurrent) return [];
       return [{ id: current?.id || crypto.randomUUID(), personId, function: selectedFunction }];
     });
@@ -99,7 +101,7 @@ export function mergeTeamAssignments(current: Assignment[], additions: Assignmen
   const signatures = new Set(current.map(item => `${item.personId}:${item.function}`));
   const unique = additions.filter(item => {
     const signature = `${item.personId}:${item.function}`;
-    if (signatures.has(signature) || !people.some(person => person.id === item.personId && person.functions.includes(item.function))) return false;
+    if (signatures.has(signature) || !people.some(person => person.id === item.personId && person.active !== false && person.functions.includes(item.function))) return false;
     signatures.add(signature);
     return true;
   }).map(item => ({ ...item, id: crypto.randomUUID() }));
@@ -113,8 +115,11 @@ export function previousTeamService(service: Service, services: Service[]) {
 
 export function TeamPicker({ service, people, value, onChange, disabled, editExisting = false }: { service: Service; people: Person[]; value: TeamPickerDraft; onChange: (value: TeamPickerDraft) => void; disabled: boolean; editExisting?: boolean }) {
   const query = value.search.trim().toLocaleLowerCase('pt-BR');
-  const availableFunctions = (person: Person) => editExisting ? person.functions : person.functions.filter(personFunction => !service.assignments.some(item => item.personId === person.id && item.function === personFunction));
-  const visible = [...people].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).filter(person => !query || `${person.name} ${person.email} ${person.functions.join(' ')}`.toLocaleLowerCase('pt-BR').includes(query));
+  const availableFunctions = (person: Person) => {
+    if (person.active === false) return editExisting ? person.functions.filter(personFunction => service.assignments.some(item => item.personId === person.id && item.function === personFunction)) : [];
+    return editExisting ? person.functions : person.functions.filter(personFunction => !service.assignments.some(item => item.personId === person.id && item.function === personFunction));
+  };
+  const visible = people.filter(person => person.active !== false || (editExisting && service.assignments.some(item => item.personId === person.id))).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).filter(person => !query || `${person.name} ${person.email} ${person.functions.join(' ')}`.toLocaleLowerCase('pt-BR').includes(query));
   const eligible = visible.filter(person => availableFunctions(person).length);
   const selected = people.filter(person => availableFunctions(person).includes(value.selection[person.id])).length;
   const allVisibleSelected = eligible.length > 0 && eligible.every(person => availableFunctions(person).includes(value.selection[person.id]));
@@ -128,14 +133,14 @@ export function TeamPicker({ service, people, value, onChange, disabled, editExi
     onChange({ ...value, selection, additional });
   }
   return <div className="service-team-picker">
-    <label className="field"><span>Buscar pessoas</span><input placeholder="Nome, e-mail ou função" value={value.search} disabled={disabled} onChange={event => onChange({ ...value, search: event.target.value })} /></label>
-    <div className="service-batch-toolbar"><button type="button" className="button button-ghost" disabled={disabled || !eligible.length} onClick={selectVisible}>{allVisibleSelected ? 'Desmarcar visíveis' : 'Selecionar visíveis'}</button><span>{selected} {selected === 1 ? 'pessoa selecionada' : 'pessoas selecionadas'}</span>{selected > 0 && <button type="button" className="button button-ghost" disabled={disabled} onClick={() => onChange({ ...value, selection: {}, additional: {} })}>Limpar seleção</button>}</div>
+    <label className="field service-team-search"><span className="service-picker-sr-only">Buscar pessoas</span><Search size={18} aria-hidden="true" /><input type="search" placeholder="Buscar pessoa ou função" value={value.search} disabled={disabled} onChange={event => onChange({ ...value, search: event.target.value })} /></label>
+    <div className="service-batch-toolbar"><button type="button" className="button button-ghost" disabled={disabled || !eligible.length} onClick={selectVisible}>{allVisibleSelected ? 'Desmarcar visíveis' : 'Selecionar visíveis'}</button><span role="status">{selected} {selected === 1 ? 'selecionado' : 'selecionados'}</span>{selected > 0 && <button type="button" className="button button-ghost" disabled={disabled} onClick={() => onChange({ ...value, selection: {}, additional: {} })}>Limpar seleção</button>}</div>
     <div className="service-batch-list">{visible.map(person => {
       const functions = availableFunctions(person);
       const checked = functions.includes(value.selection[person.id]);
       return <div key={person.id} className={`service-batch-person ${checked ? 'service-batch-selected' : ''}`}>
-        <label className="service-batch-check"><input type="checkbox" aria-label={`Selecionar ${person.name}`} checked={checked} disabled={disabled || !functions.length} onChange={event => { const selection = { ...value.selection }; const additional = { ...value.additional }; if (event.target.checked) selection[person.id] = functions[0]; else { delete selection[person.id]; delete additional[person.id]; } onChange({ ...value, selection, additional }); }} /><ProfileAvatar name={person.name} photoUrl={getPersonPhoto(person)} size={36} className="service-picker-avatar" decorative /><span className="service-batch-identity"><strong>{person.name}</strong><small>{person.functions.join(' · ') || 'Sem função cadastrada'}</small></span></label>
-        {functions.length ? <select aria-label={`Função de ${person.name}`} disabled={disabled || !checked} value={checked ? value.selection[person.id] : functions[0]} onChange={event => onChange({ ...value, selection: { ...value.selection, [person.id]: event.target.value }, additional: { ...value.additional, [person.id]: (value.additional?.[person.id] || []).filter(item => item !== event.target.value) } })}>{functions.map(personFunction => <option key={personFunction}>{personFunction}</option>)}</select> : <span className="badge">{person.functions.length ? 'Já na escala' : 'Sem função'}</span>}
+        <label className="service-batch-check"><input type="checkbox" aria-label={`Selecionar ${person.name}`} checked={checked} disabled={disabled || !functions.length} onChange={event => { const selection = { ...value.selection }; const additional = { ...value.additional }; if (event.target.checked) selection[person.id] = functions[0]; else { delete selection[person.id]; delete additional[person.id]; } onChange({ ...value, selection, additional }); }} /><ProfileAvatar name={person.name} photoUrl={getPersonPhoto(person)} size={36} className="service-picker-avatar" decorative /><span className="service-batch-identity"><strong>{person.name}</strong><small>{person.functions.join(' · ') || 'Sem função'}</small>{person.active === false && <small className="service-batch-archived">Fora da equipe ativa</small>}</span></label>
+        {functions.length ? checked && <select aria-label={`Função de ${person.name}`} disabled={disabled || !checked} value={checked ? value.selection[person.id] : functions[0]} onChange={event => onChange({ ...value, selection: { ...value.selection, [person.id]: event.target.value }, additional: { ...value.additional, [person.id]: (value.additional?.[person.id] || []).filter(item => item !== event.target.value) } })}>{functions.map(personFunction => <option key={personFunction}>{personFunction}</option>)}</select> : <span className="badge">{person.functions.length ? 'Já na escala' : 'Sem função'}</span>}
         {editExisting && checked && functions.length > 1 && <details className="service-batch-functions"><summary>{value.additional?.[person.id]?.length ? `${value.additional[person.id].length + 1} funções selecionadas` : 'Outras funções'}</summary><div>{functions.filter(item => item !== value.selection[person.id]).map(personFunction => <label key={personFunction}><input type="checkbox" aria-label={`Também ${person.name} em ${personFunction}`} checked={value.additional?.[person.id]?.includes(personFunction) || false} disabled={disabled} onChange={event => { const additions = new Set(value.additional?.[person.id] || []); if (event.target.checked) additions.add(personFunction); else additions.delete(personFunction); onChange({ ...value, additional: { ...value.additional, [person.id]: [...additions] } }); }} />{personFunction}</label>)}</div></details>}
       </div>;
     })}{!visible.length && <p className="muted service-batch-empty">Nenhuma pessoa encontrada. Experimente outro nome ou função.</p>}</div>
@@ -193,7 +198,7 @@ export function ServiceForm({ initial, onSave, onCancel, busy, datePrefill }: { 
       <label className="service-event-checkbox service-form-full"><input type="checkbox" checked={draft.isEvent === true} disabled={busy || saving} onChange={e => setDraft({ ...draft, isEvent: e.target.checked })} /><span><strong>É um evento</strong><small>Destaca este encontro no calendário.</small></span><Sparkles size={18} aria-hidden="true" /></label>
       <label className="field service-form-full"><span>Observações <span className="muted">(opcional)</span></span><textarea rows={4} placeholder="Orientações para a equipe, tema ou detalhes do culto…" value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} /></label>
     </div>
-    <fieldset className="service-editor-team"><legend>Escala do culto <span className="badge">{activeAssignments.length}</span></legend><p className="muted">Monte a equipe agora. A escala será salva junto com o culto.</p>
+    <fieldset className="service-editor-team"><legend>Escala do culto <span className="badge">{activeAssignments.length}</span></legend>
       {activeAssignments.length > 0 && <ul className="service-editor-assignments">{activeAssignments.map(assignment => {
         const person = data.people.find(item => item.id === assignment.personId);
         return <li key={assignment.id}><div className="service-editor-person"><ProfileAvatar name={person?.name || 'Pessoa indisponível'} photoUrl={getPersonPhoto(person)} size={34} className="service-editor-avatar" decorative /><span><strong>{person?.name || 'Pessoa indisponível'}</strong><small>{assignment.function}</small></span></div><button type="button" className="icon-button" aria-label={`Remover ${person?.name || 'pessoa'} da escala em edição`} disabled={busy || saving} onClick={() => applyTeam(activeAssignments.filter(item => item.id !== assignment.id))}><X size={16} /></button></li>;

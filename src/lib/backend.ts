@@ -73,7 +73,7 @@ export const repository = {
     const accountPhotos = new Map<string, string>(teamPhotos.data.map((row: { personId: string; photoUrl: string }) => [row.personId, row.photoUrl]));
     return {
       tags: (tags.data ?? []).map(row => ({ id: row.id, name: row.name, color: row.color })),
-      people: (people.data ?? []).map(row => ({ id: row.id, name: row.name, email: row.email, functions: row.functions,
+      people: (people.data ?? []).map(row => ({ id: row.id, name: row.name, email: row.email, functions: row.functions, active: row.active !== false,
         photoUrl: row.photo_url || undefined, accountPhotoUrl: accountPhotos.get(row.id) || undefined })),
       songs: (songs.data ?? []).map(row => ({
         id: row.id, title: row.title, artist: row.artist, originalKey: row.original_key,
@@ -107,10 +107,20 @@ export const repository = {
     check(error);
   },
   async savePerson(person: Person): Promise<void> {
-    const { error } = await client().from('people').upsert({
+    // Membership status is changed separately, so saving a stale editor can
+    // never reactivate someone removed from the active team in another tab.
+    const { error } = await client().rpc('save_person', { p_person: {
       id: person.id, name: person.name.trim(), email: person.email.trim(), functions: person.functions,
-      ...(person.photoUrl === undefined ? {} : { photo_url: person.photoUrl }),
-    }).select('id').single();
+      ...(person.photoUrl === undefined ? {} : { photoUrl: person.photoUrl }),
+    } });
+    check(error);
+  },
+  async archivePerson(id: string): Promise<void> {
+    const { error } = await client().rpc('set_person_active', { p_person_id: id, p_active: false });
+    check(error);
+  },
+  async restorePerson(id: string): Promise<void> {
+    const { error } = await client().rpc('set_person_active', { p_person_id: id, p_active: true });
     check(error);
   },
   async uploadAvatar(photo: Blob): Promise<string> {

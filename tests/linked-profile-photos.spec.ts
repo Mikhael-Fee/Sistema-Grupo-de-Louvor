@@ -183,11 +183,11 @@ test('remover foto do cadastro revela selfie vinculada ao músico aprovado, sem 
   expect(readableProfileIds).toEqual([mock.profiles[0].id]);
   await page.goto('/pessoas');
   await expectPhoto(personCard(page, person.name), selfie);
-  // Approved members can read registered team contacts. The previous anonymous
-  // contact whitelist no longer applies because all ministry access uses Auth.
-  await expect(personCard(page, person.name).locator('a[href^="mailto:"]')).toHaveAttribute('href', `mailto:${person.email}`);
+  // Compact cards show the person's identity and functions without a contact row.
+  await expect(personCard(page, person.name).locator('a[href^="mailto:"]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: `Editar ${person.name}`, exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: `Excluir ${person.name}`, exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: `Retirar ${person.name} da equipe`, exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: `Reativar ${person.name}`, exact: true })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Administração', exact: true })).toHaveCount(0);
   await page.setViewportSize({ width: 320, height: 700 });
   await page.goto('/');

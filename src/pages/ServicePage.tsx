@@ -18,7 +18,7 @@ type Dialog = 'edit' | 'team' | 'song' | 'delete' | null;
 
 function BulkTeamForm({ service, services, people, busy, error, onSave, onCancel }: { service: Service; services: Service[]; people: Person[]; busy: boolean; error: string | null; onSave: (assignments: Assignment[]) => Promise<boolean>; onCancel: () => void }) {
   const currentTeam = teamPickerFromAssignments(service.assignments);
-  const { draft: storedDraft, setDraft, discardDraft, hasDraft } = useDraft<TeamPickerDraft>(`service:${service.id}:team`, { selection: currentTeam.selection, search: '' });
+  const { draft: storedDraft, setDraft, discardDraft } = useDraft<TeamPickerDraft>(`service:${service.id}:team`, { selection: currentTeam.selection, search: '' });
   const draft = restoreTeamPickerDraft(storedDraft, service, people);
   const assignments = selectedTeamAssignments(draft.selection, service, people, draft.additional, true);
   const previousService = previousTeamService(service, services);
@@ -27,9 +27,7 @@ function BulkTeamForm({ service, services, people, busy, error, onSave, onCancel
     if (await onSave(next)) discardDraft();
   }
   return <form onSubmit={event => { event.preventDefault(); void apply(assignments); }}>
-    <p className="muted">Marque quem vai participar e ajuste as funções. Desmarque uma pessoa para retirá-la. A equipe inteira será salva de uma vez.</p>
-    {hasDraft && <p className="service-draft-status" role="status">Sua seleção está guardada nesta aba.</p>}
-    {previousService && <div className="service-batch-copy"><div><strong>Comece pela última escala</strong><span>{previousService.type} · {formatServiceDate(previousService.date)}</span></div><button type="button" className="button button-secondary" disabled={busy} onClick={() => setDraft(teamPickerFromAssignments(mergeTeamAssignments(assignments, previousService.assignments, people)))}><Copy size={15} /> Reutilizar última escala</button></div>}
+    {previousService && <div className="service-batch-copy"><button type="button" className="button button-secondary" disabled={busy} title={`${previousService.type} · ${formatServiceDate(previousService.date)}`} onClick={() => setDraft(teamPickerFromAssignments(mergeTeamAssignments(assignments, previousService.assignments, people)))}><Copy size={15} /> Reutilizar última escala</button></div>}
     {people.length ? <TeamPicker service={service} people={people} value={draft} onChange={setDraft} editExisting disabled={busy} /> : <EmptyState title="Cadastre a equipe primeiro" description="Pessoas e suas funções precisam estar cadastradas antes de montar a escala." action={<Link className="button button-primary" to="/pessoas">Ir para equipe</Link>} />}
     <FormError error={error} />
     <div className="form-actions"><button type="button" className="button button-secondary" disabled={busy} onClick={() => { discardDraft(); onCancel(); }}>Cancelar</button><button className="button button-primary" disabled={busy}>{busy ? 'Salvando…' : 'Salvar equipe'}</button></div>

@@ -99,8 +99,11 @@ test('cadastra pessoas com várias funções e etiquetas e recupera após recarr
   const person = page.getByRole('article').filter({ hasText: 'Pessoa de teste' });
   await expect(person).toContainText('Voz');
   await expect(person).toContainText('Teclado');
-  await expect(person.getByRole('link', { name: 'pessoa@example.com' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Excluir Mikhael', exact: true })).toBeDisabled();
+  await person.getByRole('button', { name: 'Editar Pessoa de teste', exact: true }).click();
+  dialog = page.getByRole('dialog');
+  await expect(dialog.getByLabel('E-mail')).toHaveValue('pessoa@example.com');
+  await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Retirar Mikhael da equipe', exact: true })).toBeEnabled();
   await page.goto('/etiquetas');
   await page.getByRole('button', { name: 'Nova etiqueta', exact: true }).click();
   dialog = page.getByRole('dialog');

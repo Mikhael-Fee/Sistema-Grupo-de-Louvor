@@ -124,10 +124,11 @@ try {
     await page.getByRole('button', { name: 'Criar conta', exact: true }).click();
     expect(await page.getByLabel('Seu nome', { exact: true }).isVisible()
       && await page.getByRole('button', { name: 'Criar minha conta', exact: true }).isVisible(), 'Formulário de criação de conta abre');
-    expect(await page.getByText('No uso compartilhado, novos membros precisam da aprovação do administrador.', { exact: true }).isVisible(),
+    expect(await page.getByText('Após confirmar seu e-mail, aguarde a aprovação do administrador.', { exact: true }).isVisible(),
       'Cadastro informa a aprovação do administrador');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Cadastro cabe na tela');
     await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+    expect(await page.locator('.login-approval-note').count() === 0, 'Login não exibe instruções de cadastro');
     expect(uiApiRequests === 0 && blockedWrites === 0, 'Abrir o cadastro não envia dados ou chama Auth');
     if (width === 1200) { await context.close(); continue; }
 
