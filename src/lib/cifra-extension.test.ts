@@ -18,7 +18,8 @@ const origin = 'https://louvor-grupo-fxebsy.netlify.app';
 const sourceUrl = 'https://www.cifraclub.com.br/equipe/luz/';
 const requestId = 'cd90b390-2f77-47b2-8361-cd8010c58781';
 const alternateId = 'fa34d72b-cf06-4df2-9f7b-88d0a1c437f0';
-const importerMetadata = { importerVersion: '1.1.1', capabilities: ['written-key-capo'] };
+const chromeImporterMetadata = { importerVersion: '1.1.1', capabilities: ['written-key-capo'] };
+const firefoxImporterMetadata = { importerVersion: '1.1.2', capabilities: ['written-key-capo', 'same-tab-return'] };
 type Sender = { frameId: number; tab: { id: number }; url: string };
 type Listener = (message: Record<string, unknown>, sender: Sender, respond: (value: unknown) => void) => boolean;
 
@@ -61,7 +62,7 @@ function workerForTests(engine: ExtensionEngine) {
 
 async function flush() { await new Promise<void>(resolve => setImmediate(resolve)); }
 
-async function contentReplyFor(type: 'ping' | 'read', workerResponse: unknown, engine: ExtensionEngine) {
+async function contentReplyFor(type: 'ping' | 'read' | 'resume', workerResponse: unknown, engine: ExtensionEngine, overrides: Record<string, unknown> = {}) {
   let receive: (event: unknown) => void = () => {};
   const replies: unknown[] = [];
   const browserWindow = {
@@ -73,7 +74,7 @@ async function contentReplyFor(type: 'ping' | 'read', workerResponse: unknown, e
   const context = createContext({ window: browserWindow, location: { origin },
     [engine === 'firefox' ? 'browser' : 'chrome']: { runtime: { async sendMessage() { return workerResponse; } } } });
   runInContext(engine === 'firefox' ? firefoxContentSource : contentSource, context);
-  receive({ source: browserWindow, origin, data: { channel, version: 1, type, requestId, sourceUrl } });
+  receive({ source: browserWindow, origin, data: { channel, version: 1, type, requestId, sourceUrl, ...overrides } });
   await flush();
   return replies;
 }
@@ -226,6 +227,7 @@ describe('extensão Candeia: leitor puro do DOM da cifra', () => {
 });
 
 describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação e ciclo de abas próprias', engine => {
+  const importerMetadata = engine === 'firefox' ? firefoxImporterMetadata : chromeImporterMetadata;
   const fakeWorker = () => workerForTests(engine);
   const contentReply = (type: 'ping' | 'read', response: unknown) => contentReplyFor(type, response, engine);
   it('mantém o manifest limitado aos sites combinados sem permissões adicionais', () => {
@@ -393,5 +395,158 @@ describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação
     await flush();
     expect(read.replies).toEqual([{ error: 'O Cifra Club bloqueou a página neste navegador.', ...importerMetadata }]);
     expect(worker.removed).toEqual([500]);
+  });
+});
+
+describe('extensão Firefox: ida e volta na própria aba instalada', () => {
+  const returnUrl = `${origin}/musicas?candeia_import=${requestId}`;
+  const result = { sourceUrl, title: 'Luz', artist: 'Equipe', text: 'G     D\nLuz e paz', displayedKey: 'G' };
+  const sameTab = { sourceUrl, mode: 'same-tab', returnUrl };
+  const sourceSender = { frameId: 0, tab: { id: 7 }, url: sourceUrl };
+
+  it('confirma a navegação, autoriza somente a mesma aba e entrega o resultado uma única vez', async () => {
+    const worker = workerForTests('firefox');
+    const read = worker.dispatch('read', sameTab);
+    expect(read.async).toBe(false);
+    expect(read.replies).toEqual([{ navigationStarted: true, ...firefoxImporterMetadata }]);
+    expect(worker.created).toEqual([]);
+    expect(worker.updated).toEqual([{ id: 7, properties: { url: sourceUrl } }]);
+    expect(worker.dispatch('reader-ready', { sourceUrl }, sourceSender).replies).toEqual([{ requestId, sourceUrl }]);
+    expect(worker.dispatch('reader-ready', { sourceUrl }, { ...sourceSender, tab: { id: 99 } }).replies).toEqual([{ error: 'Esta aba não pertence a uma consulta ativa.' }]);
+    worker.dispatch('reader-result', { sourceUrl, result }, sourceSender);
+    await flush();
+    expect(worker.updated).toEqual([{ id: 7, properties: { url: sourceUrl } }, { id: 7, properties: { url: returnUrl } }]);
+    expect(worker.created).toEqual([]);
+    expect(worker.removed).toEqual([]);
+    const resumed = worker.dispatch('resume', {}, { ...worker.sender, url: returnUrl });
+    expect(resumed.replies).toEqual([{ result, ...firefoxImporterMetadata }]);
+    expect(worker.dispatch('resume').replies).toEqual([{ error: 'Não há uma cifra pendente para esta solicitação. Faça a busca novamente.', ...firefoxImporterMetadata }]);
+    expect(worker.timers.size).toBe(0);
+  });
+
+  it('recusa destino, parâmetros extras, fragmentos e nonce de retorno diferentes antes de navegar', () => {
+    const worker = workerForTests('firefox');
+    for (const address of [
+      `${origin}/musicas?candeia_import=${alternateId}`, `${origin}/perfil?candeia_import=${requestId}`,
+      `${origin}/musicas?candeia_import=${requestId}&token=extra`, `${returnUrl}#fragment`,
+      `http://louvor-grupo-fxebsy.netlify.app/musicas?candeia_import=${requestId}`,
+      `https://louvor-grupo-fxebsy.netlify.app.evil.test/musicas?candeia_import=${requestId}`,
+      `https://user@louvor-grupo-fxebsy.netlify.app/musicas?candeia_import=${requestId}`,
+      `${origin}:443/musicas?candeia_import=${requestId}`,
+    ]) expect(worker.dispatch('read', { ...sameTab, returnUrl: address }).replies).toEqual([{ error: 'O endereço de retorno da importação não é válido.' }]);
+    expect(worker.dispatch('read', { ...sameTab, mode: 'other' }).replies).toHaveLength(1);
+    expect(worker.dispatch('read', { ...sameTab, mode: undefined }).replies).toHaveLength(1);
+    expect(worker.created).toEqual([]);
+    expect(worker.updated).toEqual([]);
+    expect(worker.timers.size).toBe(0);
+  });
+
+  it('não entrega nem consome resultados para outro nonce, aba, origem ou iframe', async () => {
+    const worker = workerForTests('firefox');
+    worker.dispatch('read', sameTab);
+    worker.dispatch('reader-result', { sourceUrl, result }, sourceSender);
+    await flush();
+    expect(worker.dispatch('resume', { requestId: alternateId }).replies).toEqual([{ error: 'Não há uma cifra pendente para esta solicitação. Faça a busca novamente.', ...firefoxImporterMetadata }]);
+    expect(worker.dispatch('resume', {}, { ...worker.sender, tab: { id: 8 } }).replies).toHaveLength(1);
+    for (const sender of [{ ...worker.sender, frameId: 1 }, { ...worker.sender, url: 'https://evil.test/musicas' }, { ...worker.sender, url: 'http://louvor-grupo-fxebsy.netlify.app/musicas' }]) {
+      expect(worker.dispatch('resume', {}, sender).replies).toEqual([{ error: 'Esta solicitação não veio de uma aba autorizada do Candeia.' }]);
+    }
+    expect(worker.dispatch('resume').replies).toEqual([{ result, ...firefoxImporterMetadata }]);
+  });
+
+  it('retorna timeout à mesma aba sem remover ou ativar abas e expira o resultado em dois minutos', async () => {
+    const worker = workerForTests('firefox');
+    worker.dispatch('read', sameTab);
+    const timeout = [...worker.timers.values()].find(timer => timer.delay === 25_000)!;
+    timeout.callback();
+    await flush();
+    expect(worker.updated.at(-1)).toEqual({ id: 7, properties: { url: returnUrl } });
+    expect(worker.removed).toEqual([]);
+    expect(worker.created).toEqual([]);
+    expect([...worker.timers.values()].map(timer => timer.delay)).toEqual([120_000]);
+    const resumed = worker.dispatch('resume').replies;
+    expect(resumed).toEqual([{ error: 'A cifra não apareceu em até 25 segundos. Confira se essa versão abre normalmente no seu navegador.', ...firefoxImporterMetadata }]);
+    expect(worker.timers.size).toBe(0);
+    worker.dispatch('read', sameTab);
+    worker.dispatch('reader-result', { sourceUrl, result }, sourceSender);
+    await flush();
+    [...worker.timers.values()].find(timer => timer.delay === 120_000)!.callback();
+    expect(worker.dispatch('resume').replies).toEqual([{ error: 'Não há uma cifra pendente para esta solicitação. Faça a busca novamente.', ...firefoxImporterMetadata }]);
+  });
+
+  it('retorna um erro explícito da fonte sem alterar o resultado nem fechar a PWA', async () => {
+    const worker = workerForTests('firefox');
+    worker.dispatch('read', sameTab);
+    worker.dispatch('reader-result', { sourceUrl, error: 'O Cifra Club bloqueou a página neste navegador.' }, sourceSender);
+    await flush();
+    expect(worker.dispatch('resume').replies).toEqual([{ error: 'O Cifra Club bloqueou a página neste navegador.', ...firefoxImporterMetadata }]);
+    expect(worker.removed).toEqual([]);
+  });
+
+  it('voltar ao Candeia durante a leitura cancela o trabalho sem impor outra navegação', async () => {
+    const worker = workerForTests('firefox');
+    worker.dispatch('read', sameTab);
+    expect(worker.dispatch('resume', { requestId: alternateId }).replies).toHaveLength(1);
+    expect(worker.timers.size).toBe(1);
+    expect(worker.dispatch('resume').replies).toEqual([{ error: 'A consulta foi interrompida ao voltar ao Candeia. Tente importar novamente.', ...firefoxImporterMetadata }]);
+    expect(worker.timers.size).toBe(0);
+    worker.dispatch('reader-result', { sourceUrl, result }, sourceSender);
+    await flush();
+    expect(worker.updated).toEqual([{ id: 7, properties: { url: sourceUrl } }]);
+    expect(worker.removed).toEqual([]);
+    expect(worker.dispatch('resume').replies).toHaveLength(1);
+  });
+
+  it('fechar a aba limpa trabalho e retorno pendente sem navegar nem remover outras abas', async () => {
+    const worker = workerForTests('firefox');
+    worker.dispatch('read', sameTab);
+    worker.close(7);
+    await flush();
+    expect(worker.timers.size).toBe(0);
+    expect(worker.updated).toEqual([{ id: 7, properties: { url: sourceUrl } }]);
+    expect(worker.removed).toEqual([]);
+    worker.dispatch('read', sameTab);
+    worker.dispatch('reader-result', { sourceUrl, result }, sourceSender);
+    await flush();
+    worker.close(7);
+    expect(worker.timers.size).toBe(0);
+    expect(worker.dispatch('resume').replies).toHaveLength(1);
+  });
+
+  it('limite de quatro inclui os resultados ainda não consumidos', async () => {
+    const worker = workerForTests('firefox');
+    for (let id = 7; id < 11; id++) {
+      const sender = { ...worker.sender, tab: { id } };
+      worker.dispatch('read', sameTab, sender);
+      worker.dispatch('reader-result', { sourceUrl, result }, { ...sourceSender, tab: { id } });
+    }
+    await flush();
+    expect(worker.dispatch('read', sameTab, { ...worker.sender, tab: { id: 11 } }).replies).toEqual([{ error: 'Há muitas consultas abertas. Aguarde uma delas terminar.' }]);
+    expect(worker.dispatch('read', sameTab).replies).toEqual([{ error: 'Conclua a importação anterior antes de consultar outra cifra.' }]);
+    worker.dispatch('resume');
+    expect(worker.dispatch('read', sameTab, { ...worker.sender, tab: { id: 11 } }).replies).toEqual([{ navigationStarted: true, ...firefoxImporterMetadata }]);
+    expect(worker.removed).toEqual([]);
+  });
+
+  it('cancelamento com nonce correto encerra sem forçar navegação e não aceita fonte antiga', async () => {
+    const worker = workerForTests('firefox');
+    worker.dispatch('read', sameTab);
+    worker.dispatch('cancel', { requestId: alternateId });
+    expect(worker.timers.size).toBe(1);
+    worker.dispatch('cancel');
+    expect(worker.timers.size).toBe(0);
+    worker.dispatch('reader-result', { sourceUrl, result }, sourceSender);
+    await flush();
+    expect(worker.updated).toEqual([{ id: 7, properties: { url: sourceUrl } }]);
+    expect(worker.removed).toEqual([]);
+  });
+
+  it('a ponte encaminha a confirmação de navegação e o resultado retomado', async () => {
+    expect(await contentReplyFor('read', { navigationStarted: true, ...firefoxImporterMetadata }, 'firefox', sameTab)).toEqual([
+      { channel, version: 1, type: 'response', requestId, navigationStarted: true, ...firefoxImporterMetadata },
+    ]);
+    expect(await contentReplyFor('resume', { result, ...firefoxImporterMetadata }, 'firefox')).toEqual([
+      { channel, version: 1, type: 'response', requestId, result, ...firefoxImporterMetadata },
+    ]);
   });
 });

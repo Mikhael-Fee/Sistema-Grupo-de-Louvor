@@ -1,6 +1,30 @@
-# Validação da atualização Candeia — 15/10/2026
+# Validação da atualização Candeia — 16/10/2026
 
-## Versão atual — Firefox Android e atualização automática
+## Versão atual — importação no Firefox Android instalado
+
+Publicado em [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app), deploy de produção `6ad178a14108d006e6b3ecd3` confirmado `ready`, com extensão Firefox 1.1.2 assinada e funções Netlify no mesmo site existente.
+
+O usuário confirmou a importação na aba normal do Firefox Android e relatou timeout de 25 segundos no Candeia instalado pelo mesmo navegador, permanecendo na tela do Candeia. Esse erro vem do worker após aceitar o pedido, portanto a conexão com a extensão já existia. O código oficial do Firefox trata PWAs como Custom Tabs; a criação de uma aba normal não troca automaticamente a Activity apresentada. O diagnóstico é compatível com a aba de consulta ficar fora da janela visível. Aumentar o timeout ou afrouxar a validação da cifra não resolveria essa transição.
+
+A extensão Firefox **1.1.2** acrescenta `same-tab-return`: somente no aplicativo instalado pelo Firefox Android, navega a própria aba para a versão escolhida do Cifra Club e retorna à biblioteca. O resultado é temporário, limitado a dois minutos e quatro consultas, vinculado à mesma aba e ao identificador do pedido. O endereço de retorno admite somente `/musicas?candeia_import=UUID`, sem letra, senha, token Auth ou redirecionamento arbitrário. O caminho normal continua criando sua aba de consulta; os arquivos Chrome e o leitor DOM permanecem iguais.
+
+O Candeia conserva a identidade do editor e seus rascunhos na sessão da mesma conta. O retorno abre uma prévia separada, mantendo texto, título, artista, etiquetas, observações, vídeo e escolha manual de tom. Não há salvamento automático. A versão antiga da extensão recebe orientação para atualizar antes de iniciar no modo instalado. Voltar durante a leitura interrompe a consulta; falha, expiração e encerramento do processo não apagam o rascunho.
+
+O build final passou com **1.695 módulos**, 50 entradas de precache e 1.012,20 KiB. A revisão de 219 arquivos de texto do checkout/artefato não encontrou padrões de tokens administrativos nem JWT de serviço. O XPI publicado corresponde ao pacote assinado e os arquivos originais Chrome permanecem idênticos ao commit anterior. A configuração reutilizável do ambiente Codex foi salva em rascunho: instruções do protocolo/retomada e teste específico, além da verificação do requisito `unzip`; os demais bindings e a rede foram preservados. A publicação desse ambiente continua separada do Netlify.
+
+A extensão Chrome real também concluiu **7/7 cenários** contra o build final. Somados aos 21 da interface, são **28 cenários aprovados em duas rodadas finais completas**, sem casos pulados ou retries. O draft Netlify `6ad1783c57c011d05a14ed07` está pronto; sete GETs no draft e sete no domínio final conferiram HTML, entry JavaScript, cache, metadados 1.1.2 e integridade/MIME/tamanho do XPI. A comparação de HTML desconsidera somente o comentário e HUD inseridos pelo Netlify; o JavaScript é comparado byte a byte.
+
+A rodada final da interface concluiu **21/21 cenários**, sem retries ou casos pulados: oito do aplicativo Firefox, seis do guia e sete de PDF. Foram conferidos cadastro novo e edição, travessia entre origens, retorno à biblioteca, Voltar com recarga e BFCache simulado, metadados, preservação integral dos campos e bloqueio seguro quando o armazenamento mantém um rascunho antigo por falta de espaço. As expectativas antigas do guia e das fixtures foram corrigidas antes dessa rodada final; o servidor de teste foi isolado com CI=1.
+
+Os testes unitários finais passaram: **308 testes em 21 arquivos**, incluindo 42 do contrato dos workers Chrome/Firefox, 35 do canal do navegador e 12 do contexto de retorno. A validação TypeScript também passou. Os cenários novos de interface usam travessia real entre origens com páginas controladas e Auth/REST simulados; não consultam cifras reais nem gravam músicas.
+
+A Mozilla assinou o XPI **1.1.2**, GUID `cifraclub-firefox@candeia.app`, distribuição unlisted, com **20.822 bytes** e SHA256 `ee847bcea549dd18e2d3200fa6b6843a8d917beb290a52ff93f3083365301df2`. A integridade, o conteúdo assinado e a correspondência com as sete fontes foram conferidos. O lint web-ext 10.7.0 terminou com zero erros, avisos e notices de validação; o aviso separado do verificador de versão sobre seu diretório de configuração não afetou a validação nem motivou alteração de permissões do sistema.
+
+A checagem privada concluiu **184 verificações no draft e 184 no domínio de produção**, cobrindo 24 rotas em desktop e 320 px, acesso anônimo fechado, ícones/manifest e shell offline, sem login ou gravações reais. Nenhuma migração, escrita em tabelas/Storage, aprovação ou alteração de conta foi necessária. A versão anterior e seu XPI foram preservados localmente para reversão. A correção da PWA ainda precisa ser confirmada em aparelho Android após instalar a nova extensão: os testes de contrato e a navegação entre origens em Chromium não reproduzem as Activities do Firefox Android. A aba normal do Firefox, já confirmada pelo usuário, e o PDF continuam disponíveis.
+
+Fontes do diagnóstico: [ExternalAppBrowserActivity](https://github.com/mozilla-firefox/firefox/blob/751f5671de2d327ff436154dfca6ed1733809163/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/customtabs/ExternalAppBrowserActivity.kt#L25), [WebExtensionSupport](https://github.com/mozilla-firefox/firefox/blob/751f5671de2d327ff436154dfca6ed1733809163/mobile/android/android-components/components/support/webextensions/src/main/java/mozilla/components/support/webextensions/WebExtensionSupport.kt#L110) e [Bug Mozilla 1959344](https://bugzilla.mozilla.org/show_bug.cgi?id=1959344). Um link `target=_blank` simples abre outra Custom Tab e não oferece uma correção garantida; por isso o novo fluxo usa a própria sessão.
+
+## Versão anterior — Firefox Android e atualização automática (15/10/2026)
 
 Publicado no mesmo domínio [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app), deploy de produção `6ad11305ee28ece08e0984ca` confirmado `ready`. Aplicativo e funções foram publicados juntos, sem migração ou gravação de dados do ministério.
 

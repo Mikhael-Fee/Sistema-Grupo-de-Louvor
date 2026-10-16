@@ -3,12 +3,12 @@ import { setupMockMinistry } from './fixtures';
 
 const META = '**/downloads/candeia-cifraclub-firefox.json';
 const XPI = '/downloads/candeia-cifraclub-firefox.xpi';
-const release = { status: 'signed', version: '1.1.1', downloadUrl: XPI, sha256: 'a'.repeat(64) };
+const release = { status: 'signed', version: '1.1.2', downloadUrl: XPI, sha256: 'a'.repeat(64) };
 
 test('guia Android mantém PDF e explica assinatura pendente sem oferecer instalação sem assinatura', async ({ page }) => {
   const mock = await setupMockMinistry(page);
   await page.route(META, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
-    status: 'unsigned', version: '1.1.1', downloadUrl: null, sha256: null,
+    status: 'unsigned', version: '1.1.2', downloadUrl: null, sha256: null,
     unsignedDownloadUrl: '/downloads/candeia-cifraclub-firefox-unsigned.xpi',
   }) }));
   await page.setViewportSize({ width: 320, height: 740 });
@@ -20,8 +20,9 @@ test('guia Android mantém PDF e explica assinatura pendente sem oferecer instal
   await expect(page.locator('a[href$=".xpi"]')).toHaveCount(0);
   await expect(firefox).toContainText('Candeia e Cifra Club no Firefox');
   await expect(firefox).toContainText('O Candeia aberto no Chrome ou no aplicativo instalado por ele não recebe');
-  await expect(firefox).toContainText('Primeiro confira título, artista, acordes e tom sem salvar');
-  await expect(firefox.locator('ol > li')).toHaveCount(4);
+  await expect(firefox).toContainText('Confira título, artista, acordes e tom sem salvar');
+  await expect(firefox).toContainText('a cifra abre na própria janela e depois retorna ao Candeia com seu rascunho');
+  await expect(firefox.locator('ol > li')).toHaveCount(5);
   await expect(page.getByRole('heading', { name: 'Importar PDF pelo celular', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   await page.getByRole('button', { name: 'iPhone / iPad', exact: true }).click();
@@ -39,6 +40,7 @@ test('guia oferece somente o endereço fixo do XPI cuja assinatura foi validada 
   const download = page.getByRole('link', { name: 'Baixar extensão assinada para Firefox', exact: true });
   await expect(download).toHaveAttribute('href', XPI);
   await expect(download).toHaveAttribute('download', '');
+  await expect(page.getByRole('region', { name: 'Importar pelo Firefox no Android', exact: true })).toContainText('Versão 1.1.2.');
   await expect(page.getByRole('heading', { name: 'Importar PDF pelo celular', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });

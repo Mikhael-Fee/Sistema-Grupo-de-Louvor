@@ -5,12 +5,13 @@ import { sourceArtist, sourceKey, type SongSearchResult } from './song-search';
 const CHANNEL = 'candeia-cifraclub';
 const VERSION = 1;
 const MAX_TEXT = 100_000;
-type Message = { channel: string; version: number; type: string; requestId: string; result?: unknown; error?: unknown; capabilities?: unknown };
+type Message = { channel: string; version: number; type: string; requestId: string; result?: unknown; error?: unknown; capabilities?: unknown; navigationStarted?: unknown };
+type ExchangeOptions = { requestId?: string; mode?: 'same-tab'; returnUrl?: string };
 
-function exchange(type: 'ping' | 'read', sourceUrl?: string, signal?: AbortSignal): Promise<Message | null> {
+function exchange(type: 'ping' | 'read' | 'resume', sourceUrl?: string, signal?: AbortSignal, options: ExchangeOptions = {}): Promise<Message | null> {
   if (signal?.aborted) return Promise.reject(signal.reason || new DOMException('Consulta cancelada.', 'AbortError'));
   return new Promise((resolve, reject) => {
-    const requestId = crypto.randomUUID();
+    const requestId = options.requestId || crypto.randomUUID();
     const origin = window.location.origin;
     let finished = false;
     const cleanup = () => {
@@ -22,7 +23,7 @@ function exchange(type: 'ping' | 'read', sourceUrl?: string, signal?: AbortSigna
     const cancel = () => {
       if (finished) return;
       cleanup();
-      if (type === 'read') window.postMessage({ channel: CHANNEL, version: VERSION, type: 'cancel', requestId }, origin);
+      if (type !== 'ping') window.postMessage({ channel: CHANNEL, version: VERSION, type: 'cancel', requestId }, origin);
       reject(signal?.reason || new DOMException('Consulta cancelada.', 'AbortError'));
     };
     const receive = (event: MessageEvent) => {
@@ -43,7 +44,8 @@ function exchange(type: 'ping' | 'read', sourceUrl?: string, signal?: AbortSigna
     }, type === 'ping' ? 900 : 40_000);
     window.addEventListener('message', receive);
     signal?.addEventListener('abort', cancel, { once: true });
-    window.postMessage({ channel: CHANNEL, version: VERSION, type, requestId, ...(sourceUrl ? { sourceUrl } : {}) }, origin);
+    window.postMessage({ channel: CHANNEL, version: VERSION, type, requestId, ...(sourceUrl ? { sourceUrl } : {}),
+      ...(options.mode ? { mode: options.mode } : {}), ...(options.returnUrl ? { returnUrl: options.returnUrl } : {}) }, origin);
   });
 }
 
@@ -51,10 +53,17 @@ export async function detectCifraBrowser(signal?: AbortSignal): Promise<boolean>
   return (await cifraBrowserStatus(signal)) === 'connected';
 }
 
-export async function cifraBrowserStatus(signal?: AbortSignal): Promise<'connected' | 'outdated' | 'missing'> {
+/** Android's installed Firefox window cannot reliably foreground tabs.create(). */
+export function isFirefoxInstalledApp(): boolean {
+  return /Android/i.test(navigator.userAgent) && /Firefox\//i.test(navigator.userAgent)
+    && ['standalone', 'fullscreen', 'minimal-ui'].some(mode => window.matchMedia(`(display-mode: ${mode})`).matches);
+}
+
+export async function cifraBrowserStatus(signal?: AbortSignal, requireSameTab = false): Promise<'connected' | 'outdated' | 'missing'> {
   const response = await exchange('ping', undefined, signal);
   if (!response) return 'missing';
-  return Array.isArray(response.capabilities) && response.capabilities.includes('written-key-capo') ? 'connected' : 'outdated';
+  return Array.isArray(response.capabilities) && response.capabilities.includes('written-key-capo')
+    && (!requireSameTab || response.capabilities.includes('same-tab-return')) ? 'connected' : 'outdated';
 }
 
 /** Public source data only; never consume tokens or modify the ministry here. */
@@ -108,4 +117,43 @@ export async function readCifraFromBrowser(result: SongSearchResult, signal?: Ab
     throw new Error('Atualize o importador Cifra Club para reconhecer o tom dos acordes e o capotraste.');
   }
   return parseBrowserCifra(result, response.result);
+}
+
+const REQUEST_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+export async function beginCifraInCurrentTab(result: SongSearchResult, requestId: string, returnUrl: string, signal?: AbortSignal): Promise<void> {
+  const sourceUrl = normalizeCifraClubUrl(result.sourceUrl);
+  let destination: URL;
+  try { destination = new URL(returnUrl); } catch { throw new Error('O endereço de retorno da importação é inválido.'); }
+  if (result.source !== 'Cifra Club' || !sourceUrl || !REQUEST_ID.test(requestId)
+    || destination.origin !== window.location.origin || destination.pathname !== '/musicas'
+    || destination.username || destination.password || destination.hash || destination.href !== `${window.location.origin}/musicas?candeia_import=${requestId}`) {
+    throw new Error('A consulta ou o endereço de retorno da importação é inválido.');
+  }
+  const response = await exchange('read', sourceUrl, signal, { requestId, mode: 'same-tab', returnUrl: destination.href });
+  if (response?.error !== undefined) throw new Error(typeof response.error === 'string' && response.error.length <= 300 ? response.error : 'Não foi possível abrir o Cifra Club nesta janela.');
+  if (!Array.isArray(response?.capabilities) || !response.capabilities.includes('written-key-capo')
+    || !response.capabilities.includes('same-tab-return') || response.navigationStarted !== true) {
+    throw new Error('Atualize o importador Firefox para a versão 1.1.2 ou superior para importar pelo aplicativo instalado.');
+  }
+}
+
+// StrictMode may remount the page while the worker consumes a result. Share the
+// pending promise, including errors, briefly; never abort it merely on unmount.
+const resumedReads = new Map<string, { started: number; promise: Promise<SongSearchResult> }>();
+export function resumeCifraFromBrowser(result: SongSearchResult, requestId: string): Promise<SongSearchResult> {
+  if (!REQUEST_ID.test(requestId)) return Promise.reject(new Error('A consulta de retorno é inválida.'));
+  const key = `${requestId}:${normalizeCifraClubUrl(result.sourceUrl) || ''}`;
+  for (const [id, entry] of resumedReads) if (Date.now() - entry.started > 5 * 60_000) resumedReads.delete(id);
+  const existing = resumedReads.get(key);
+  if (existing) return existing.promise;
+  if (resumedReads.size >= 10) resumedReads.delete(resumedReads.keys().next().value!);
+  const promise = (async () => {
+    const response = await exchange('resume', undefined, undefined, { requestId });
+    if (response?.error !== undefined) throw new Error(typeof response.error === 'string' && response.error.length <= 300 ? response.error : 'Não foi possível recuperar esta consulta. Pesquise a versão novamente.');
+    if (!Array.isArray(response?.capabilities) || !response.capabilities.includes('written-key-capo')
+      || !response.capabilities.includes('same-tab-return')) throw new Error('Atualize o importador Firefox para a versão 1.1.2 ou superior.');
+    return parseBrowserCifra(result, response.result);
+  })();
+  resumedReads.set(key, { started: Date.now(), promise });
+  return promise;
 }

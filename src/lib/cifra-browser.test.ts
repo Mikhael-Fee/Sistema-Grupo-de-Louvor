@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cifraBrowserStatus, detectCifraBrowser, parseBrowserCifra, readCifraFromBrowser } from './cifra-browser';
+import { beginCifraInCurrentTab, cifraBrowserStatus, detectCifraBrowser, isFirefoxInstalledApp, parseBrowserCifra, readCifraFromBrowser, resumeCifraFromBrowser } from './cifra-browser';
 import type { SongSearchResult } from './song-search';
 
 const source: SongSearchResult = { id: 'chosen', title: 'Canção de teste', artist: 'Equipe de teste',
@@ -137,5 +137,70 @@ describe('canal do importador', () => {
     const pending = readCifraFromBrowser(source);
     bus.respond({ ...bus.sent[0], type: 'response', result: payload });
     await expect(pending).rejects.toThrow(/Atualize/);
+  });
+  it('exige retorno na mesma janela somente quando solicitado pelo aplicativo instalado', async () => {
+    const bus = messageBus();
+    const old = cifraBrowserStatus(undefined, true);
+    bus.respond({ ...bus.sent[0], type: 'ready', capabilities: ['written-key-capo'] });
+    expect(await old).toBe('outdated');
+    const current = cifraBrowserStatus(undefined, true);
+    bus.respond({ ...bus.sent[1], type: 'ready', capabilities: ['written-key-capo', 'same-tab-return'] });
+    expect(await current).toBe('connected');
+  });
+  it('inicia a navegação somente com origem, destino e identificador exatos', async () => {
+    const bus = messageBus();
+    const id = crypto.randomUUID();
+    const returnUrl = `https://louvor-grupo-fxebsy.netlify.app/musicas?candeia_import=${id}`;
+    const pending = beginCifraInCurrentTab(source, id, returnUrl);
+    expect(bus.sent[0]).toMatchObject({ type: 'read', mode: 'same-tab', sourceUrl: source.sourceUrl, returnUrl, requestId: id });
+    bus.respond({ ...bus.sent[0], type: 'response', navigationStarted: true, capabilities: ['written-key-capo', 'same-tab-return'] });
+    await expect(pending).resolves.toBeUndefined();
+    await expect(beginCifraInCurrentTab(source, id, returnUrl.replace('/musicas?', '/perfil?'))).rejects.toThrow(/retorno/);
+    await expect(beginCifraInCurrentTab(source, id, returnUrl.replace('louvor-grupo-fxebsy.netlify.app', 'example.com'))).rejects.toThrow(/retorno/);
+    await expect(beginCifraInCurrentTab(source, id, `${returnUrl}&token=invalid`)).rejects.toThrow(/retorno/);
+    expect(bus.sent).toHaveLength(1);
+  });
+  it('não interpreta ACK de extensão antiga como início de navegação', async () => {
+    const bus = messageBus();
+    const id = crypto.randomUUID();
+    const pending = beginCifraInCurrentTab(source, id, `https://louvor-grupo-fxebsy.netlify.app/musicas?candeia_import=${id}`);
+    bus.respond({ ...bus.sent[0], type: 'response', navigationStarted: true, capabilities: ['written-key-capo'] });
+    await expect(pending).rejects.toThrow(/1\.1\.2/);
+  });
+  it('retoma uma única vez mesmo com montagem dupla e valida novamente a versão', async () => {
+    const bus = messageBus();
+    const id = crypto.randomUUID();
+    const first = resumeCifraFromBrowser(source, id);
+    const duplicate = resumeCifraFromBrowser(source, id);
+    expect(duplicate).toBe(first);
+    expect(bus.sent).toHaveLength(1);
+    expect(bus.sent[0]).toEqual({ channel: 'candeia-cifraclub', version: 1, type: 'resume', requestId: id });
+    bus.respond({ ...bus.sent[0], type: 'response', result: payload, capabilities: ['written-key-capo', 'same-tab-return'] });
+    expect((await first).originalKey).toBe('F');
+    expect(await duplicate).toEqual(await first);
+    expect(bus.listeners.size).toBe(0);
+  });
+  it('propaga cancelamento antecipado do worker sem inventar uma cifra', async () => {
+    const bus = messageBus();
+    const pending = resumeCifraFromBrowser(source, crypto.randomUUID());
+    bus.respond({ ...bus.sent[0], type: 'response', error: 'A consulta foi interrompida. Tente novamente.' });
+    await expect(pending).rejects.toThrow(/interrompida/);
+  });
+});
+
+describe('janela instalada Firefox Android', () => {
+  it.each(['standalone', 'minimal-ui', 'fullscreen'])('reconhece modo %s', mode => {
+    vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Android 15; Mobile; rv:145.0) Gecko/145.0 Firefox/145.0' });
+    vi.stubGlobal('window', { matchMedia: (query: string) => ({ matches: query === `(display-mode: ${mode})` }) });
+    expect(isFirefoxInstalledApp()).toBe(true);
+  });
+  it.each([
+    ['Mozilla/5.0 (Android 15; Mobile) Firefox/145.0', false],
+    ['Mozilla/5.0 (Android 15; Mobile) Chrome/143.0', true],
+    ['Mozilla/5.0 (X11; Linux) Firefox/145.0', true],
+  ])('mantém o fluxo de abas para %s com instalação %s', (userAgent, installed) => {
+    vi.stubGlobal('navigator', { userAgent });
+    vi.stubGlobal('window', { matchMedia: () => ({ matches: installed }) });
+    expect(isFirefoxInstalledApp()).toBe(false);
   });
 });

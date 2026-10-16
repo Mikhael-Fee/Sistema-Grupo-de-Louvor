@@ -10,7 +10,8 @@ import { validateSong } from '../lib/validation';
 import { cleanChordSheet, normalizeCifraClubUrl, parseCifraClubText } from '../lib/cifraclub';
 import { contentInChurchKey, hasWrittenChords, resolveSourceTonality, songInChurchKey } from '../lib/song-tones';
 import { useDraft } from '../hooks/useDraft';
-import { cifraBrowserStatus, readCifraFromBrowser } from '../lib/cifra-browser';
+import { beginCifraInCurrentTab, cifraBrowserStatus, isFirefoxInstalledApp, readCifraFromBrowser, resumeCifraFromBrowser } from '../lib/cifra-browser';
+import { clearCurrentTabImport, pendingCurrentTabImport, saveCurrentTabImport } from '../lib/cifra-current-tab';
 import { cifraClubUrlFromNotes, notesWithCifraClubSource, previewSongSource, searchUnifiedSongSources, sourceKey, type SongSearchResult } from '../lib/song-search';
 import { buildYouTubeSearchUrl, getYouTubeVideoId, normalizeYouTubeUrl, searchYouTubeVideos, youtubeThumbnailUrl, type YouTubeSuggestion } from '../lib/youtube';
 import type { Song } from '../types';
@@ -27,9 +28,11 @@ function SourceKeyConfirmation({ value, onChange, reason }: { value: string; onC
   </div>;
 }
 
-export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onSaved }: { song?: Song; incomingSource?: SongSearchResult; incomingDraftId?: string; onClose: () => void; onSaved?: () => void }) {
-  const { data, saveSong, busy } = useMinistry();
+type ResumedCifraPreview = { requestId: string; source: SongSearchResult; useSourceMetadata: boolean };
+export function SongEditor({ song, incomingSource, incomingDraftId, resumePreview, resumeFailure, onClose, onSaved }: { song?: Song; incomingSource?: SongSearchResult; incomingDraftId?: string; resumePreview?: ResumedCifraPreview; resumeFailure?: string; onClose: () => void; onSaved?: () => void }) {
+  const { data, saveSong, busy, mode, profile } = useMinistry();
   const incomingTonality = useMemo(() => incomingSource ? resolveSourceTonality(incomingSource) : null, [incomingSource]);
+  const resumedTonality = useMemo(() => resumePreview ? resolveSourceTonality(resumePreview.source) : null, [resumePreview]);
   const editorKey = song?.id || (incomingSource ? `mobile:${incomingDraftId || incomingSource.id}` : 'new');
   const { draft, setDraft, discardDraft, hasDraft } = useDraft<Song>(`song:${editorKey}`, () => song ? songInChurchKey({ ...song, tagIds: [...song.tagIds] })
     : incomingSource ? { ...blankSong(), title: incomingSource.title, artist: incomingSource.artist,
@@ -45,21 +48,24 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
   const [previewWrittenKey, setPreviewWrittenKey] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [sourceOpen, setSourceOpen] = useState(Boolean(incomingSource));
+  const [sourceOpen, setSourceOpen] = useState(Boolean(incomingSource || resumePreview || resumeFailure));
   const [sourceResults, setSourceResults] = useState<SongSearchResult[]>([]);
   const [sourceWarnings, setSourceWarnings] = useState<string[]>([]);
-  const [preview, setPreview] = useState<SongSearchResult | null>(incomingTonality?.source || null);
+  const [preview, setPreview] = useState<SongSearchResult | null>(resumedTonality?.source || incomingTonality?.source || null);
   const [previewLyricsOnly, setPreviewLyricsOnly] = useState(false);
   const previewText = useMemo(() => {
     const cleaned = cleanChordSheet(preview?.content || '');
     return previewLyricsOnly ? stripChords(cleaned) : cleaned;
   }, [preview?.content, previewLyricsOnly]);
-  const [sourceError, setSourceError] = useState<string | null>(null);
+  const [sourceError, setSourceError] = useState<string | null>(resumeFailure || null);
+  useEffect(() => {
+    if (resumeFailure) { setSourceError(resumeFailure); setSourceOpen(true); }
+  }, [resumeFailure]);
   const [searching, setSearching] = useState(false);
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const [imported, setImported] = useState(false);
-  const [useSourceMetadata, setUseSourceMetadata] = useState(Boolean(incomingSource));
+  const [useSourceMetadata, setUseSourceMetadata] = useState(resumePreview?.useSourceMetadata ?? Boolean(incomingSource));
   const [sourceConfirmReplace, setSourceConfirmReplace] = useState(false);
   const sourceRequest = useRef<AbortController | null>(null);
   const videoRequest = useRef<AbortController | null>(null);
@@ -71,7 +77,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
   const [browserOutdated, setBrowserOutdated] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    void cifraBrowserStatus(controller.signal).then(status => { setBrowserConnected(status === 'connected'); setBrowserOutdated(status === 'outdated'); }).catch(() => {});
+    void cifraBrowserStatus(controller.signal, isFirefoxInstalledApp()).then(status => { setBrowserConnected(status === 'connected'); setBrowserOutdated(status === 'outdated'); }).catch(() => {});
     return () => controller.abort();
   }, []);
   useEffect(() => () => sourceRequest.current?.abort(), []);
@@ -103,6 +109,33 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
     setPreview(tonality.source);
     sourceDefault(tonality.churchKey);
   }
+  useEffect(() => {
+    if (resumedTonality) sourceDefault(resumedTonality.churchKey);
+  }, [resumedTonality]);
+  useEffect(() => {
+    let active = true;
+    const restored = (event: PageTransitionEvent) => {
+      if (!event.persisted || !profile?.approved || profile.role !== 'admin') return;
+      const { pending, error: pendingError } = pendingCurrentTabImport(profile.id, null);
+      if (pendingError) { setSourceOpen(true); setSourceError(pendingError); return; }
+      if (!pending || pending.target !== (song?.id || 'new')) return;
+      // Firefox can restore the editor directly from BFCache without remounting
+      // either its library host or the song's detail page. Resume also stops a
+      // source job that the user interrupted with Back.
+      setSourceOpen(true); setSourceError(null); setPreviewing(pending.source.id);
+      void resumeCifraFromBrowser(pending.source, pending.requestId).then(source => {
+        if (!active) return;
+        receivePreview(source); setUseSourceMetadata(pending.useSourceMetadata);
+        setPreviewWrittenKey(''); setPreviewLyricsOnly(false); setSourceConfirmReplace(false);
+      }).catch(cause => {
+        if (active) setSourceError(cause instanceof Error ? cause.message : 'Não foi possível retomar a consulta. Seu rascunho foi mantido.');
+      }).finally(() => {
+        if (active) { clearCurrentTabImport(pending.requestId); setPreviewing(null); }
+      });
+    };
+    window.addEventListener('pageshow', restored);
+    return () => { active = false; window.removeEventListener('pageshow', restored); };
+  }, [profile?.id, profile?.approved, profile?.role, song?.id]);
   function prepareContent(current: Song, confirmedKey?: string): Song {
     if (!current.content.trim()) return current;
     const parsed = parseCifraClubText(current.content);
@@ -143,12 +176,34 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
     sourceRequest.current?.abort();
     const controller = new AbortController();
     sourceRequest.current = controller;
-    setPreviewing(result.id); setSearching(false); setSourceError(null); setPreview(null); setPreviewWrittenKey(''); setPreviewLyricsOnly(false); setImported(false); setUseSourceMetadata(false); setSourceConfirmReplace(false);
+    const sameTab = result.source === 'Cifra Club' && isFirefoxInstalledApp();
+    setPreviewing(result.id); setSearching(false); setSourceError(null); setPreview(null); setPreviewWrittenKey(''); setPreviewLyricsOnly(false); setImported(false); if (!sameTab) setUseSourceMetadata(false); setSourceConfirmReplace(false);
     try {
-      const status = result.source === 'Cifra Club' ? await cifraBrowserStatus(controller.signal) : 'missing';
-      if (status === 'outdated') { setBrowserOutdated(true); setBrowserConnected(false); throw new Error('Atualize o importador Cifra Club para reconhecer capotraste e o tom dos acordes corretamente. Abra “Atualizar importador” acima.'); }
+      const status = result.source === 'Cifra Club' ? await cifraBrowserStatus(controller.signal, sameTab) : 'missing';
+      if (status === 'outdated') { setBrowserOutdated(true); setBrowserConnected(false); throw new Error(sameTab ? 'Atualize o importador Firefox para a versão 1.1.2 ou superior para importar pelo aplicativo instalado. Abra “Atualizar importador” acima.' : 'Atualize o importador Cifra Club para reconhecer capotraste e o tom dos acordes corretamente. Abra “Atualizar importador” acima.'); }
       const connected = status === 'connected';
       if (connected) setBrowserConnected(true);
+      if (sameTab) {
+        if (incomingSource) throw new Error('Conclua ou feche esta transferência primeiro. Para buscar outra versão pelo aplicativo instalado, abra Biblioteca → Nova música; seu rascunho desta transferência será mantido.');
+        if (!connected || !profile?.approved || profile.role !== 'admin') throw new Error('Conecte o importador Firefox atualizado e entre com uma conta administradora para importar nesta janela.');
+        // Flush even a pristine form and its manual key preference before leaving.
+        // Reuse exactly the original editor key when the extension returns.
+        let latestDraft = draft;
+        let latestKeyPreference = keyPreferenceRef.current;
+        let latestPastedSource = pastedSource;
+        setDraft(current => { latestDraft = current; return current; });
+        setKeyPreference(current => { latestKeyPreference = current; return current; });
+        setPastedSource(current => { latestPastedSource = current; return current; });
+        try {
+          for (const [key, value] of [[`song:${editorKey}`, latestDraft], [`song-key-preference:${editorKey}`, latestKeyPreference], [`song-pasted-source:${editorKey}`, latestPastedSource]] as const) {
+            if (sessionStorage.getItem(`candeia.draft.v1:${mode}:${profile.id}:${key}`) !== JSON.stringify({ version: 1, value })) throw new Error();
+          }
+        } catch { throw new Error('Permita o armazenamento desta aba para preservar o rascunho durante a importação.'); }
+        const pending = saveCurrentTabImport(profile.id, song?.id || 'new', result, useSourceMetadata);
+        try { await beginCifraInCurrentTab(result, pending.requestId, `${window.location.origin}/musicas?candeia_import=${pending.requestId}`, controller.signal); }
+        catch (cause) { clearCurrentTabImport(pending.requestId); throw cause; }
+        return;
+      }
       const resultPreview = connected ? await readCifraFromBrowser(result, controller.signal) : await previewSongSource(result, controller.signal);
       if ((resultPreview.content?.length || 0) > 100_000) throw new Error('A letra e cifra desta versão excedem 100.000 caracteres. Escolha outra versão.');
       if (!controller.signal.aborted) receivePreview(resultPreview);
@@ -317,7 +372,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, onClose, onS
 }
 
 export default function SongsPage() {
-  const { data, canEditLibrary, deleteSong, busy, error } = useMinistry();
+  const { data, canEditLibrary, deleteSong, busy, error, profile, loading } = useMinistry();
   const [query, setQuery] = useState('');
   const [keyFilter, setKeyFilter] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -327,6 +382,12 @@ export default function SongsPage() {
     setSearchParams(current => { const next = new URLSearchParams(current); next.delete('etiqueta'); tags.forEach(id => next.append('etiqueta', id)); return next; });
   };
   const [editor, setEditor] = useState<Song | 'new' | null>(null);
+  const [resumePreview, setResumePreview] = useState<ResumedCifraPreview>();
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const [resuming, setResuming] = useState(false);
+  const [resumeEpoch, setResumeEpoch] = useState(0);
+  const resumedRequest = useRef<string | null>(null);
+  function openEditor(target: Song | 'new') { setResumeError(null); setResumePreview(undefined); setEditor(target); }
   const [batchImport, setBatchImport] = useState(false);
   const [deleting, setDeleting] = useState<Song | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -339,6 +400,42 @@ export default function SongsPage() {
   const reset = () => { setQuery(''); setKeyFilter(''); setSelectedTags([]); };
   const usedBy = deleting ? data.services.filter(service => service.repertoire.some(item => item.songId === deleting.id)).length : 0;
 
+  useEffect(() => {
+    const restored = (event: PageTransitionEvent) => { if (event.persisted && !editor) setResumeEpoch(current => current + 1); };
+    window.addEventListener('pageshow', restored);
+    return () => window.removeEventListener('pageshow', restored);
+  }, [editor]);
+
+  useEffect(() => {
+    if (loading || !profile) return;
+    const returnedId = searchParams.get('candeia_import');
+    const { pending, error: pendingError } = pendingCurrentTabImport(profile.id, returnedId);
+    // Capture/validate before removing only our parameter; keep library filters.
+    if (returnedId !== null) setSearchParams(current => { const next = new URLSearchParams(current); next.delete('candeia_import'); return next; }, { replace: true });
+    if (pendingError) { setResuming(false); setResumeError(pendingError); return; }
+    if (!pending || resumedRequest.current === pending.requestId) { setResuming(false); return; }
+    if (!canEditLibrary) { clearCurrentTabImport(pending.requestId); setResumeError('Somente uma conta administradora pode concluir esta importação. Seu rascunho foi mantido.'); return; }
+    const target = pending.target === 'new' ? 'new' : data.songs.find(song => song.id === pending.target);
+    if (!target) { clearCurrentTabImport(pending.requestId); setResumeError('A música desta consulta não está mais na biblioteca. Seu rascunho foi mantido.'); return; }
+    setResuming(true); setResumeError(null);
+    let active = true;
+    // Promise is deduplicated outside React: StrictMode must not consume twice.
+    void resumeCifraFromBrowser(pending.source, pending.requestId).then(source => {
+      if (!active) return;
+      resumedRequest.current = pending.requestId;
+      clearCurrentTabImport(pending.requestId);
+      setResumePreview({ requestId: pending.requestId, source, useSourceMetadata: pending.useSourceMetadata });
+      setEditor(target);
+    }).catch(cause => {
+      if (!active) return;
+      resumedRequest.current = pending.requestId;
+      clearCurrentTabImport(pending.requestId);
+      setResumeError(cause instanceof Error ? cause.message : 'Não foi possível retomar a consulta. Seu rascunho foi mantido.');
+      setEditor(target);
+    }).finally(() => { if (active) setResuming(false); });
+    return () => { active = false; };
+  }, [loading, profile?.id, canEditLibrary, data.songs, searchParams, setSearchParams, resumeEpoch]);
+
   async function removeSong() {
     if (!deleting) return;
     setRemoving(true);
@@ -349,7 +446,7 @@ export default function SongsPage() {
   }
 
   return <>
-    <PageHeader eyebrow="REPERTÓRIO DO MINISTÉRIO" title="Biblioteca de músicas" description="Cada canção, pronta para o próximo encontro." action={canEditLibrary && <div className="form-actions" style={{ marginTop: 0 }}><button className="button button-secondary" onClick={() => setBatchImport(true)}><Download size={17} />Importar PDFs</button><button className="button button-primary" onClick={() => setEditor('new')}><Plus size={17} />Nova música</button></div>} />
+    <PageHeader eyebrow="REPERTÓRIO DO MINISTÉRIO" title="Biblioteca de músicas" description="Cada canção, pronta para o próximo encontro." action={canEditLibrary && <div className="form-actions" style={{ marginTop: 0 }}><button className="button button-secondary" onClick={() => setBatchImport(true)}><Download size={17} />Importar PDFs</button><button className="button button-primary" disabled={resuming} onClick={() => openEditor('new')}><Plus size={17} />Nova música</button></div>} />
     <div className="songs-summary"><span className="songs-summary-icon"><Music2 size={19} /></span><strong>{data.songs.length}</strong><span>{data.songs.length === 1 ? 'música na biblioteca' : 'músicas na biblioteca'}</span><span className="songs-summary-divider" /><span>{data.tags.length} {data.tags.length === 1 ? 'etiqueta para organizar' : 'etiquetas para organizar'}</span></div>
     <section className="card songs-filters" aria-label="Filtros de músicas">
       <div className="songs-filter-row"><label className="songs-search"><Search size={18} /><input className="search-input" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar por título ou artista…" aria-label="Buscar por título ou artista" /></label><label className="songs-key-filter"><ListFilter size={16} /><span className="sr-only">Filtrar pelo tom na igreja</span><select value={keyFilter} onChange={e => setKeyFilter(e.target.value)} aria-label="Filtrar pelo tom na igreja"><option value="">Todos os tons</option>{KEYS.map(key => <option key={key} value={key}>Tom {key}</option>)}</select></label></div>
@@ -360,14 +457,16 @@ export default function SongsPage() {
     </section>
     <div className="songs-results-heading"><p>{songs.length === data.songs.length ? 'Todas as músicas' : `${songs.length} ${songs.length === 1 ? 'música encontrada' : 'músicas encontradas'}`}<span>{songs.length}</span></p>{filtered && <button className="button button-ghost songs-clear" onClick={reset}><X size={14} />Limpar filtros</button>}</div>
     <FormError error={error} />
+    <FormError error={resumeError} />
+    {resuming && <p role="status" aria-busy="true"><LoaderCircle className="songs-spinner" size={15} /> Recuperando a prévia do Cifra Club…</p>}
     {songs.length ? <div className="card songs-list"><div className="songs-list-head" aria-hidden="true"><span>MÚSICA</span><span>TOM NA IGREJA</span><span>ETIQUETAS</span><span /></div>{songs.map(song => <article className="songs-row" key={song.id}>
       <Link className="songs-name" to={`/musicas/${song.id}`}><span className="songs-cover"><Music2 size={22} /></span><span><strong>{song.title}</strong><small>{song.artist}</small></span></Link>
       <div className="songs-key"><span className="songs-key-badge">{song.churchKey}</span></div>
       <div className="songs-row-tags">{data.tags.filter(tag => song.tagIds.includes(tag.id)).map(tag => <span key={tag.id} className="songs-tag"><span className="songs-tag-dot" style={{ backgroundColor: tag.color }} />{tag.name}</span>)}{!song.tagIds.length && <span className="muted songs-no-tags">Sem etiquetas</span>}</div>
-      <div className="songs-row-actions">{canEditLibrary && <><button className="icon-button" aria-label={`Editar ${song.title}`} title="Editar música" onClick={() => setEditor(song)}><Pencil size={16} /></button><button className="icon-button songs-delete" aria-label={`Excluir ${song.title}`} title="Excluir música" onClick={() => { setDeleting(song); setDeleteError(null); }}><Trash2 size={16} /></button></>}<Link className="icon-button songs-open" to={`/musicas/${song.id}`} aria-label={`Abrir ${song.title}`}><ArrowUpRight size={19} /></Link></div>
-    </article>)}</div> : <div className="card"><EmptyState title={filtered ? 'Nenhuma música com esses filtros' : 'A biblioteca começa com uma canção'} description={filtered ? 'Tente outro título, tom ou combinação de etiquetas.' : 'Adicione as músicas que fazem parte da caminhada do ministério.'} action={filtered ? <button className="button button-secondary" onClick={reset}>Limpar filtros</button> : canEditLibrary ? <button className="button button-primary" onClick={() => setEditor('new')}><Plus size={16} />Adicionar música</button> : undefined} /></div>}
+      <div className="songs-row-actions">{canEditLibrary && <><button className="icon-button" aria-label={`Editar ${song.title}`} title="Editar música" disabled={resuming} onClick={() => openEditor(song)}><Pencil size={16} /></button><button className="icon-button songs-delete" aria-label={`Excluir ${song.title}`} title="Excluir música" onClick={() => { setDeleting(song); setDeleteError(null); }}><Trash2 size={16} /></button></>}<Link className="icon-button songs-open" to={`/musicas/${song.id}`} aria-label={`Abrir ${song.title}`}><ArrowUpRight size={19} /></Link></div>
+    </article>)}</div> : <div className="card"><EmptyState title={filtered ? 'Nenhuma música com esses filtros' : 'A biblioteca começa com uma canção'} description={filtered ? 'Tente outro título, tom ou combinação de etiquetas.' : 'Adicione as músicas que fazem parte da caminhada do ministério.'} action={filtered ? <button className="button button-secondary" onClick={reset}>Limpar filtros</button> : canEditLibrary ? <button className="button button-primary" disabled={resuming} onClick={() => openEditor('new')}><Plus size={16} />Adicionar música</button> : undefined} /></div>}
     <p className="songs-footer-note"><Music2 size={14} />Os ajustes de tom na visualização preservam a música original.</p>
-    {editor && <SongEditor song={editor === 'new' ? undefined : editor} onClose={() => setEditor(null)} />}
+    {editor && <SongEditor key={`${editor === 'new' ? 'new' : editor.id}:${resumePreview?.requestId || ''}`} song={editor === 'new' ? undefined : editor} resumePreview={resumePreview} resumeFailure={resumeError || undefined} onClose={() => { setEditor(null); setResumePreview(undefined); setResumeError(null); }} />}
     {batchImport && <CifraPdfBatchDialog onClose={() => setBatchImport(false)} />}
     {deleting && <Modal title="Excluir música" onClose={() => setDeleting(null)}><p>Excluir <strong>{deleting.title}</strong> da biblioteca?</p>{usedBy > 0 ? <p className="songs-delete-warning">Esta música aparece em {usedBy} {usedBy === 1 ? 'culto' : 'cultos'}. Remova-a dos repertórios antes de excluir.</p> : <p className="muted">Esta ação remove a letra, a cifra e as observações cadastradas.</p>}<FormError error={deleteError} /><div className="form-actions"><button className="button button-secondary" onClick={() => setDeleting(null)}>Cancelar</button><button className="button songs-danger-button" disabled={usedBy > 0 || removing || busy} onClick={removeSong}>{removing ? 'Excluindo…' : 'Excluir música'}</button></div></Modal>}
   </>;

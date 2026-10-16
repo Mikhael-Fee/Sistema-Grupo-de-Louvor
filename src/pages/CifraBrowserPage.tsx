@@ -2,7 +2,7 @@ import { useEffect, useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Download, FileText, LoaderCircle, Monitor, Smartphone } from 'lucide-react';
 import Brand from '../components/Brand';
-import { cifraBrowserStatus } from '../lib/cifra-browser';
+import { cifraBrowserStatus, isFirefoxInstalledApp } from '../lib/cifra-browser';
 import './cifra-browser.css';
 
 type MobileDevice = 'android' | 'iphone';
@@ -11,15 +11,16 @@ type FirefoxRelease = { status: 'unsigned' | 'signed'; version: string; download
 
 function ConnectionCheck({ mobile = false }: { mobile?: boolean }) {
   const [status, setStatus] = useState<ImporterStatus>('idle');
+  const installedFirefox = mobile && isFirefoxInstalledApp();
   async function check() {
     setStatus('checking');
-    setStatus(await cifraBrowserStatus());
+    setStatus(await cifraBrowserStatus(undefined, installedFirefox));
   }
   return <>
     <button className="button button-secondary" disabled={status === 'checking'} onClick={() => void check()}>{status === 'checking' ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />}Verificar conexão</button>
     {status === 'connected' && <p role="status">Importador conectado. Você já pode pesquisar e importar na biblioteca.</p>}
     {status === 'missing' && <p role="status">Importador ainda não encontrado. {mobile ? 'Abra esta página no Firefox com a extensão instalada e permitida; depois atualize a página.' : 'Confira a instalação e atualize esta página.'}</p>}
-    {status === 'outdated' && <p role="status">Seu importador precisa da atualização 1.1.1. Siga as instruções acima, recarregue a extensão e atualize esta página.</p>}
+    {status === 'outdated' && <p role="status">{installedFirefox ? 'Para importar pelo aplicativo instalado, atualize a extensão Firefox para 1.1.2 ou posterior.' : 'Seu importador precisa da atualização 1.1.1.'} Siga as instruções acima, recarregue a extensão e atualize esta página.</p>}
   </>;
 }
 
@@ -48,16 +49,18 @@ function FirefoxMobileImporter() {
   return <section className="cifra-firefox-guide" aria-labelledby="cifra-firefox-title">
     <span className="cifra-guide-experiment">Teste para administradores</span>
     <h2 id="cifra-firefox-title">Importar pelo Firefox no Android</h2>
-    <p>Uma alternativa para testar a importação sem PDF: a extensão lê a cifra aberta no próprio Firefox e entrega uma prévia ao Candeia. A importação em aparelhos Android ainda precisa ser confirmada.</p>
+    <p>A extensão lê a cifra aberta no próprio Firefox e entrega uma prévia ao Candeia. A importação na aba normal já foi confirmada no celular; o fluxo do aplicativo instalado continua em teste.</p>
     {loading ? <p role="status"><LoaderCircle size={16} className="spin" /> Conferindo o pacote do Firefox…</p>
       : signed ? <a className="button button-primary" href={release.downloadUrl!} download><Download size={17} />Baixar extensão assinada para Firefox</a>
         : release?.status === 'unsigned' ? <p className="cifra-firefox-pending" role="status"><strong>Instalação aguardando assinatura da Mozilla.</strong> O pacote de desenvolvimento está preparado, mas ainda não está liberado para instalação no Firefox Android. Por enquanto, use a opção PDF abaixo.</p>
           : <p className="cifra-firefox-pending" role="status">Não foi possível confirmar o pacote assinado. Tente novamente mais tarde ou use a opção PDF abaixo.</p>}
+    {signed && <p><strong>Versão {release.version}.</strong> Se já instalou a versão 1.1.1, instale este novo arquivo e recarregue o Candeia para testar a importação pelo aplicativo instalado no Firefox.</p>}
     <ol>
       <li>Instale o <a href="https://play.google.com/store/apps/details?id=org.mozilla.firefox" target="_blank" rel="noreferrer">Firefox para Android</a> e abra a cifra no Cifra Club. Os acordes precisam aparecer normalmente.</li>
       <li>Quando o pacote assinado estiver disponível acima, baixe o arquivo no Firefox. Abra <strong>Configurações → Sobre o Firefox</strong>, toque cinco vezes no logotipo e volte às Configurações. Escolha <strong>Instalar extensão de arquivo</strong>, selecione o arquivo e confirme as permissões.</li>
       <li>Abra <strong>Candeia e Cifra Club no Firefox</strong>, entre na sua conta administradora do Candeia e toque em <strong>Verificar conexão</strong> abaixo. O Candeia aberto no Chrome ou no aplicativo instalado por ele não recebe a extensão do Firefox.</li>
-      <li>Na <strong>Biblioteca → Nova música</strong>, pesquise e escolha <strong>Ver prévia</strong>. Primeiro confira título, artista, acordes e tom sem salvar; importe e salve somente depois de conferir. Se não funcionar, use o PDF.</li>
+      <li>Na <strong>Biblioteca → Nova música</strong>, pesquise e escolha <strong>Ver prévia</strong>. No aplicativo instalado pelo Firefox, a cifra abre na própria janela e depois retorna ao Candeia com seu rascunho. Aguarde o retorno; voltar manualmente interrompe a consulta.</li>
+      <li>Confira título, artista, acordes e tom sem salvar; importe e salve somente depois de conferir. Se precisar, faça a importação pela aba normal do Firefox ou use o PDF.</li>
     </ol>
     <ConnectionCheck mobile />
     <p className="cifra-firefox-footnote">Após salvar, todos os membros podem consultar a música no navegador habitual. Não é necessário instalar a extensão nos celulares de quem apenas consulta as cifras.</p>

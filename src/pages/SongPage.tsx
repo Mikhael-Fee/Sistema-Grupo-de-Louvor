@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Check, ExternalLink, FileText, Maximize2, Minus, Music2, Pencil, Plus, Save, StickyNote, X } from 'lucide-react';
 import { EmptyState, FormError } from '../components/ui';
 import YoutubeVideoCard from '../components/YoutubeVideoCard';
@@ -8,13 +8,16 @@ import { chordSegments, KEYS, stripChords, transposeContent } from '../lib/music
 import { cleanChordSheet } from '../lib/cifraclub';
 import { normalizeYouTubeUrl } from '../lib/youtube';
 import { cifraClubUrlFromNotes, cifraClubSearchUrl } from '../lib/song-search';
+import { isFirefoxInstalledApp } from '../lib/cifra-browser';
+import { pendingCurrentTabImport } from '../lib/cifra-current-tab';
 import { SongEditor } from './SongsPage';
 import './songs.css';
 
 export default function SongPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { data, canEditLibrary, canPlan, saveService, busy } = useMinistry();
+  const { data, canEditLibrary, canPlan, saveService, busy, profile } = useMinistry();
   const song = data.songs.find(item => item.id === id);
   const service = data.services.find(item => item.id === searchParams.get('service'));
   const setlistItem = service?.repertoire.find(item => item.id === searchParams.get('item') && item.songId === id);
@@ -28,6 +31,14 @@ export default function SongPage() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const readerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editing || !id || !profile || !canEditLibrary || !isFirefoxInstalledApp()) return;
+    const { pending } = pendingCurrentTabImport(profile.id, null);
+    // Back may reload the detail document instead of restoring the open editor.
+    // Let the library resume/cancel the worker and reopen this same song draft.
+    if (pending?.target === id) navigate(`/musicas?candeia_import=${pending.requestId}`, { replace: true });
+  }, [editing, id, profile?.id, canEditLibrary, navigate]);
 
   useEffect(() => { setViewKey(defaultKey); setSaveError(null); }, [id, defaultKey]);
   useEffect(() => { setSaved(false); }, [id]);

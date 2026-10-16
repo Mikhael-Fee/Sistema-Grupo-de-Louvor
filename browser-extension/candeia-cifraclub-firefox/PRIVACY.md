@@ -3,15 +3,20 @@
 A extensão funciona somente em `https://louvor-grupo-fxebsy.netlify.app/`,
 `https://www.cifraclub.com.br/` e `https://cifraclub.com.br/`.
 
-Quando você solicita uma prévia no Candeia, ela abre uma aba da cifra escolhida
-no Cifra Club. Apenas essa aba, associada à solicitação, entrega título, artista,
+Quando você solicita uma prévia no Candeia, ela abre a cifra escolhida no Cifra
+Club. No aplicativo instalado pelo Firefox Android, usa a própria janela e retorna
+ao Candeia; no navegador normal, usa uma aba de consulta separada. Apenas a aba
+associada à solicitação entrega título, artista,
 endereço da fonte, letra, acordes, tom e informações disponíveis de capotraste à
 aba do Candeia. O manifesto declara conteúdo de páginas e atividade de navegação
 porque essa transferência inclui o texto e o endereço escolhido. Não envia o
 histórico de navegação.
 
 A extensão não possui servidor próprio, analytics, publicidade, telemetria ou
-armazenamento persistente. Não lê senhas, cookies ou área de transferência.
+armazenamento persistente. No modo instalado, mantém o resultado em memória por
+até dois minutos para devolvê-lo à mesma aba e solicitação após a navegação.
+O rascunho do aplicativo permanece no armazenamento da sessão do próprio Candeia.
+Não lê senhas, cookies ou área de transferência.
 Uma aba comum do Cifra Club não é importada sem uma solicitação ativa do Candeia.
 
 As páginas abertas podem realizar suas próprias requisições, segundo as regras

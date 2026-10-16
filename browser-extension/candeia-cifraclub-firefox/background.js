@@ -6,10 +6,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Keep the channel bounded while Firefox switches the active Android tab.
 const MAX_JOB_TIME = 25_000;
 const MAX_JOBS = 4;
-const IMPORTER_VERSION = '1.1.1';
-const CAPABILITIES = ['written-key-capo'];
+const RETURN_LIFETIME = 120_000;
+const IMPORTER_VERSION = '1.1.2';
+const CAPABILITIES = ['written-key-capo', 'same-tab-return'];
 const jobsByCandeia = new Map();
 const jobsBySource = new Map();
+const completedByCandeia = new Map();
 
 function validEnvelope(message) {
   return message && typeof message === 'object' && message.channel === CHANNEL && message.version === 1;
@@ -41,23 +43,60 @@ function validatedResult(value, job) {
     ...(value.keyUnknownReason ? { keyUnknownReason: value.keyUnknownReason } : {}) };
 }
 
-async function finish(job, payload, focus = true) {
-  if (job.finished) return;
+function validReturnUrl(value, requestId) {
+  // A public request nonce is the only value allowed in the return address.
+  // Never accept redirects, a token fragment, or an arbitrary destination.
+  return typeof value === 'string' && value === `${ORIGIN}/musicas?candeia_import=${requestId}`;
+}
+
+function release(job) {
+  if (job.finished) return false;
   job.finished = true;
   clearTimeout(job.timer);
+  if (jobsByCandeia.get(job.candeiaTabId) === job) jobsByCandeia.delete(job.candeiaTabId);
+  if (jobsBySource.get(job.sourceTabId) === job) jobsBySource.delete(job.sourceTabId);
+  return true;
+}
+
+function forgetCompleted(tabId) {
+  const completed = completedByCandeia.get(tabId);
+  if (!completed) return;
+  clearTimeout(completed.timer);
+  completedByCandeia.delete(tabId);
+}
+
+async function finish(job, payload, focus = true) {
+  if (!release(job)) return;
+  if (job.mode === 'same-tab') {
+    // The original document has gone away. Keep only its bounded public result,
+    // then return the same Gecko tab; never create, focus, or remove a PWA tab.
+    if (!focus) return;
+    const completed = { requestId: job.requestId, payload, timer: undefined };
+    completedByCandeia.set(job.candeiaTabId, completed);
+    completed.timer = setTimeout(() => {
+      if (completedByCandeia.get(job.candeiaTabId) === completed) completedByCandeia.delete(job.candeiaTabId);
+    }, RETURN_LIFETIME);
+    try { await browser.tabs.update(job.candeiaTabId, { url: job.returnUrl }); } catch { /* Back can still resume until expiry if the browser refused navigation. */ }
+    return;
+  }
   if (Number.isInteger(job.sourceTabId)) {
-    jobsBySource.delete(job.sourceTabId);
     try { await browser.tabs.remove(job.sourceTabId); } catch { /* The user may already have closed our source tab. */ }
   }
   if (focus) {
     try { await browser.tabs.update(job.candeiaTabId, { active: true }); } catch { /* The requesting tab may have closed. */ }
   }
-  if (jobsByCandeia.get(job.candeiaTabId) === job) jobsByCandeia.delete(job.candeiaTabId);
   try { job.respond({ ...payload, importerVersion: IMPORTER_VERSION, capabilities: CAPABILITIES }); } catch { /* No receiver remains after navigation or closing the Candeia tab. */ }
 }
 
 async function open(job) {
   try {
+    if (job.mode === 'same-tab') {
+      // Register before navigating: the reader can announce itself immediately.
+      job.sourceTabId = job.candeiaTabId;
+      jobsBySource.set(job.sourceTabId, job);
+      await browser.tabs.update(job.sourceTabId, { url: job.sourceUrl });
+      return;
+    }
     // Register the new tab before navigating so its content script can only
     // be authorized after it is associated with this exact request.
     const tab = await browser.tabs.create({ url: 'about:blank', active: true });
@@ -74,26 +113,52 @@ async function open(job) {
 browser.runtime.onMessage.addListener((message, sender, respond) => {
   if (!validEnvelope(message)) return false;
 
-  if (['ping', 'read', 'cancel'].includes(message.type)) {
+  if (['ping', 'read', 'cancel', 'resume'].includes(message.type)) {
     if (!fromCandeia(sender) || typeof message.requestId !== 'string' || !UUID.test(message.requestId)) {
       respond({ error: 'Esta solicitação não veio de uma aba autorizada do Candeia.' }); return false;
     }
     if (message.type === 'ping') { respond({ ok: true, importerVersion: IMPORTER_VERSION, capabilities: CAPABILITIES }); return false; }
     const current = jobsByCandeia.get(sender.tab.id);
+    if (message.type === 'resume') {
+      const completed = completedByCandeia.get(sender.tab.id);
+      if (completed?.requestId === message.requestId) {
+        forgetCompleted(sender.tab.id);
+        respond({ ...completed.payload, importerVersion: IMPORTER_VERSION, capabilities: CAPABILITIES });
+      } else if (current?.mode === 'same-tab' && current.requestId === message.requestId) {
+        // Android Back may restore Candeia while the source is still loading.
+        // Cancel without forcing another navigation over the restored draft.
+        release(current);
+        respond({ error: 'A consulta foi interrompida ao voltar ao Candeia. Tente importar novamente.', importerVersion: IMPORTER_VERSION, capabilities: CAPABILITIES });
+      } else {
+        respond({ error: 'Não há uma cifra pendente para esta solicitação. Faça a busca novamente.', importerVersion: IMPORTER_VERSION, capabilities: CAPABILITIES });
+      }
+      return false;
+    }
     if (message.type === 'cancel') {
-      if (current?.requestId === message.requestId) void finish(current, { error: 'Consulta cancelada.' });
+      if (current?.requestId === message.requestId) {
+        if (current.mode === 'same-tab') release(current);
+        else void finish(current, { error: 'Consulta cancelada.' });
+      }
       respond({ ok: true }); return false;
+    }
+    if (message.mode !== undefined && message.mode !== 'same-tab'
+      || message.mode === 'same-tab' && !validReturnUrl(message.returnUrl, message.requestId)
+      || message.mode === undefined && message.returnUrl !== undefined) {
+      respond({ error: 'O endereço de retorno da importação não é válido.' }); return false;
     }
     const sourceUrl = CandeiaCifraReader.normalizeSourceUrl(message.sourceUrl);
     if (!sourceUrl) { respond({ error: 'Escolha o link HTTPS de uma música no Cifra Club.' }); return false; }
     if (current) { respond({ error: 'Uma cifra já está sendo consultada nesta aba. Aguarde ou cancele a consulta.' }); return false; }
-    if (jobsByCandeia.size >= MAX_JOBS) { respond({ error: 'Há muitas consultas abertas. Aguarde uma delas terminar.' }); return false; }
+    if (completedByCandeia.has(sender.tab.id)) { respond({ error: 'Conclua a importação anterior antes de consultar outra cifra.' }); return false; }
+    if (jobsBySource.has(sender.tab.id)) { respond({ error: 'Uma consulta já está em andamento nesta aba.' }); return false; }
+    if (jobsByCandeia.size + completedByCandeia.size >= MAX_JOBS) { respond({ error: 'Há muitas consultas abertas. Aguarde uma delas terminar.' }); return false; }
     const job = { requestId: message.requestId, candeiaTabId: sender.tab.id, sourceUrl, sourceTabId: undefined,
-      finished: false, respond, timer: undefined };
+      mode: message.mode, returnUrl: message.returnUrl, finished: false, respond, timer: undefined };
     jobsByCandeia.set(sender.tab.id, job);
     job.timer = setTimeout(() => void finish(job, { error: 'A cifra não apareceu em até 25 segundos. Confira se essa versão abre normalmente no seu navegador.' }), MAX_JOB_TIME);
+    if (job.mode === 'same-tab') respond({ navigationStarted: true, importerVersion: IMPORTER_VERSION, capabilities: CAPABILITIES });
     void open(job);
-    return true; // Keep this one response channel until the bounded read ends.
+    return job.mode !== 'same-tab'; // Same-tab navigation resumes through a new authenticated channel.
   }
 
   if (['reader-ready', 'reader-result'].includes(message.type)) {
@@ -116,6 +181,7 @@ browser.runtime.onMessage.addListener((message, sender, respond) => {
 });
 
 browser.tabs.onRemoved.addListener(tabId => {
+  forgetCompleted(tabId);
   const requestingJob = jobsByCandeia.get(tabId);
   if (requestingJob) { void finish(requestingJob, { error: 'A aba solicitante foi fechada.' }, false); return; }
   const sourceJob = jobsBySource.get(tabId);
