@@ -7,25 +7,51 @@ permissions:
 jobs:
   app:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     env:
       VITE_SUPABASE_URL: https://supabase.candeia.test
       VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiZXhwIjo0MTAyNDQ0ODAwfQ.fixture-only-signature
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run test:db
-      - run: npm run build
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - run: mkdir -p work/ci-results
+      - id: install
+        run: npm ci 2>&1 | tee work/ci-results/install.log
+      - id: typecheck
+        run: npm run typecheck 2>&1 | tee work/ci-results/typecheck.log
+      - id: unit
+        run: npm test -- --reporter=dot --reporter=json --outputFile=work/ci-results/unit.json 2>&1 | tee work/ci-results/unit.log
+      - id: db
+        run: npm run test:db 2>&1 | tee work/ci-results/db.log
+      - id: build
+        run: npm run build 2>&1 | tee work/ci-results/build.log
+      - id: browser_install
+        run: npx playwright install --with-deps chromium 2>&1 | tee work/ci-results/browser-install.log
+      - id: e2e
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: work/ci-results/playwright.json
+        run: npm run test:e2e -- --reporter=list,json 2>&1 | tee work/ci-results/e2e.log
+      - name: Empacotar revisão Candeia
+        if: always()
+        env:
+          REVIEW_INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          REVIEW_TYPECHECK_OUTCOME: ${{ steps.typecheck.outcome }}
+          REVIEW_UNIT_OUTCOME: ${{ steps.unit.outcome }}
+          REVIEW_DB_OUTCOME: ${{ steps.db.outcome }}
+          REVIEW_BUILD_OUTCOME: ${{ steps.build.outcome }}
+          REVIEW_BROWSER_INSTALL_OUTCOME: ${{ steps.browser_install.outcome }}
+          REVIEW_E2E_OUTCOME: ${{ steps.e2e.outcome }}
+        run: node scripts/package-candeia-review.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-results
-          path: test-results/
-          if-no-files-found: ignore
+          name: candeia-revisao
+          path: work/candeia-revisao/
+          if-no-files-found: error
