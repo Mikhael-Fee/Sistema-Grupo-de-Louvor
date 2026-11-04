@@ -28,8 +28,10 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev -- --port 5173 --strictPort',
     env: {
-      VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || 'https://supabase.candeia.test',
-      VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || fixtureAnonymousKey,
+      // Browser tests always use fictional Auth/PostgREST endpoints, even
+      // when the developer's environment contains production configuration.
+      VITE_SUPABASE_URL: 'https://supabase.candeia.test',
+      VITE_SUPABASE_ANON_KEY: fixtureAnonymousKey,
     },
     url: 'http://127.0.0.1:5173',
     reuseExistingServer: !process.env.CI,

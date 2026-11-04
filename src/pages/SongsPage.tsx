@@ -12,7 +12,7 @@ import { contentInChurchKey, hasWrittenChords, resolveSourceTonality, songInChur
 import { useDraft } from '../hooks/useDraft';
 import { beginCifraInCurrentTab, cifraBrowserStatus, isFirefoxInstalledApp, readCifraFromBrowser, resumeCifraFromBrowser } from '../lib/cifra-browser';
 import { clearCurrentTabImport, pendingCurrentTabImport, saveCurrentTabImport } from '../lib/cifra-current-tab';
-import { cifraClubUrlFromNotes, notesWithCifraClubSource, previewSongSource, searchUnifiedSongSources, sourceKey, type SongSearchResult } from '../lib/song-search';
+import { cifraClubUrlFromNotes, notesWithCifraClubSource, previewSongSource, searchSongSources, searchUnifiedSongSources, sourceKey, type SongSearchResult } from '../lib/song-search';
 import { buildYouTubeSearchUrl, getYouTubeVideoId, normalizeYouTubeUrl, searchYouTubeVideos, youtubeThumbnailUrl, type YouTubeSuggestion } from '../lib/youtube';
 import type { Song } from '../types';
 import './songs.css';
@@ -30,7 +30,8 @@ function SourceKeyConfirmation({ value, onChange, reason }: { value: string; onC
 
 type ResumedCifraPreview = { requestId: string; source: SongSearchResult; useSourceMetadata: boolean };
 export function SongEditor({ song, incomingSource, incomingDraftId, resumePreview, resumeFailure, onClose, onSaved }: { song?: Song; incomingSource?: SongSearchResult; incomingDraftId?: string; resumePreview?: ResumedCifraPreview; resumeFailure?: string; onClose: () => void; onSaved?: () => void }) {
-  const { data, saveSong, busy, mode, profile } = useMinistry();
+  const { data, saveSong, busy, mode, profile, canEditLibrary } = useMinistry();
+  const contentInput = useRef<HTMLTextAreaElement>(null);
   const incomingTonality = useMemo(() => incomingSource ? resolveSourceTonality(incomingSource) : null, [incomingSource]);
   const resumedTonality = useMemo(() => resumePreview ? resolveSourceTonality(resumePreview.source) : null, [resumePreview]);
   const editorKey = song?.id || (incomingSource ? `mobile:${incomingDraftId || incomingSource.id}` : 'new');
@@ -75,11 +76,19 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
   const [videoSearched, setVideoSearched] = useState(false);
   const [browserConnected, setBrowserConnected] = useState(false);
   const [browserOutdated, setBrowserOutdated] = useState(false);
+  const [browserChecking, setBrowserChecking] = useState(true);
+  async function checkImporter(signal?: AbortSignal) {
+    setBrowserChecking(true);
+    try {
+      const status = await cifraBrowserStatus(signal, isFirefoxInstalledApp());
+      if (!signal?.aborted) { setBrowserConnected(status === 'connected'); setBrowserOutdated(status === 'outdated'); }
+    } finally { if (!signal?.aborted) setBrowserChecking(false); }
+  }
   useEffect(() => {
     const controller = new AbortController();
-    void cifraBrowserStatus(controller.signal, isFirefoxInstalledApp()).then(status => { setBrowserConnected(status === 'connected'); setBrowserOutdated(status === 'outdated'); }).catch(() => {});
+    if (canEditLibrary) void checkImporter(controller.signal).catch(() => {});
     return () => controller.abort();
-  }, []);
+  }, [canEditLibrary]);
   useEffect(() => () => sourceRequest.current?.abort(), []);
   useEffect(() => () => videoRequest.current?.abort(), []);
   useEffect(() => {
@@ -158,13 +167,16 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Confira a cifra colada.'); }
   }
 
-  async function searchOnline() {
+  async function searchOnline(onlyLyrics = false) {
+    if (!canEditLibrary) return;
     sourceRequest.current?.abort();
     const controller = new AbortController();
     sourceRequest.current = controller;
     setSourceOpen(true); setSourceError(null); setPreview(null); setPreviewWrittenKey(''); setSourceResults([]); setSourceWarnings([]); setSearching(true); setPreviewing(null); setSearched(false); setImported(false); setSourceConfirmReplace(false);
     try {
-      const response = await searchUnifiedSongSources(draft.title, draft.artist, controller.signal);
+      const response = onlyLyrics
+        ? { results: await searchSongSources(draft.title, draft.artist, 'lyrics', controller.signal), warnings: [] }
+        : await searchUnifiedSongSources(draft.title, draft.artist, controller.signal);
       if (controller.signal.aborted) return;
       setSourceResults(response.results); setSourceWarnings(response.warnings); setSearched(true);
     }
@@ -173,6 +185,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
   }
 
   async function openPreview(result: SongSearchResult) {
+    if (!canEditLibrary) return;
     sourceRequest.current?.abort();
     const controller = new AbortController();
     sourceRequest.current = controller;
@@ -182,7 +195,10 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
       const status = result.source === 'Cifra Club' ? await cifraBrowserStatus(controller.signal, sameTab) : 'missing';
       if (status === 'outdated') { setBrowserOutdated(true); setBrowserConnected(false); throw new Error(sameTab ? 'Atualize o importador Firefox para a versão 1.1.2 ou superior para importar pelo aplicativo instalado. Abra “Atualizar importador” acima.' : 'Atualize o importador Cifra Club para reconhecer capotraste e o tom dos acordes corretamente. Abra “Atualizar importador” acima.'); }
       const connected = status === 'connected';
-      if (connected) setBrowserConnected(true);
+      if (result.source === 'Cifra Club') {
+        setBrowserConnected(connected); setBrowserOutdated(false);
+        if (!connected) throw new Error('O importador não está conectado. Verifique a conexão ou abra o guia do Firefox. Seu rascunho foi mantido.');
+      }
       if (sameTab) {
         if (incomingSource) throw new Error('Conclua ou feche esta transferência primeiro. Para buscar outra versão pelo aplicativo instalado, abra Biblioteca → Nova música; seu rascunho desta transferência será mantido.');
         if (!connected || !profile?.approved || profile.role !== 'admin') throw new Error('Conecte o importador Firefox atualizado e entre com uma conta administradora para importar nesta janela.');
@@ -204,7 +220,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
         catch (cause) { clearCurrentTabImport(pending.requestId); throw cause; }
         return;
       }
-      const resultPreview = connected ? await readCifraFromBrowser(result, controller.signal) : await previewSongSource(result, controller.signal);
+      const resultPreview = result.source === 'Cifra Club' ? await readCifraFromBrowser(result, controller.signal) : await previewSongSource(result, controller.signal);
       if ((resultPreview.content?.length || 0) > 100_000) throw new Error('A letra e cifra desta versão excedem 100.000 caracteres. Escolha outra versão.');
       if (!controller.signal.aborted) receivePreview(resultPreview);
     }
@@ -280,6 +296,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
     finally { setSaving(false); }
   }
 
+  if (!canEditLibrary) return null;
   return <Modal title={song ? 'Editar música' : 'Nova música'} onClose={onClose} wide>
     <form onSubmit={submit} noValidate className="songs-editor">
       <p className="muted songs-editor-intro">Uma boa biblioteca deixa a preparação mais leve. Organize a letra, a cifra e os tons em um só lugar.</p>
@@ -290,11 +307,16 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
         <label className="field">Tom na igreja<select aria-label="Tom na igreja" value={draft.churchKey} onChange={e => change('churchKey', e.target.value)}>{KEYS.map(key => <option key={key}>{key}</option>)}</select><span className="songs-field-hint">A importação usa o tom dos acordes recebidos por padrão. Sua escolha manual é preservada; alterar o tom transpõe os acordes.</span></label>
       </div>
       <section className="songs-source-search" aria-label="Busca online de letra e cifra">
-        <CifraPdfPicker onRead={receivePdf} disabled={busy || saving || searching || Boolean(previewing)} />
         <div className="songs-unified-search-heading">
-          <div><strong>Cifra e letra em uma busca</strong><span>Pesquise pelo título; o artista ajuda a encontrar a versão certa.</span><span>{browserConnected ? 'Importador conectado · cifra automática pelo navegador' : <a href="/conectar-cifra-club" target="_blank" rel="noopener noreferrer">{browserOutdated ? 'Atualizar importador Cifra Club' : 'Conectar importador Cifra Club'}</a>}</span></div>
-          <button type="button" className="button button-primary" disabled={searching || Boolean(previewing)} onClick={searchOnline}>{searching ? <LoaderCircle className="songs-spinner" size={15} /> : <Search size={15} />}{searching ? 'Pesquisando…' : 'Pesquisar cifra e letra'}</button>
+          <div><strong>Importar cifra do Cifra Club</strong><span>Pesquise pelo título; o artista ajuda a encontrar a versão certa.</span><span role="status">{browserChecking ? 'Verificando conexão com o importador…' : browserConnected ? 'Importador conectado · pronto para conferir a prévia' : browserOutdated ? (isFirefoxInstalledApp() ? 'Atualize o importador Firefox para a versão 1.1.2 ou superior antes de importar.' : 'Atualize o importador Cifra Club antes de importar.') : 'Para importar cifras do Cifra Club, conecte o importador. No celular, recomendamos a extensão do Firefox.'}</span>{!browserConnected && <span><a href="/conectar-cifra-club" target="_blank" rel="noopener noreferrer">Guia do Firefox e do computador</a></span>}</div>
+          <button type="button" className={`button ${browserConnected ? 'button-primary' : 'button-secondary'}`} disabled={browserChecking || searching || Boolean(previewing)} onClick={() => void searchOnline()}>{searching ? <LoaderCircle className="songs-spinner" size={15} /> : <Search size={15} />}{searching ? 'Pesquisando…' : 'Buscar cifra no Cifra Club'}</button>
         </div>
+        <div className="songs-import-alternatives" role="group" aria-label="Outras formas de importar">
+          {!browserConnected && <button type="button" className="button button-secondary" disabled={browserChecking} onClick={() => void checkImporter().catch(() => {})}>Verificar conexão</button>}
+          <button type="button" className="button button-secondary" onClick={() => contentInput.current?.focus()}>Colar cifra</button>
+          <button type="button" className="button button-secondary" disabled={searching || Boolean(previewing)} onClick={() => void searchOnline(true)}>Buscar somente letra</button>
+        </div>
+        <CifraPdfPicker onRead={receivePdf} disabled={busy || saving || searching || Boolean(previewing)} />
         {sourceOpen && <div className="songs-source-body">
           <div className="songs-source-status"><p>Cifra Club primeiro. O LRCLIB também oferece versões da letra sem acordes. Escolha a música e confira a prévia antes de importar.</p><button type="button" className="button button-ghost" onClick={closeSourceSearch}>Fechar busca<X size={13} /></button></div>
           {sourceWarnings.length > 0 && <div className="songs-source-warnings" role="status">{sourceWarnings.map(warning => <p key={warning}>{warning}</p>)}</div>}
@@ -302,7 +324,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
           {previewing && browserConnected && sourceResults.some(result => result.id === previewing && result.source === 'Cifra Club') && <div className="songs-source-empty"><p role="status">Lendo a cifra no seu navegador. A prévia aparecerá aqui; aguarde sem fechar a aba de consulta.</p><button type="button" className="button button-ghost" onClick={() => { sourceRequest.current?.abort(); setPreviewing(null); }}>Cancelar consulta</button></div>}
           {searching && <p className="songs-source-empty" role="status">Procurando versões próximas ao título e ao artista…</p>}
           {searched && !sourceResults.length && <p className="songs-source-empty" role="status">Nenhuma versão encontrada. Tente parte do título ou revise o nome do artista.</p>}
-          {sourceResults.length > 0 && <ul className="songs-source-results">{sourceResults.map(result => <li key={`${result.source}:${result.id}`}><div><strong>{result.title}</strong><span>{result.artist || 'Confira o artista na prévia'}{result.album && ` · ${result.album}`}</span><span className={`songs-result-source ${result.source === 'Cifra Club' ? 'songs-result-primary' : ''}`}>{result.source} · {result.kind === 'chords' ? 'Letra e cifra' : 'Letra sem acordes'}</span></div><div className="songs-result-actions"><button type="button" className="button button-ghost" disabled={Boolean(previewing)} aria-label={`Ver prévia de ${result.title}`} onClick={() => openPreview(result)}>{previewing === result.id ? 'Abrindo…' : 'Ver prévia'}<ArrowUpRight size={14} /></button><a href={result.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${result.title} na fonte`}>Fonte<ExternalLink size={11} /></a></div></li>)}</ul>}
+          {sourceResults.length > 0 && <ul className="songs-source-results">{sourceResults.map(result => <li key={`${result.source}:${result.id}`}><div><strong>{result.title}</strong><span>{result.artist || 'Confira o artista na prévia'}{result.album && ` · ${result.album}`}</span><span className={`songs-result-source ${result.source === 'Cifra Club' ? 'songs-result-primary' : ''}`}>{result.source} · {result.kind === 'chords' ? 'Letra e cifra' : 'Letra sem acordes'}</span></div><div className="songs-result-actions"><button type="button" className="button button-ghost" disabled={Boolean(previewing) || (result.source === 'Cifra Club' && !browserConnected)} aria-label={`Ver prévia de ${result.title}`} onClick={() => openPreview(result)}>{previewing === result.id ? 'Abrindo…' : 'Ver prévia'}<ArrowUpRight size={14} /></button><a href={result.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${result.title} na fonte`}>Fonte<ExternalLink size={11} /></a></div></li>)}</ul>}
           {preview && <div className="songs-source-preview">
             <div className="songs-preview-heading"><div><h3>{preview.title}</h3><p>{preview.artist || 'Artista não informado pela fonte'} · {preview.source} · {preview.kind === 'chords' ? `Tom dos acordes na fonte: ${sourceKey(preview.originalKey) || 'a confirmar'}` : 'Letra sem acordes'}</p></div><a href={preview.sourceUrl} target="_blank" rel="noopener noreferrer">Ver fonte<ExternalLink size={12} /></a></div>
             {preview.capo !== undefined && <p className="songs-import-hint">Capotraste na fonte: {preview.capo}ª casa{preview.soundingKey ? ` · Tom sonoro: ${preview.soundingKey}` : ''}. Tom dos acordes sem capotraste: {sourceKey(preview.originalKey) || 'a confirmar'}. O capotraste não será aplicado novamente.</p>}
@@ -320,7 +342,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
         </div>}
         {imported && <p className="songs-source-success songs-import-complete" role="status"><Check size={15} />Conteúdo importado no rascunho. Você pode editar a cifra abaixo e buscar o vídeo da versão escolhida.</p>}
       </section>
-      <label className="field">Letra e cifra<textarea className="songs-content-input" required rows={9} maxLength={100000} value={draft.content} onChange={e => { change('content', e.target.value); setError(null); if (!e.target.value.trim()) setPastedSource({ unknown: false, reason: '' }); }} onBlur={() => formatEditedContent()} onPaste={event => {
+      <label className="field">Letra e cifra<textarea ref={contentInput} className="songs-content-input" required rows={9} maxLength={100000} value={draft.content} onChange={e => { change('content', e.target.value); setError(null); if (!e.target.value.trim()) setPastedSource({ unknown: false, reason: '' }); }} onBlur={() => formatEditedContent()} onPaste={event => {
         const text = event.clipboardData.getData('text/plain');
         if (!text.trim()) return;
         try {

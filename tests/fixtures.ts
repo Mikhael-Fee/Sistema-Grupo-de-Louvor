@@ -1,6 +1,29 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { createDemoData } from './seed';
 import type { MinistryData, Person, Profile, Role, Service, Song, Tag } from '../src/types';
+import type { SongSearchResult } from '../src/lib/song-search';
+
+/** Simulate only the browser-extension boundary; callers still exercise parsing and saving. */
+export async function mockCifraBrowser(page: Page, source: SongSearchResult, beforeRead?: () => Promise<void> | void): Promise<void> {
+  const bindingName = `fixtureCifraRead${Date.now()}${Math.floor(Math.random() * 1_000_000)}`;
+  await page.exposeFunction(bindingName, async () => {
+    await beforeRead?.();
+    return { sourceUrl: source.sourceUrl, title: source.title, artist: source.artist,
+      text: source.content, displayedKey: source.originalKey, soundingKey: source.soundingKey,
+      capo: source.capo, keyUnknownReason: source.keyUnknownReason };
+  });
+  await page.addInitScript(({ bindingName }) => {
+    window.addEventListener('message', event => {
+      const request = event.data;
+      if (event.source !== window || event.origin !== location.origin || request?.channel !== 'candeia-cifraclub'
+        || !['ping', 'read'].includes(request.type)) return;
+      const reply = { channel: request.channel, version: 1, requestId: request.requestId, capabilities: ['written-key-capo'] };
+      if (request.type === 'ping') { window.postMessage({ ...reply, type: 'ready' }, location.origin); return; }
+      const read = (window as unknown as Record<string, () => Promise<unknown>>)[bindingName];
+      void read().then(result => window.postMessage({ ...reply, type: 'response', result }, location.origin));
+    });
+  }, { bindingName });
+}
 
 export interface MockMinistry {
   data: MinistryData;
@@ -40,7 +63,16 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
     setRole(nextRole) { mock.profiles.find(profile => profile.id === USER_ID)!.role = nextRole; },
     async login(nextRole) {
       const logout = page.getByRole('button', { name: /^(Sair|Entrar para editar)$/ }).first();
-      if (await logout.isVisible()) await logout.click();
+      if (await logout.isVisible()) {
+        // A caller may have started logout already. Do not click a stale
+        // button while Supabase and React are still clearing that session.
+        if (signedIn) {
+          const openMenu = page.getByRole('button', { name: 'Abrir menu', exact: true });
+          if (await openMenu.isVisible()) await openMenu.click();
+          await logout.click();
+        }
+        await expect(page.getByLabel('E-mail', { exact: true })).toBeVisible();
+      }
       if (nextRole) mock.setRole(nextRole);
       await page.goto('/');
       await page.getByLabel('E-mail', { exact: true }).fill(EMAIL);

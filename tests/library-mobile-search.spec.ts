@@ -51,7 +51,7 @@ for (const width of [320, 390]) test(`biblioteca permite ler a busca e combinar 
     expect(button.height).toBeGreaterThanOrEqual(44);
   }
   await testInfo.attach(`biblioteca-busca-${width}`, {
-    body: await page.screenshot({ path: `/workspace/scratch/library-search-after-${width}.png`, fullPage: true }),
+    body: await page.screenshot({ path: testInfo.outputPath(`library-search-after-${width}.png`), fullPage: true }),
     contentType: 'image/png',
   });
 

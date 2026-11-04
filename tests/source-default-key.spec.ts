@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { loginAs } from './fixtures';
+import { loginAs, mockCifraBrowser } from './fixtures';
 import type { SongSearchResult } from '../src/lib/song-search';
 
 test.use({ trace: 'off', screenshot: 'off' });
@@ -7,6 +7,10 @@ const makeSource = (value: Partial<SongSearchResult>): SongSearchResult => ({ id
   source: 'Cifra Club', sourceUrl: 'https://www.cifraclub.com.br/equipe/cancao/', kind: 'chords', ...value });
 
 async function mockSource(page: Page, source: SongSearchResult, previewGate?: Promise<void>, onPreview?: () => void) {
+  await mockCifraBrowser(page, source, async () => {
+    onPreview?.();
+    if (previewGate) await previewGate;
+  });
   await page.route('https://lrclib.net/**', route => route.fulfill({ contentType: 'application/json', body: '[]' }));
   await page.route('**/.netlify/functions/song-search?**', async route => {
     if (new URL(route.request().url()).searchParams.has('url')) {
@@ -23,7 +27,7 @@ async function openEditor(page: Page, source: SongSearchResult) {
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Título', { exact: true }).fill(source.title);
   await dialog.getByLabel('Artista / compositor', { exact: true }).fill(source.artist);
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   await dialog.getByRole('button', { name: `Ver prévia de ${source.title}`, exact: true }).click();
   return dialog;
 }
@@ -99,7 +103,7 @@ test('escolher C durante uma consulta é preservado após resposta e reabertura 
   await dialog.getByRole('button', { name: 'Fechar', exact: true }).click();
   await page.getByRole('button', { name: 'Nova música', exact: true }).click();
   await expect(dialog.getByLabel('Tom na igreja', { exact: true })).toHaveValue('C');
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   await dialog.getByRole('button', { name: `Ver prévia de ${source.title}`, exact: true }).click();
   await expect(dialog.getByLabel('Prévia do conteúdo para importar', { exact: true })).toBeVisible();
   await expect(dialog.getByLabel('Tom na igreja', { exact: true })).toHaveValue('C');

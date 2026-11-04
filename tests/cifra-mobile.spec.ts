@@ -102,7 +102,11 @@ async function pending(page: Page) {
 
 test.describe('importação móvel: Chromium com toque, rede totalmente simulada', () => {
   test.setTimeout(45_000);
-  test.skip(!existsSync(join(DIST, 'index.html')), 'Execute npm run build para servir a aplicação na URL HTTPS permitida.');
+  test.beforeAll(() => {
+    for (const artifact of [join(DIST, 'index.html'), resolve('public/downloads/candeia-cifra-celular.txt'), resolve('public/downloads/candeia-cifra-iphone.js')]) {
+      expect(existsSync(artifact), `Execute npm run build antes dos testes móveis. Artefato ausente: ${artifact}`).toBe(true);
+    }
+  });
 
   test('remove fragmento antes do Auth, preserva transferência no login/reload e salva uma única vez em Bb', async () => {
     const h = await harness();
@@ -222,10 +226,11 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
         expect(writes(h.mock)).toHaveLength(0);
         return;
       }
-      await pending(h.page);
+      await expect(h.page).toHaveURL(`${SITE}/musicas`);
+      await expect(h.page.getByRole('heading', { name: 'Cifra recebida do navegador', exact: true })).toHaveCount(0);
       await expect(h.page.getByRole('button', { name: 'Revisar e salvar na biblioteca', exact: true })).toHaveCount(0);
       await expect(h.page.getByRole('button', { name: 'Salvar música', exact: true })).toHaveCount(0);
-      await expect(h.page.getByText('Uma conta administradora pode salvar esta cifra na biblioteca.', { exact: false })).toBeVisible();
+      await expect(h.page.getByRole('link', { name: 'Conectar importador Cifra Club', exact: true })).toHaveCount(0);
       expect(writes(h.mock)).toHaveLength(0);
     } finally { await h.dispose(); }
   });

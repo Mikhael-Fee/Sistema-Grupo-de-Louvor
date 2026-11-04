@@ -119,8 +119,10 @@ async function createHarness(cifraHtml = CIFRA_HTML): Promise<{ context: Browser
 test.describe('importador Cifra Club: extensão real, websites simulados', () => {
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(45_000);
-  test.skip(!existsSync(join(EXTENSION, 'manifest.json')) || !existsSync(join(DIST, 'index.html')),
-    'Requer extensão do repositório e npm run build para servir a interface na URL permitida.');
+  test.beforeAll(() => {
+    expect(existsSync(join(EXTENSION, 'manifest.json')), 'A extensão do repositório precisa estar disponível.').toBe(true);
+    expect(existsSync(join(DIST, 'index.html')), 'Execute npm run build antes dos testes de navegador; o CI deve testar o build.').toBe(true);
+  });
 
   test('protocolo descobre extensão, lê DOM visível e encerra a aba temporária', async () => {
     const harness = await createHarness();
@@ -244,7 +246,7 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('D');
       await dialog.getByRole('textbox', { name: /^Letra e cifra/ }).fill(ORIGINAL);
       await expect(dialog).toContainText('Importador conectado');
-      await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
       const result = dialog.locator('.songs-source-results > li').filter({ hasText: SOURCE.title });
       await result.getByRole('button', { name: `Ver prévia de ${SOURCE.title}`, exact: true }).click();
       const preview = dialog.getByLabel('Prévia do conteúdo para importar', { exact: true });
@@ -289,7 +291,7 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       const dialog = harness.page.getByRole('dialog');
       await dialog.getByLabel('Título', { exact: true }).fill('Luz');
       await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('Bb');
-      await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
       await dialog.getByRole('button', { name: `Ver prévia de ${SOURCE.title}`, exact: true }).click();
       await expect(dialog.getByLabel('Prévia do conteúdo para importar', { exact: true })).toHaveText('[G]Uma luz nos [D/F#]guia\n[Em7]Seguimos em [C]paz');
       await expect(dialog).toContainText('Capotraste na fonte: 3ª casa');

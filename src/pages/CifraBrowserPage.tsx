@@ -47,9 +47,9 @@ function FirefoxMobileImporter() {
     && release.downloadUrl === '/downloads/candeia-cifraclub-firefox.xpi'
     && typeof release.sha256 === 'string' && /^[a-f\d]{64}$/i.test(release.sha256);
   return <section className="cifra-firefox-guide" aria-labelledby="cifra-firefox-title">
-    <span className="cifra-guide-experiment">Teste para administradores</span>
+    <span className="cifra-guide-experiment">Recomendado para administradores no Android</span>
     <h2 id="cifra-firefox-title">Importar pelo Firefox no Android</h2>
-    <p>A extensão lê a cifra aberta no próprio Firefox e entrega uma prévia ao Candeia. A importação na aba normal já foi confirmada no celular; o fluxo do aplicativo instalado continua em teste.</p>
+    <p>A extensão lê a cifra aberta no próprio Firefox e entrega uma prévia ao Candeia. Use sua conta administradora aprovada e confirme a conexão abaixo antes de importar.</p>
     {loading ? <p role="status"><LoaderCircle size={16} className="spin" /> Conferindo o pacote do Firefox…</p>
       : signed ? <a className="button button-primary" href={release.downloadUrl!} download><Download size={17} />Baixar extensão assinada para Firefox</a>
         : release?.status === 'unsigned' ? <p className="cifra-firefox-pending" role="status"><strong>Instalação aguardando assinatura da Mozilla.</strong> O pacote de desenvolvimento está preparado, mas ainda não está liberado para instalação no Firefox Android. Por enquanto, use a opção PDF abaixo.</p>

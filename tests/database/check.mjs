@@ -6,13 +6,14 @@ const db = new PGlite();
 let checked = 0;
 await db.exec(await readFile(new URL('./auth-stub.sql', import.meta.url), 'utf8'));
 await db.exec(await readFile(new URL('../../supabase/migrations/001_initial.sql', import.meta.url), 'utf8'));
-const ids = { admin: '00000000-0000-4000-a000-000000000001', leader: '00000000-0000-4000-a000-000000000002', musician:'00000000-0000-4000-a000-000000000003', pending:'00000000-0000-4000-a000-000000000004', secondAdmin:'00000000-0000-4000-a000-000000000005', song:'00000000-0000-4000-a000-000000000011', tag:'00000000-0000-4000-a000-000000000012', person:'00000000-0000-4000-a000-000000000013', service:'00000000-0000-4000-a000-000000000014', assignment:'00000000-0000-4000-a000-000000000015', item:'00000000-0000-4000-a000-000000000016' };
-for (const key of ['admin', 'leader', 'musician', 'pending', 'secondAdmin']) await db.query('insert into auth.users(id,email,raw_user_meta_data) values($1,$2,$3)', [ids[key], key+'@test.example', {name:'Nome\u0001 seguro',role:'admin',approved:true}]);
+const ids = { admin: '00000000-0000-4000-a000-000000000001', leader: '00000000-0000-4000-a000-000000000002', musician:'00000000-0000-4000-a000-000000000003', pending:'00000000-0000-4000-a000-000000000004', secondAdmin:'00000000-0000-4000-a000-000000000005', suspendedAdmin:'00000000-0000-4000-a000-000000000006', song:'00000000-0000-4000-a000-000000000011', tag:'00000000-0000-4000-a000-000000000012', person:'00000000-0000-4000-a000-000000000013', service:'00000000-0000-4000-a000-000000000014', assignment:'00000000-0000-4000-a000-000000000015', item:'00000000-0000-4000-a000-000000000016' };
+for (const key of ['admin', 'leader', 'musician', 'pending', 'secondAdmin', 'suspendedAdmin']) await db.query('insert into auth.users(id,email,raw_user_meta_data) values($1,$2,$3)', [ids[key], key+'@test.example', {name:'Nome\u0001 seguro',role:'admin',approved:true}]);
 const pending = (await db.query('select role,approved,name from public.profiles where id=$1',[ids.pending])).rows[0];
 assert.equal(pending.role,'musician'); assert.equal(pending.approved,false); assert.equal(pending.name,'Nome seguro'); checked += 3;
 await db.query("update public.profiles set role='admin',approved=true where id=$1",[ids.admin]);
 await db.query("update public.profiles set role='leader',approved=true where id=$1",[ids.leader]);
 await db.query("update public.profiles set approved=true where id=$1",[ids.musician]);
+await db.query("update public.profiles set role='admin',approved=false where id=$1",[ids.suspendedAdmin]);
 async function as(user, role='authenticated') { await db.exec('reset role'); await db.query("select set_config('request.jwt.claim.sub',$1,false)",[user ?? '']); await db.exec(`set role ${role}`); }
 async function rejected(sql, params, code) { let e; try { await db.query(sql,params); } catch(error) { e=error; } assert.ok(e, 'Operation should fail: '+sql); if(code) assert.equal(e.code, code, e.message); checked++; }
 async function count(table,n) { assert.equal((await db.query('select count(*)::integer as n from public.'+table)).rows[0].n,n); checked++; }
@@ -76,11 +77,13 @@ await as(ids.leader);
 await count('songs',1); await count('profiles',1);
 await db.query('select public.save_service($1)',[{...service,type:'Culto de Louvor',notes:'Planejado por líder'}]); checked++;
 await rejected('select public.save_song($1)',[song],'42501');
+await rejected("insert into public.songs(id,title,artist,original_key,church_key,content) values($1,'Importação indevida','','C','C','[C]Teste')",['00000000-0000-4000-a000-000000000097'],'42501');
 await rejected('insert into public.tags(name,color) values($1,$2)',['Não permitido','#112233'],'42501');
 await rejected('select public.update_profile($1)',[{id:ids.leader,name:'Líder',role:'admin',approved:true}],'42501');
 await as(ids.musician);
 await count('songs',1); await count('services',1); await count('profiles',1);
 await rejected('select public.save_song($1)',[song],'42501');
+await rejected("insert into public.songs(id,title,artist,original_key,church_key,content) values($1,'Importação indevida','','C','C','[C]Teste')",['00000000-0000-4000-a000-000000000097'],'42501');
 await rejected('select public.save_service($1)',[service],'42501');
 await rejected('select public.update_profile($1)',[{id:ids.musician,name:'Músico',role:'admin',approved:true}],'42501');
 await as(ids.pending);
@@ -89,6 +92,16 @@ await count('profiles',1);
 await rejected('select public.save_song($1)',[song],'42501');
 await rejected('select public.save_service($1)',[service],'42501');
 await rejected('select public.update_profile($1)',[{id:ids.pending,name:'Pendente',role:'admin',approved:true}],'42501');
+// A stored admin role alone never authorizes an import: approval is required
+// by the real SQL RPC for both an existing song and a new song identifier.
+await as(ids.suspendedAdmin);
+await count('songs',0); await count('profiles',1);
+await rejected('select public.save_song($1)',[{...song,title:'Importação sem aprovação'}],'42501');
+await rejected('select public.save_song($1)',[{...song,id:'00000000-0000-4000-a000-000000000097'}],'42501');
+await rejected("insert into public.songs(id,title,artist,original_key,church_key,content) values($1,'Importação indevida','','C','C','[C]Teste')",['00000000-0000-4000-a000-000000000097'],'42501');
+await as(ids.secondAdmin);
+await count('songs',1); await count('song_tags',1);
+assert.equal((await db.query('select title from public.songs where id=$1',[ids.song])).rows[0].title,song.title); checked++;
 await as(null,'anon');
 for (const table of ['profiles','songs','tags','people','services','song_tags','assignments','repertoire']) await rejected('select * from public.'+table,[],'42501');
 await rejected('select public.save_song($1)',[song],'42501');

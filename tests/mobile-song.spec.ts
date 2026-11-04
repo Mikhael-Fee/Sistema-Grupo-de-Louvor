@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { loginAs, setupMockMinistry } from './fixtures';
+import { loginAs, mockCifraBrowser, setupMockMinistry } from './fixtures';
 
 const longVerse = 'Uma frase comprida para acompanhar a música no celular e manter cada acorde junto da sua letra. ';
 
@@ -103,6 +103,7 @@ test('editor móvel usa um campo de cifra e salva os metadados da busca com arti
     sourceUrl: 'https://www.cifraclub.com.br/equipe/cancao-mobile/', originalKey: 'G',
     content: '[G]Uma [D/F#]voz nos guia\n[Em7]Seguimos em [C]paz\ne|--0--2--3--|',
   };
+  await mockCifraBrowser(page, { ...source, source: 'Cifra Club', kind: 'chords' });
   await page.route('https://lrclib.net/api/search**', route => route.fulfill({ contentType: 'application/json', body: '[]' }));
   await page.route('**/.netlify/functions/song-search**', route => {
     const preview = new URL(route.request().url()).searchParams.has('url');
@@ -120,7 +121,7 @@ test('editor móvel usa um campo de cifra e salva os metadados da busca com arti
   for (const field of await dialog.locator('.field input, .field select, .field textarea').all()) {
     await expect(field).toHaveCSS('font-size', '16px');
   }
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   await dialog.getByRole('button', { name: 'Ver prévia de Canção no celular', exact: true }).click();
   const preview = dialog.locator('.songs-source-preview');
   await expect(preview).toBeVisible();

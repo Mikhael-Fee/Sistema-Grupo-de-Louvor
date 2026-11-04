@@ -24,7 +24,7 @@ for (const width of [1200, 320]) test(`importação fecha prévias e sugere víd
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Título', { exact: true }).fill(source.title); await dialog.getByLabel('Artista / compositor', { exact: true }).fill(source.artist);
   expect(searches).toBe(0);
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar somente letra', exact: true }).click();
   await dialog.getByRole('button', { name: `Ver prévia de ${source.title}`, exact: true }).click();
   await expect(dialog.getByLabel('Prévia do conteúdo para importar', { exact: true })).toHaveText(source.content);
   await dialog.getByRole('button', { name: 'Importar letra sem acordes', exact: true }).click();

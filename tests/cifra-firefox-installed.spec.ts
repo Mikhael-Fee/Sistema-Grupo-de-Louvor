@@ -87,7 +87,7 @@ for (const target of ['new', 'existing'] as const) {
     if (await tagButton.getAttribute('aria-pressed') !== 'true') await tagButton.click();
     const key = `candeia.draft.v1:supabase:${ACCOUNT}:song:${target === 'new' ? 'new' : existing.id}`;
     const before = await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)!).value, key);
-    await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
     await dialog.getByRole('button', { name: `Ver prévia de ${SOURCE.title}`, exact: true }).click();
     dialog = page.getByRole('dialog');
     await expect(dialog.getByLabel('Prévia do conteúdo para importar', { exact: true })).toHaveText(PREVIEW, { timeout: 20_000 });
@@ -109,7 +109,7 @@ for (const target of ['new', 'existing'] as const) {
     if (target === 'new') {
       // A second choice must keep the user's metadata checkbox across navigation.
       await dialog.getByRole('checkbox', { name: 'Atualizar título e artista com os dados da fonte', exact: true }).check();
-      await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
       await dialog.getByRole('button', { name: `Ver prévia de ${SOURCE.title}`, exact: true }).click();
       dialog = page.getByRole('dialog');
       await expect(dialog.getByLabel('Prévia do conteúdo para importar', { exact: true })).toHaveText(PREVIEW, { timeout: 20_000 });
@@ -132,9 +132,9 @@ test('extensão anterior pede atualização antes de iniciar consulta pelo aplic
   await page.getByRole('button', { name: 'Nova música', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Título', { exact: true }).fill('Luz da equipe');
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
-  await dialog.getByRole('button', { name: `Ver prévia de ${SOURCE.title}`, exact: true }).click();
-  await expect(dialog.getByRole('alert')).toContainText('1.1.2');
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: `Ver prévia de ${SOURCE.title}`, exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('status').filter({ hasText: 'Atualize o importador Firefox' })).toContainText('1.1.2');
   expect(await page.evaluate(() => sessionStorage.getItem('fixture-bridge-requests'))).toBeNull();
 });
 
@@ -150,7 +150,7 @@ for (const returnMode of ['library-reload', 'detail-bfcache', 'detail-reload']) 
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Título', { exact: true }).fill('Rascunho após voltar');
   await dialog.getByRole('textbox', { name: /^Letra e cifra/ }).fill(ORIGINAL);
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   await dialog.getByRole('button', { name: `Ver prévia de ${SOURCE.title}`, exact: true }).click();
   dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('alert')).toContainText('interrompida', { timeout: 20_000 });
@@ -170,7 +170,7 @@ test('Firefox Android em aba normal conserva leitura sem navegar a janela', asyn
   await page.getByRole('button', { name: 'Nova música', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Título', { exact: true }).fill('Luz da equipe');
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   await dialog.getByRole('button', { name: `Ver prévia de ${SOURCE.title}`, exact: true }).click();
   await expect(dialog.getByLabel('Prévia do conteúdo para importar', { exact: true })).toHaveText(PREVIEW);
   const requests = await page.evaluate(() => JSON.parse(sessionStorage.getItem('fixture-bridge-requests') || '[]'));
@@ -206,7 +206,7 @@ test('quota de rascunho com valores antigos bloqueia navegação e conserva os c
   expect(before.every(value => value !== null)).toBe(true);
   await dialog.getByLabel('Título', { exact: true }).fill('Título novo somente na memória');
   await dialog.getByRole('textbox', { name: /^Letra e cifra/ }).fill('[D]Texto atual preservado após quota.');
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   await dialog.getByRole('button', { name: `Ver prévia de ${SOURCE.title}`, exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('armazenamento');
   await expect(dialog.getByLabel('Título', { exact: true })).toHaveValue('Título novo somente na memória');

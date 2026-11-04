@@ -574,16 +574,41 @@ interface SourceFixture {
 }
 
 async function mockUnifiedSources(page: Page, options: { chords?: SourceFixture[]; lyrics?: { id: number; trackName: string; artistName: string; plainLyrics: string; instrumental?: boolean }[]; chordError?: string; lyricError?: boolean; previewError?: string } = {}) {
+  const installBridge = (configuration: { chords?: SourceFixture[]; previewError?: string }) => {
+    const scope = window as typeof window & {
+      __unifiedSourceFixture?: typeof configuration;
+      __unifiedSourceBridgeInstalled?: boolean;
+    };
+    scope.__unifiedSourceFixture = configuration;
+    if (scope.__unifiedSourceBridgeInstalled) return;
+    scope.__unifiedSourceBridgeInstalled = true;
+    window.addEventListener('message', event => {
+      const request = event.data;
+      if (event.source !== window || event.origin !== location.origin || request?.channel !== 'candeia-cifraclub'
+        || !['ping', 'read'].includes(request.type)) return;
+      const reply = { channel: request.channel, version: 1, requestId: request.requestId, capabilities: ['written-key-capo'] };
+      if (request.type === 'ping') {
+        window.postMessage({ ...reply, type: 'ready' }, location.origin);
+        return;
+      }
+      const fixture = scope.__unifiedSourceFixture;
+      const song = fixture?.chords?.find(item => item.sourceUrl === request.sourceUrl);
+      const error = fixture?.previewError || (!song ? 'Prévia não simulada.' : undefined);
+      window.postMessage({ ...reply, type: 'response', ...(error ? { error } : { result: {
+        sourceUrl: song!.sourceUrl, title: song!.title, artist: song!.artist, text: song!.content,
+        displayedKey: song!.originalKey, capo: song!.capo, soundingKey: song!.soundingKey, keyUnknownReason: song!.keyUnknownReason,
+      } }) }, location.origin);
+    });
+  };
+  await page.addInitScript(installBridge, options);
+  await page.evaluate(installBridge, options);
   await page.route('https://lrclib.net/api/search**', route => route.fulfill({
     status: options.lyricError ? 503 : 200, contentType: 'application/json',
     body: JSON.stringify(options.lyricError ? { error: 'Fonte de letras indisponível.' } : options.lyrics || []),
   }));
   await page.route('**/.netlify/functions/song-search**', route => {
     const params = new URL(route.request().url()).searchParams;
-    if (params.has('url')) {
-      const song = options.chords?.find(item => item.sourceUrl === params.get('url'));
-      return route.fulfill({ status: options.previewError ? 502 : song ? 200 : 400, contentType: 'application/json', body: JSON.stringify(options.previewError ? { error: options.previewError } : song ? { song } : { error: 'Prévia não simulada.' }) });
-    }
+    expect(params.has('url')).toBe(false);
     expect(params.get('source')).toBe('cifraclub');
     return route.fulfill({ status: options.chordError ? 502 : 200, contentType: 'application/json', body: JSON.stringify(options.chordError ? { error: options.chordError } : { results: (options.chords || []).map(({ content: _content, ...result }) => result) }) });
   });
@@ -598,7 +623,7 @@ test('pesquisa única oferece letra LRCLIB quando a cifra falha e preserva o ras
   });
   const dialog = await createSong(page, 'Minha canção em edição');
   const originalContent = await dialog.getByRole('textbox', { name: /^Letra e cifra/ }).inputValue();
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
   await expect(source).toContainText('Cifra Club indisponível neste momento.');
   await expect(source.getByRole('button', { name: 'Somente letra', exact: true })).toHaveCount(0);
@@ -645,7 +670,7 @@ test('pesquisa única prioriza versões do Cifra Club, importa cifra e deriva a 
   await dialog.getByLabel('Artista / compositor', { exact: true }).fill('Minha equipe');
   await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('E');
   await expect(dialog.getByRole('textbox', { name: /^Texto copiado do Cifra Club/ })).toHaveCount(0);
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
   await expect(source.locator('.songs-source-results > li')).toHaveCount(3);
   await expect(source.locator('.songs-source-results > li').first()).toContainText('Cifra Club');
@@ -702,7 +727,7 @@ for (const importBeforeSave of [true, false]) {
     await dialog.getByLabel('Título', { exact: true }).fill('Luz procurada');
     await expect(dialog.getByLabel('Artista / compositor', { exact: true })).toHaveValue('');
     await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('E');
-    await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
     const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
     await source.getByRole('button', { name: `Ver prévia de ${sourceSong.title}`, exact: true }).click();
     await source.getByRole('checkbox', { name: 'Atualizar título e artista com os dados da fonte', exact: true }).check();
@@ -737,7 +762,7 @@ test('salvar com dados da fonte ativos preserva a cifra já preenchida sem subst
   };
   await mockUnifiedSources(page, { chords: [sourceSong] });
   const dialog = await createSong(page, 'Arranjo em preparação');
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
   await source.getByRole('button', { name: `Ver prévia de ${sourceSong.title}`, exact: true }).click();
   await source.getByRole('checkbox', { name: 'Atualizar título e artista com os dados da fonte', exact: true }).check();
@@ -767,7 +792,7 @@ test('importa acordes em G com capotraste 3 para Bb e visualiza em C sem somar o
   await dialog.getByLabel('Título', { exact: true }).fill(sourceSong.title);
   await dialog.getByLabel('Artista / compositor', { exact: true }).fill(sourceSong.artist);
   await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('Bb');
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
   await source.getByRole('button', { name: `Ver prévia de ${sourceSong.title}`, exact: true }).click();
   await expect(source.getByLabel('Prévia do conteúdo para importar', { exact: true })).toHaveText(sourceSong.content!);
@@ -805,7 +830,7 @@ test('uma cifra sem tom confiável exige confirmação dos acordes antes de impo
   await dialog.getByLabel('Título', { exact: true }).fill(sourceSong.title);
   await dialog.getByLabel('Artista / compositor', { exact: true }).fill(sourceSong.artist);
   await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('Bb');
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
   await source.getByRole('button', { name: `Ver prévia de ${sourceSong.title}`, exact: true }).click();
   const receivedKey = source.getByRole('combobox', { name: 'Tom dos acordes recebidos', exact: true });
@@ -890,16 +915,16 @@ test('busca sem resultados ou com fontes indisponíveis mantém campos e permite
   const dialog = await createSong(page, 'Canção sem resultado');
   const content = dialog.getByRole('textbox', { name: /^Letra e cifra/ });
   const original = await content.inputValue();
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
   await expect(source).toContainText('Nenhuma versão encontrada.');
   await expect(content).toHaveValue(original);
   await mockUnifiedSources(page, { chordError: 'Cifra Club temporariamente indisponível.', lyricError: true });
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   await expect(source).toContainText(/indisponível|Não foi possível/);
   await expect(content).toHaveValue(original);
   await mockUnifiedSources(page, { chords: [{ id: 'https://www.cifraclub.com.br/equipe/teste/', title: 'Resultado recuperado', artist: 'Equipe', source: 'Cifra Club', kind: 'chords', sourceUrl: 'https://www.cifraclub.com.br/equipe/teste/', originalKey: 'C', content: '[C]Uma letra de teste' }], previewError: 'Prévia indisponível.' });
-  await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
   await source.getByRole('button', { name: 'Ver prévia de Resultado recuperado', exact: true }).click();
   await expect(source.getByRole('alert')).toContainText('Prévia indisponível.');
   await expect(content).toHaveValue(original);
@@ -926,11 +951,11 @@ test('fechar uma busca cancela a resposta antiga e uma nova busca mantém soment
   const dialog = await createSong(page, 'Busca antiga');
   const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
   try {
-    await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
     await oldStarted;
     await source.getByRole('button', { name: 'Fechar busca', exact: true }).click();
     await dialog.getByLabel('Título', { exact: true }).fill('Busca nova');
-    await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true }).click();
     await expect(source.getByRole('button', { name: 'Ver prévia de Resposta nova', exact: true })).toBeVisible();
     releaseOld();
     await oldFinished;
@@ -979,7 +1004,7 @@ test('colar texto no campo único limpa tablatura, converte o tom e preserva os 
   await expect(dialog.getByRole('textbox', { name: /^Texto copiado do Cifra Club/ })).toHaveCount(0);
   await expect(dialog.locator('summary').filter({ hasText: 'Importar texto manualmente' })).toHaveCount(0);
   await expect(dialog.getByRole('textbox', { name: /^Link da cifra no Cifra Club/ })).toHaveCount(0);
-  await expect(dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Buscar cifra no Cifra Club', exact: true })).toBeVisible();
   await content.fill(pastedText);
   await dialog.getByLabel('Título', { exact: true }).click();
   await expect(content).toHaveValue(churchChordPro);
@@ -1002,8 +1027,8 @@ test('colar texto no campo único limpa tablatura, converte o tom e preserva os 
   await expect(dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true })).toHaveValue('E');
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
   await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
-  await page.getByRole('button', { name: 'Sair', exact: true }).click();
   await fixture.login('musician');
+  expect(fixture.calls.filter(call => call.path === '/auth/v1/logout' && call.method === 'POST')).toHaveLength(1);
   await page.goto('/musicas');
   await page.getByRole('article').filter({ hasText: 'Luz da equipe de teste' })
     .getByRole('link', { name: 'Luz da equipe de teste Equipe de teste', exact: true }).click();
