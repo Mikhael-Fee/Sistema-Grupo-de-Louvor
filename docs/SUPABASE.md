@@ -2,7 +2,7 @@
 
 O Candeia usa um projeto dedicado a um ministério e trabalha com os dados reais cadastrados nele. Não há demonstração ou população automática de músicas, pessoas e cultos.
 
-O endereço existente é [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app), no projeto Supabase `fxebsycpbybhzkpnxzoo`. A migração inicial e o primeiro administrador já foram configurados; `mikhaelfernandes8@gmail.com` entra com sua senha pessoal. A aplicação e as funções de busca são publicadas juntas no Netlify pelo modo de diretórios. O deploy vigente e as verificações executadas ficam em [VALIDACAO.md](VALIDACAO.md).
+O endereço existente é [louvor-grupo-fxebsy.netlify.app](https://louvor-grupo-fxebsy.netlify.app), no projeto Supabase `fxebsycpbybhzkpnxzoo`. A migração inicial e o primeiro administrador já foram configurados; o proprietário entra com o próprio e-mail e a senha pessoal. A aplicação e as funções de busca são publicadas juntas no Netlify pelo modo de diretórios. O deploy vigente e as verificações executadas ficam em [VALIDACAO.md](VALIDACAO.md).
 
 **Estado em 14/10/2026:** a atualização foi publicada no Netlify, deploy `6acfb79bdbdd1aa89fbe41af` confirmado `ready`. A migração 006 foi aplicada no projeto existente e a reinspeção confirmou idempotência (`schema_changed: false`). Os valores das colunas preexistentes do ministério e dos perfis foram preservados; contas e imagens existentes mantiveram suas quantidades. As verificações executadas, o estado da checagem final do domínio e os limites ficam em [VALIDACAO.md](VALIDACAO.md).
 
@@ -70,7 +70,7 @@ Em **Authentication → URL Configuration**, use **Site URL** `https://louvor-gr
 
 ## Contas e primeiro administrador
 
-Na instalação atual, entre com `mikhaelfernandes8@gmail.com` e sua senha pessoal. Os próximos integrantes escolhem **Criar conta**, cadastram nome, e-mail e senha, confirmam a mensagem recebida e aguardam aprovação em **Administração**. O administrador define `admin`, `leader` ou `musician` e pode vincular uma pessoa da equipe a uma conta.
+Na instalação atual, o proprietário entra com o próprio e-mail e a senha pessoal. Os próximos integrantes escolhem **Criar conta**, cadastram nome, e-mail e senha, confirmam a mensagem recebida e aguardam aprovação em **Administração**. O administrador define `admin`, `leader` ou `musician` e pode vincular uma pessoa da equipe a uma conta.
 
 Em outra instalação, crie e confirme a conta proprietária no endereço dessa instalação. Sua primeira aprovação é feita pela sessão administrativa do SQL Editor, com o e-mail correto da conta já confirmada:
 
@@ -84,7 +84,7 @@ where id = (
 );
 ```
 
-Confira uma linha alterada e reabra a sessão. O helper `node scripts/configure-public-site.mjs --approve-owner` também aprova somente o proprietário definido no script, com cadastro confirmado. Sem argumentos, ele consulta o estado; `--apply` ajusta as URLs de Auth a partir do deploy Netlify observado. Essas operações requerem gerenciamento seguro e não fazem parte do cadastro normal.
+Confira uma linha alterada e reabra a sessão. O helper `node scripts/configure-public-site.mjs --approve-owner` também aprova somente o proprietário informado em `CANDEIA_OWNER_EMAIL`, com cadastro confirmado. Sem argumentos, ele consulta o estado; `--apply` ajusta as URLs de Auth a partir do deploy Netlify observado. Essas operações requerem gerenciamento seguro e não fazem parte do cadastro normal.
 
 Uma pessoa pode ser vinculada a no máximo um perfil. Em **Administração**, opções usadas por outra conta ficam indisponíveis, enquanto o vínculo atual pode ser mantido ou removido; o banco também protege a unicidade. O cadastro não permite promover a própria conta; os perfis não têm escrita direta pelo cliente. O RPC administrativo protege o último administrador aprovado contra suspensão ou rebaixamento. Exclusões e SQL pelo painel são operações privilegiadas; preserve pelo menos um administrador.
 

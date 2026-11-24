@@ -116,9 +116,16 @@ test('gráficos deduplicam pessoa e música por culto e filtram datas sem gravar
   await expect(page.getByRole('heading', { name: 'Gráficos', exact: true })).toBeVisible();
   await kpi(page, 'Cultos no período', '3'); await kpi(page, 'Participações na escala', '4'); await kpi(page, 'Músicas nos repertórios', '4');
   const people = page.getByRole('region', { name: 'Pessoas mais escaladas', exact: true });
+  await expect(people).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Pessoas', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Pessoas', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(people.locator('li').filter({ hasText: 'Mikhael' }).locator('b')).toHaveText('2');
+  await page.getByRole('tab', { name: 'Músicas', exact: true }).click();
   const songs = page.getByRole('region', { name: 'Músicas mais utilizadas', exact: true });
   await expect(songs.locator('li').filter({ hasText: 'Casa de paz' }).locator('b')).toHaveText('2');
+  await page.getByRole('tab', { name: 'Cultos', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Temáticas dos cultos', exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
   await page.getByLabel('Filtrar gráficos por tipo de culto', { exact: true }).selectOption('Vigília da equipe');
   await kpi(page, 'Cultos no período', '1'); await kpi(page, 'Participações na escala', '1'); await kpi(page, 'Músicas nos repertórios', '1');
   await page.getByLabel('Filtrar gráficos por tipo de culto', { exact: true }).selectOption('');
@@ -143,6 +150,7 @@ test('músico aprovado vê gráficos no celular sem administração ou ações d
   await page.goto('/graficos');
   await expect(page.getByRole('heading', { name: 'Gráficos', exact: true })).toBeVisible();
   await kpi(page, 'Cultos no período', '3');
+  await page.getByRole('tab', { name: 'Músicas', exact: true }).click();
   await page.getByLabel('Buscar músicas nas análises', { exact: true }).fill('Casa');
   await expect(page.getByRole('region', { name: 'Músicas mais utilizadas', exact: true }).locator('li')).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

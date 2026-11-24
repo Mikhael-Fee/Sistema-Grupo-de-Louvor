@@ -10,7 +10,7 @@ Código em [Mikhael-Fee/Sistema-Grupo-de-Louvor](https://github.com/Mikhael-Fee/
 
 ## Acesso
 
-A conta `mikhaelfernandes8@gmail.com` já foi confirmada e aprovada como administrador. Entre com a senha pessoal criada no cadastro. Os próximos integrantes criam e confirmam suas contas; o administrador aprova o acesso e define o papel em **Administração**.
+A conta do proprietário já foi confirmada e aprovada como administrador. Entre com a senha pessoal criada no cadastro. Os próximos integrantes criam e confirmam suas contas; o administrador aprova o acesso e define o papel em **Administração**.
 
 Os dados do ministério exigem uma conta confirmada e aprovada. O botão de entrar sem cadastro e a configuração de consulta pública foram removidos; o antigo endereço `/consulta` redireciona para o início/login. Contas pendentes continuam vendo a espera pela aprovação. Cadastro e recuperação de senha permanecem disponíveis; uma sessão autenticada existente continua usando a mesma conta e os mesmos rascunhos. A migração 006 fecha também os RPCs antigos de consulta pública no banco, inclusive para instalações antigas do aplicativo.
 

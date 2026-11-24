@@ -33,6 +33,8 @@ for (const width of [1280, 350]) {
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Cultos', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Cards', exact: true }).click();
+    const filters = page.getByRole('button', { name: /^Filtros/ });
+    if (await filters.isVisible()) await filters.click();
     await page.getByLabel('Filtrar por tipo de culto').selectOption('Santa Ceia');
     await expect(page.getByRole('article')).toHaveCount(1);
     await expect(page.getByRole('article')).toContainText('Santa Ceia');
