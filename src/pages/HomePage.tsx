@@ -7,7 +7,10 @@ import { getPersonPhoto } from '../lib/avatars';
 
 export function dateParts(date: string) {
   const value = new Date(`${date}T12:00:00`);
-  return { day: value.toLocaleDateString('pt-BR', { day: '2-digit' }), month: value.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''), full: value.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }) };
+  return { day: value.toLocaleDateString('pt-BR', { day: '2-digit' }), month: value.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''), full: sentenceCase(value.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })) };
+}
+function sentenceCase(text: string) {
+  return text.charAt(0).toLocaleUpperCase('pt-BR') + text.slice(1);
 }
 export default function HomePage() {
   const { data, profile, canPlan } = useMinistry();

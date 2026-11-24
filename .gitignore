@@ -12,3 +12,6 @@ test-results/
 /public/downloads/candeia-cifra-iphone.js
 /public/downloads/candeia-cifraclub-firefox*.xpi
 /public/downloads/candeia-cifraclub-firefox.json
+
+# Progress file written while waiting for Mozilla to sign a new version.
+/browser-extension/firefox-signed/signing-progress.json

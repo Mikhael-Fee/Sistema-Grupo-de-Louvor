@@ -1,0 +1,49 @@
+/* Visual fixes found in the November 2026 interface review (PC and Android). */
+
+/* Song page: Cifra Club reference row had no layout of its own. */
+body .song-source-link{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid #e9eddf;font-size:13px;color:var(--muted,#79867c);flex-wrap:wrap}
+body .song-source-link .button{font-size:12px;padding:8px 13px;gap:7px}
+
+/* Dates: capitalise only the first letter ("Novembro de 2026", not "Novembro De 2026"). */
+body .next-date,body .services-calendar-header h2{text-transform:none}
+
+/* Tag filter chips: space between the colour dot, the check and the name. */
+body .chip{display:inline-flex;align-items:center;gap:6px}
+
+/* Filter selects share one look instead of the browser default. */
+body .services-filters>select,body .people-function-filter select{appearance:none;-webkit-appearance:none;min-height:45px;border:1px solid var(--border,#dce3eb);border-radius:9px;padding:0 34px 0 13px;background:var(--surface,#fff) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23687786' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;color:var(--text,#172a3e);font:inherit;font-size:13px;text-overflow:ellipsis}
+
+/* Song editor: the PDF picker sat as a box inside the search box, leaving an empty strip. */
+body .songs-source-search>.cifra-pdf-picker{margin:0;border:0;border-bottom:1px solid var(--border,#e6e2dc);border-radius:0}
+
+@media(max-width:700px){
+  /* Library: the key filter gets its own row so "Todos os tons" is not cut; tags scroll below it. */
+  body .songs-filters{grid-template-columns:minmax(0,1fr)}
+  body .songs-key-filter{grid-column:1/-1}
+  body .songs-filter-tags{grid-column:1/-1}
+  body .song-source-link{padding:12px 16px}
+  body .song-source-link .button{min-height:44px}
+  body .services-filters>select,body .people-function-filter select{font-size:16px}
+  body .services-filters>select{width:172px;flex-shrink:0}
+}
+@media(max-width:480px){
+  /* Team: two selects side by side cut "Todas as funções"; stack them. */
+  body .people-toolbar .people-function-filter{flex-basis:100%}
+}
+
+@media(max-width:700px){
+  /* Library on the phone: the whole card opens the song; tags and actions share one row; no duplicate "open" arrow. */
+  body .songs-row{position:relative;grid-template-columns:minmax(0,1fr) 44px 44px;column-gap:6px;row-gap:12px}
+  body .songs-name{grid-column:1/3;grid-row:1}
+  body .songs-key{grid-column:3;grid-row:1;align-items:center}
+  body .songs-name::after{content:'';position:absolute;inset:0}
+  body .songs-row-tags{grid-column:1;grid-row:2;align-self:center}
+  body .songs-row-actions{grid-column:2/4;grid-row:2;justify-self:end;gap:0;position:relative;z-index:1}
+  body .songs-row-actions .songs-open{display:none}
+  body .songs-row-actions .icon-button{border-color:transparent;background:transparent}
+
+  /* Reading a song on the phone: key, font and full-screen controls stay at hand while scrolling. */
+  body .song-reader{overflow:clip}
+  body .song-reader-toolbar{position:sticky;top:0;z-index:5;background:var(--surface,#fff);padding:10px 12px;box-shadow:0 1px 0 #e9eddf}
+  body .song-blank-line{height:.9em}
+}
