@@ -38,5 +38,6 @@ export function calendarDays(month: string): ServiceCalendarDay[] {
 }
 
 export function calendarMonthLabel(month: string): string {
-  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(monthStart(month));
+  const label = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(monthStart(month));
+  return label.charAt(0).toLocaleUpperCase('pt-BR') + label.slice(1);
 }

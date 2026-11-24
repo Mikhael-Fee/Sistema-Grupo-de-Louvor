@@ -34,13 +34,16 @@ for (const width of [320, 390]) test(`biblioteca permite ler a busca e combinar 
     return {
       parts: ['.songs-name', '.songs-key', '.songs-row-tags', '.songs-row-actions'].map(rectangle),
       title: rectangle('.songs-name strong'),
-      buttons: [...element.querySelectorAll('.songs-row-actions .icon-button')].map(button => {
+      // The card itself opens the song on the phone, so the extra arrow is hidden.
+      openHidden: getComputedStyle(element.querySelector('.songs-open')!).display === 'none',
+      buttons: [...element.querySelectorAll('.songs-row-actions .icon-button:not(.songs-open)')].map(button => {
         const box = button.getBoundingClientRect();
         return { width: box.width, height: box.height };
       }),
     };
   });
   expect(layout.title.width).toBeGreaterThanOrEqual(130);
+  expect(layout.openHidden).toBe(true);
   for (const [index, first] of layout.parts.entries()) for (const second of layout.parts.slice(index + 1)) {
     const overlapWidth = Math.max(0, Math.min(first.right, second.right) - Math.max(first.left, second.left));
     const overlapHeight = Math.max(0, Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top));

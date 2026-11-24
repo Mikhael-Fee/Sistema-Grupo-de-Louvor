@@ -38,7 +38,7 @@ describe('datas do calendário do ministério', () => {
   });
 
   it('mostra o mês e ano em português e rejeita mês inválido', () => {
-    expect(calendarMonthLabel('2026-10')).toBe('outubro de 2026');
+    expect(calendarMonthLabel('2026-10')).toBe('Outubro de 2026');
     for (const invalid of ['2026-00', '2026-13', '2026-1', 'not-a-month']) expect(() => calendarDays(invalid)).toThrow('Mês inválido.');
     expect(() => shiftCalendarMonth('2026-10', 0.5)).toThrow('Deslocamento de mês inválido.');
   });

@@ -7,5 +7,6 @@ import UpdatePrompt from './components/UpdatePrompt';
 import AppErrorBoundary from './components/AppErrorBoundary';
 import App from './App';
 import './styles.css';
+import './ui-polish.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><BrowserRouter><MinistryProvider><AppErrorBoundary><App /></AppErrorBoundary><UpdatePrompt /></MinistryProvider></BrowserRouter></React.StrictMode>);
