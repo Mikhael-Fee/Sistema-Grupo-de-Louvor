@@ -17,7 +17,8 @@ for (const width of [320, 390]) test(`biblioteca permite ler a busca e combinar 
   const field = await search.evaluate(element => {
     const style = getComputedStyle(element);
     return {
-      textWidth: element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+      // Measured from the border box: Chromium's clientWidth for <input> already excludes padding.
+      textWidth: element.getBoundingClientRect().width - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth) - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
       color: style.color, background: style.backgroundColor,
       inViewport: element.getBoundingClientRect().right <= innerWidth,
     };
@@ -54,7 +55,7 @@ for (const width of [320, 390]) test(`biblioteca permite ler a busca e combinar 
     expect(button.height).toBeGreaterThanOrEqual(44);
   }
   await testInfo.attach(`biblioteca-busca-${width}`, {
-    body: await page.screenshot({ path: `/workspace/scratch/library-search-after-${width}.png`, fullPage: true }),
+    body: await page.screenshot({ path: testInfo.outputPath(`library-search-after-${width}.png`), fullPage: true }),
     contentType: 'image/png',
   });
 
