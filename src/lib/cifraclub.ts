@@ -218,6 +218,11 @@ function readChordRow(line: string): ChordRow | null {
   return chords.length ? { chords, standalone } : null;
 }
 
+/** A line made only of chords (optionally after a section label such as [Intro]). */
+export function isChordLine(line: string): boolean {
+  return readChordRow(expandTabs(line)) !== null;
+}
+
 function standaloneChordLine(line: string, row: ChordRow): string {
   let result = '';
   let cursor = 0;

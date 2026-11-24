@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Check, Download, ExternalLink, ListFilter, LoaderCircle, Music2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
 import CifraPdfPicker from '../components/CifraPdfPicker';
+import CifraClipboardButton from '../components/CifraClipboardButton';
 import CifraPdfBatchDialog from '../components/CifraPdfBatchDialog';
 import { useMinistry } from '../context/MinistryContext';
 import { KEYS, normalizeSearch, stripChords } from '../lib/music';
@@ -232,7 +233,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
     const attribution = `Fonte ${preview.kind === 'chords' ? 'da letra e cifra' : 'da letra'}: ${preview.source} — ${preview.sourceUrl}`;
     const importedCifraUrl = preview.source === 'Cifra Club' ? normalizeCifraClubUrl(preview.sourceUrl) : null;
     const notes = importedCifraUrl ? notesWithCifraClubSource(current.notes, importedCifraUrl) : current.notes.includes(attribution) ? current.notes : `${current.notes.trim()}${current.notes.trim() ? '\n\n' : ''}${attribution}`;
-    return { ...current, content, originalKey: churchKey, churchKey, ...(useSourceMetadata ? { title: preview.title, artist: preview.artist || current.artist } : {}), notes };
+    return { ...current, content, originalKey: churchKey, churchKey, ...(useSourceMetadata ? { title: preview.title || current.title, artist: preview.artist || current.artist } : {}), notes };
   }
 
   function importPreview() {
@@ -291,6 +292,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
       </div>
       <section className="songs-source-search" aria-label="Busca online de letra e cifra">
         <CifraPdfPicker onRead={receivePdf} disabled={busy || saving || searching || Boolean(previewing)} />
+        <CifraClipboardButton onRead={receivePdf} disabled={busy || saving || searching || Boolean(previewing)} />
         <div className="songs-unified-search-heading">
           <div><strong>Cifra e letra em uma busca</strong><span>Pesquise pelo título; o artista ajuda a encontrar a versão certa.</span><span>{browserConnected ? 'Importador conectado · cifra automática pelo navegador' : <a href="/conectar-cifra-club" target="_blank" rel="noopener noreferrer">{browserOutdated ? 'Atualizar importador Cifra Club' : 'Conectar importador Cifra Club'}</a>}</span></div>
           <button type="button" className="button button-primary" disabled={searching || Boolean(previewing)} onClick={searchOnline}>{searching ? <LoaderCircle className="songs-spinner" size={15} /> : <Search size={15} />}{searching ? 'Pesquisando…' : 'Pesquisar cifra e letra'}</button>
@@ -311,7 +313,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
             {preview.kind === 'chords' && <label className="songs-source-metadata songs-preview-lyrics"><input type="checkbox" checked={previewLyricsOnly} onChange={e => setPreviewLyricsOnly(e.target.checked)} />Ver somente letra na prévia</label>}
             <pre tabIndex={0} aria-label="Prévia do conteúdo para importar">{previewText.slice(0, 12000)}</pre>
             {previewText.length > 12000 && <p className="songs-import-hint">A prévia exibe o início do texto. A importação inclui o conteúdo completo.</p>}
-            <label className="songs-source-metadata"><input type="checkbox" checked={useSourceMetadata} onChange={e => { const checked = e.target.checked; setUseSourceMetadata(checked); if (checked) setDraft(current => ({ ...current, title: preview.title, artist: preview.artist || current.artist })); }} />Atualizar título e artista com os dados da fonte</label>
+            <label className="songs-source-metadata"><input type="checkbox" checked={useSourceMetadata} onChange={e => { const checked = e.target.checked; setUseSourceMetadata(checked); if (checked) setDraft(current => ({ ...current, title: preview.title || current.title, artist: preview.artist || current.artist })); }} />Atualizar título e artista com os dados da fonte</label>
             {useSourceMetadata && !draft.content.trim() && <p className="songs-import-hint">Você pode importar abaixo ou clicar em Salvar música para preencher e salvar esta versão com título, artista, letra e cifra.</p>}
             <p className="songs-import-hint">{draft.content.trim() ? 'A importação substituirá a letra e cifra do formulário. ' : ''}{preview.kind === 'chords' ? `Os acordes serão ajustados automaticamente para ${previewChurchKey}, o tom da igreja após importar. Tablaturas e diagramas serão removidos. ` : 'Esta versão contém apenas a letra; nenhum acorde será acrescentado. '}A fonte será registrada nas observações.</p>
             <button type="button" className="button button-primary" disabled={sourceConfirmReplace || (previewNeedsKey && !previewWrittenKey)} onClick={() => draft.content.trim() ? setSourceConfirmReplace(true) : importPreview()}><Download size={15} />{preview.kind === 'chords' ? 'Importar cifra e letra' : 'Importar letra sem acordes'}</button>
