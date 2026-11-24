@@ -131,3 +131,23 @@ test('rascunho mantém evento e campos quando outro dia é escolhido sem salvar'
   expect(mock.calls.filter(call => call.path === '/rest/v1/rpc/save_service')).toHaveLength(0);
   await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
 });
+
+test('no celular o calendário vem primeiro e os filtros ficam no botão Filtros', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mock = await setupMockMinistry(page);
+  await mock.login();
+  await page.goto('/cultos');
+  const calendar = page.getByRole('region', { name: 'Calendário de cultos', exact: true });
+  await expect(calendar).toBeVisible();
+  const search = page.getByRole('textbox', { name: 'Buscar cultos', exact: true });
+  await expect(search).toBeHidden();
+  const toggle = page.getByRole('button', { name: /^Filtros/ });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await search.fill('inexistente');
+  await expect(toggle).toHaveAccessibleName(/^Filtros ?, 1 filtro ativo$/);
+  const summary = page.locator('.services-summary');
+  expect((await calendar.boundingBox())!.y).toBeLessThan((await summary.boundingBox())!.y);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

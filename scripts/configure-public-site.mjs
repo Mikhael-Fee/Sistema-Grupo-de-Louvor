@@ -18,7 +18,8 @@ const args = process.argv.slice(2);
 const apply = args.includes('--apply');
 const approveOwner = args.includes('--approve-owner');
 const apiBase = `https://api.supabase.com/v1/projects/${projectRef}`;
-const ownerEmail = 'mikhaelfernandes8@gmail.com';
+// The owner's address stays out of the public repository: pass it in the environment.
+const ownerEmail = (process.env.CANDEIA_OWNER_EMAIL || '').trim();
 const curlEnvironment = { ...process.env };
 delete curlEnvironment.SUPABASE_ACCESS_TOKEN;
 
@@ -29,6 +30,10 @@ if (args.some(arg => !['--apply', '--approve-owner'].includes(arg))) {
 
 if (!/^[a-z]{20}$/.test(projectRef) || !token || /[\r\n]/.test(token)) {
   console.error('Configure o projeto e SUPABASE_ACCESS_TOKEN de forma segura. Nenhuma alteração foi feita.');
+  process.exit(1);
+}
+if (!/^[^\s@']+@[^\s@']+\.[^\s@']+$/.test(ownerEmail)) {
+  console.error('Defina CANDEIA_OWNER_EMAIL com o e-mail do administrador proprietário. Nenhuma alteração foi feita.');
   process.exit(1);
 }
 
