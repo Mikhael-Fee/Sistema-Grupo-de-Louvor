@@ -1003,6 +1003,8 @@ test('colar texto no campo único limpa tablatura, converte o tom e preserva os 
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
   await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await page.getByRole('button', { name: 'Sair', exact: true }).click();
+  // Wait for the sign-out to finish; otherwise login() can see the old "Sair" button and click it while it unmounts.
+  await expect(page.getByLabel('E-mail', { exact: true })).toBeVisible();
   await fixture.login('musician');
   await page.goto('/musicas');
   await page.getByRole('article').filter({ hasText: 'Luz da equipe de teste' })
