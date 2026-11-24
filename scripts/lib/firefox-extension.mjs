@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import { isDeepStrictEqual } from 'node:util';
 
 export const FIREFOX_SOURCE = fileURLToPath(new URL('../../browser-extension/candeia-cifraclub-firefox/', import.meta.url));
-export const FIREFOX_SIGNED_STATE = fileURLToPath(new URL('../../.netlify/firefox-signed/', import.meta.url));
+export const FIREFOX_SIGNED_STATE = fileURLToPath(new URL('../../browser-extension/firefox-signed/', import.meta.url));
 export const FIREFOX_FILES = ['manifest.json', 'background.js', 'candeia-content.js', 'cifra-content.js', 'reader.js', 'README.md', 'PRIVACY.md'];
 export const FIREFOX_ID = 'cifraclub-firefox@candeia.app';
 export const WEB_EXT_VERSION = '10.7.0';

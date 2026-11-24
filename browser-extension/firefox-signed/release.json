@@ -1,0 +1,8 @@
+{
+  "version": "1.1.2",
+  "sourceSha256": "e5f751803af4352f08d40e10e8feef6de72a68f9ca0d44ecfe8c5f74f53eb185",
+  "sha256": "ee847bcea549dd18e2d3200fa6b6843a8d917beb290a52ff93f3083365301df2",
+  "provenance": "web-ext@10.7.0:amo-unlisted",
+  "receivedAt": "2026-11-24T17:40:41.385Z",
+  "note": "XPI assinado pela Mozilla, baixado do site publicado e conferido com as fontes atuais."
+}
