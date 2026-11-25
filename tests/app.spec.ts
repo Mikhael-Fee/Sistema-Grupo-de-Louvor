@@ -40,7 +40,7 @@ test('cadastra uma música, valida o vídeo, transpõe sem alterar o cadastro e 
   await dialog.getByLabel('Vídeo no YouTube').fill('https://youtu.be/dQw4w9WgXcQ');
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(dialog).toBeHidden();
-  await page.getByRole('searchbox', { name: 'Buscar por título ou artista' }).fill('Equipe de teste');
+  await page.getByRole('searchbox', { name: 'Buscar por título, artista ou trecho da letra' }).fill('Equipe de teste');
   const row = page.getByRole('article').filter({ hasText: 'Canção de teste' });
   await expect(row).toHaveCount(1);
   await expect(row).not.toContainText('Original:');
@@ -77,7 +77,7 @@ test('combina todas as etiquetas selecionadas e os filtros de tom e pesquisa', a
   await expect(page.getByRole('heading', { name: 'Nenhuma música com esses filtros' })).toBeVisible();
   await page.getByRole('button', { name: 'Limpar filtros', exact: true }).first().click();
   await expect(page.getByRole('article')).toHaveCount(7);
-  await page.getByRole('searchbox', { name: 'Buscar por título ou artista' }).fill('cancao de teste');
+  await page.getByRole('searchbox', { name: 'Buscar por título, artista ou trecho da letra' }).fill('cancao de teste');
   await expect(page.getByRole('article')).toHaveCount(1);
   await expect(page.getByRole('article')).toContainText('Canção de teste');
 });

@@ -15,6 +15,7 @@ import { clearCurrentTabImport, pendingCurrentTabImport, saveCurrentTabImport } 
 import { cifraClubUrlFromNotes, notesWithCifraClubSource, previewSongSource, searchUnifiedSongSources, sourceKey, type SongSearchResult } from '../lib/song-search';
 import { buildYouTubeSearchUrl, getYouTubeVideoId, normalizeYouTubeUrl, searchYouTubeVideos, youtubeThumbnailUrl, type YouTubeSuggestion } from '../lib/youtube';
 import type { Song } from '../types';
+import { findLyricsMatch, type LyricsMatch } from '../lib/lyrics-search';
 import './songs.css';
 
 function blankSong(): Song {
@@ -394,10 +395,20 @@ export default function SongsPage() {
   const [deleting, setDeleting] = useState<Song | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
-  const songs = useMemo(() => data.songs.filter(song => {
-    const matchesQuery = normalizeSearch(`${song.title} ${song.artist}`).includes(normalizeSearch(query).trim());
-    return matchesQuery && (!keyFilter || song.churchKey === keyFilter) && selectedTags.every(id => song.tagIds.includes(id));
-  }).sort((a, b) => a.title.localeCompare(b.title, 'pt-BR')), [data.songs, query, keyFilter, selectedTags]);
+  // Title and artist matches come first; songs found only by a line of the lyrics follow, with that line shown.
+  const { songs, lyricHits } = useMemo(() => {
+    const term = normalizeSearch(query).trim();
+    const hits = new Map<string, LyricsMatch>();
+    const byName: Song[] = []; const byLyrics: Song[] = [];
+    for (const song of data.songs) {
+      if ((keyFilter && song.churchKey !== keyFilter) || !selectedTags.every(id => song.tagIds.includes(id))) continue;
+      if (normalizeSearch(`${song.title} ${song.artist}`).includes(term)) { byName.push(song); continue; }
+      const hit = findLyricsMatch(song.content, query);
+      if (hit) { hits.set(song.id, hit); byLyrics.push(song); }
+    }
+    const byTitle = (a: Song, b: Song) => a.title.localeCompare(b.title, 'pt-BR');
+    return { songs: [...byName.sort(byTitle), ...byLyrics.sort(byTitle)], lyricHits: hits };
+  }, [data.songs, query, keyFilter, selectedTags]);
   const filtered = Boolean(query || keyFilter || selectedTags.length);
   const reset = () => { setQuery(''); setKeyFilter(''); setSelectedTags([]); };
   const usedBy = deleting ? data.services.filter(service => service.repertoire.some(item => item.songId === deleting.id)).length : 0;
@@ -451,7 +462,7 @@ export default function SongsPage() {
     <PageHeader eyebrow="REPERTÓRIO DO MINISTÉRIO" title="Biblioteca de músicas" action={canEditLibrary && <div className="form-actions" style={{ marginTop: 0 }}><button className="button button-secondary" onClick={() => setBatchImport(true)}><Download size={17} />Importar PDFs</button><button className="button button-primary" disabled={resuming} onClick={() => openEditor('new')}><Plus size={17} />Nova música</button></div>} />
     <div className="songs-summary"><span className="songs-summary-icon"><Music2 size={19} /></span><strong>{data.songs.length}</strong><span>{data.songs.length === 1 ? 'música' : 'músicas'}</span><span className="songs-summary-divider" /><span>{data.tags.length} {data.tags.length === 1 ? 'etiqueta' : 'etiquetas'}</span></div>
     <section className="card songs-filters" aria-label="Filtros de músicas">
-      <div className="songs-filter-row"><label className="songs-search"><Search size={18} aria-hidden="true" /><input className="search-input" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar por título ou artista…" aria-label="Buscar por título ou artista" /></label><label className="songs-key-filter"><ListFilter size={16} aria-hidden="true" /><select value={keyFilter} onChange={e => setKeyFilter(e.target.value)} aria-label="Filtrar pelo tom na igreja"><option value="">Todos os tons</option>{KEYS.map(key => <option key={key} value={key}>Tom {key}</option>)}</select></label></div>
+      <div className="songs-filter-row"><label className="songs-search"><Search size={18} aria-hidden="true" /><input className="search-input" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar por título, artista ou trecho da letra…" aria-label="Buscar por título, artista ou trecho da letra" /></label><label className="songs-key-filter"><ListFilter size={16} aria-hidden="true" /><select value={keyFilter} onChange={e => setKeyFilter(e.target.value)} aria-label="Filtrar pelo tom na igreja"><option value="">Todos os tons</option>{KEYS.map(key => <option key={key} value={key}>Tom {key}</option>)}</select></label></div>
       {data.tags.length > 0 && <div className="songs-filter-tags"><span className="songs-filter-label">ETIQUETAS</span><div className="chips" role="group" aria-label="Filtrar por etiquetas">{data.tags.map(tag => {
         const active = selectedTags.includes(tag.id);
         return <button key={tag.id} className={`chip ${active ? 'active' : ''}`} aria-pressed={active} onClick={() => setSelectedTags(current => active ? current.filter(id => id !== tag.id) : [...current, tag.id])}>{active && <Check size={13} />}<span className="songs-tag-dot" style={{ backgroundColor: tag.color }} />{tag.name}</button>;
@@ -462,7 +473,7 @@ export default function SongsPage() {
     <FormError error={resumeError} />
     {resuming && <p role="status" aria-busy="true"><LoaderCircle className="songs-spinner" size={15} /> Recuperando a prévia do Cifra Club…</p>}
     {songs.length ? <div className="card songs-list"><div className="songs-list-head" aria-hidden="true"><span>MÚSICA</span><span>TOM NA IGREJA</span><span>ETIQUETAS</span><span /></div>{songs.map(song => <article className="songs-row" key={song.id}>
-      <Link className="songs-name" to={`/musicas/${song.id}`}><span className="songs-cover"><Music2 size={22} /></span><span><strong>{song.title}</strong><small>{song.artist}</small></span></Link>
+      <Link className="songs-name" to={`/musicas/${song.id}`}><span className="songs-cover"><Music2 size={22} /></span><span><strong>{song.title}</strong><small>{song.artist}</small>{lyricHits.has(song.id) && <small className="songs-lyric-hit" aria-label="Trecho da letra encontrado">“{lyricHits.get(song.id)!.before}<mark>{lyricHits.get(song.id)!.match}</mark>{lyricHits.get(song.id)!.after}”</small>}</span></Link>
       <div className="songs-key"><span className="songs-key-badge">{song.churchKey}</span></div>
       <div className="songs-row-tags">{data.tags.filter(tag => song.tagIds.includes(tag.id)).map(tag => <span key={tag.id} className="songs-tag"><span className="songs-tag-dot" style={{ backgroundColor: tag.color }} />{tag.name}</span>)}{!song.tagIds.length && <span className="muted songs-no-tags">Sem etiquetas</span>}</div>
       <div className="songs-row-actions">{canEditLibrary && <><button className="icon-button" aria-label={`Editar ${song.title}`} title="Editar música" disabled={resuming} onClick={() => openEditor(song)}><Pencil size={16} /></button><button className="icon-button songs-delete" aria-label={`Excluir ${song.title}`} title="Excluir música" onClick={() => { setDeleting(song); setDeleteError(null); }}><Trash2 size={16} /></button></>}<Link className="icon-button songs-open" to={`/musicas/${song.id}`} aria-label={`Abrir ${song.title}`}><ArrowUpRight size={19} /></Link></div>

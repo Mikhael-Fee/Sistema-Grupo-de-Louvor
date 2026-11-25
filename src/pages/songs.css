@@ -71,3 +71,6 @@
   .song-stage-step span,.song-stage-speed{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
   .song-stage-step{width:48px;padding:0;justify-content:center}
 }
+/* Library search by a line of the lyrics: the matching line appears under the artist. */
+.songs-lyric-hit{display:block;margin-top:4px;font-size:13px;line-height:1.35;color:var(--muted,#5f6b62);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.songs-lyric-hit mark{background:#fde7c4;color:inherit;border-radius:3px;padding:0 2px;font-style:normal;font-weight:600}

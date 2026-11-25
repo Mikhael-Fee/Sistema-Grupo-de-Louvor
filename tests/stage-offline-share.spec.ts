@@ -100,3 +100,16 @@ test('compartilhar escala e repertório no WhatsApp', async ({ page }) => {
   expect(text).toContain(`1. ${firstSong.title} · Tom *${service.repertoire[0].key}*`);
   expect(text).toContain(`/cultos/${service.id}`);
 });
+
+test('biblioteca encontra músicas por um trecho da letra e mostra a linha encontrada', async ({ page }) => {
+  const mock = await setupMockMinistry(page, 'musician');
+  await mock.login();
+  await page.goto('/musicas');
+  await page.getByLabel('Buscar por título, artista ou trecho da letra').fill('vida recomecar');
+  const rows = page.locator('.songs-row');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first().locator('.songs-lyric-hit mark')).toHaveText('vida recomeçar');
+  // A title match shows no lyric line.
+  await page.getByLabel('Buscar por título, artista ou trecho da letra').fill('Casa de paz');
+  await expect(rows.first().locator('.songs-lyric-hit')).toHaveCount(0);
+});
