@@ -54,3 +54,16 @@ test('editor de música em três passos com a ajuda escondida num ícone', async
   await expect(dialog.getByText(/Para escrever à mão, use colchetes/)).toBeVisible();
   await expect(dialog.getByRole('textbox', { name: 'Letra e cifra', exact: true })).toBeVisible();
 });
+
+test('o tema claro é o padrão mesmo com o aparelho no modo escuro', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const mock = await setupMockMinistry(page, 'musician');
+  await mock.login();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.goto('/perfil');
+  await expect(page.getByRole('radio', { name: 'Claro' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radio', { name: 'Automático' }).click();
+  await page.reload();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', /./);
+  await expect(page.getByRole('radio', { name: 'Automático' })).toHaveAttribute('aria-checked', 'true');
+});

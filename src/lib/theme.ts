@@ -4,9 +4,10 @@ const KEY = 'candeia.theme';
 export function readTheme(): ThemeChoice {
   try {
     const value = localStorage.getItem(KEY);
-    return value === 'light' || value === 'dark' ? value : 'auto';
+    // Light is the default; dark or automatic only when chosen in Meu perfil.
+    return value === 'auto' || value === 'dark' ? value : 'light';
   } catch {
-    return 'auto';
+    return 'light';
   }
 }
 
@@ -25,7 +26,7 @@ export function applyTheme(choice: ThemeChoice = readTheme()): void {
 
 export function saveTheme(choice: ThemeChoice): void {
   try {
-    if (choice === 'auto') localStorage.removeItem(KEY);
+    if (choice === 'light') localStorage.removeItem(KEY);
     else localStorage.setItem(KEY, choice);
   } catch {
     /* still applies for this visit */
