@@ -30,7 +30,7 @@
   .youtube-version-results li{flex-wrap:wrap}
   .youtube-version-results li>a{flex-basis:100%}
   .youtube-version-results img{width:84px}
-  .youtube-version-results li>.button{width:100%}
+  .youtube-version-results li>.button{margin-left:auto;min-height:40px}
   .youtube-version-search-row input{font-size:16px}
   .youtube-version-hints .text-link{margin-left:0}
 }
