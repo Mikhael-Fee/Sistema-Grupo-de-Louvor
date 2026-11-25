@@ -1,0 +1,36 @@
+/* Per-service YouTube version: library video first, then search results to pick from. */
+.youtube-version{display:grid;gap:12px;margin-top:20px;padding-top:18px;border-top:1px solid var(--border);min-width:0}
+.youtube-version-head h3{font-size:14px;font-weight:700;margin:0}
+.youtube-version-head p{font-size:12px;line-height:1.6;color:var(--muted);margin-top:4px}
+.youtube-version-current{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0}
+.youtube-version-current .youtube-video-card{margin-top:0}
+.youtube-version-reset{font-size:12px;min-height:40px;padding:9px 14px}
+.youtube-version-empty{font-size:12px;line-height:1.6;color:var(--muted);padding:10px 12px;border:1px dashed var(--border);border-radius:9px;width:100%}
+.youtube-version-search{display:grid;gap:8px;min-width:0}
+.youtube-version-search-row{display:flex;gap:8px;min-width:0}
+.youtube-version-search-row input{flex:1;min-width:0;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;min-height:44px;background:var(--surface);color:var(--text)}
+.youtube-version-search-row .button{flex-shrink:0;font-size:12px}
+.youtube-version-hints{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.youtube-version-hints .chip{min-height:36px}
+.youtube-version-hints .text-link{margin-left:auto}
+.youtube-version-message{font-size:12px;line-height:1.6;color:var(--muted)}
+.youtube-version-results{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:min(46vh,420px);overflow-y:auto;overscroll-behavior:contain}
+.youtube-version-results li{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:10px;min-width:0;background:var(--surface)}
+.youtube-version-results li.selected{border-color:var(--flame);background:var(--flame-soft)}
+.youtube-version-results li>a{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text);min-width:0;flex:1}
+.youtube-version-results img{width:96px;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:6px;flex-shrink:0;background:var(--paper)}
+.youtube-version-results li>a>span{min-width:0}
+.youtube-version-results strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+.youtube-version-results small{display:block;font-size:12px;margin-top:2px;color:var(--muted);line-height:1.45;overflow-wrap:anywhere}
+.youtube-version-results li.library strong{color:var(--flame)}
+.youtube-version-results li>.button{min-height:40px;flex-shrink:0;font-size:12px;padding:9px 12px}
+.youtube-version-paste{margin-top:4px}
+.service-item-version{margin-top:6px}
+@media(max-width:560px){
+  .youtube-version-results li{flex-wrap:wrap}
+  .youtube-version-results li>a{flex-basis:100%}
+  .youtube-version-results img{width:84px}
+  .youtube-version-results li>.button{width:100%}
+  .youtube-version-search-row input{font-size:16px}
+  .youtube-version-hints .text-link{margin-left:0}
+}
