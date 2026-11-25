@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Check, ExternalLink, FileText, Maximize2, Minus, Music2, Pencil, Plus, Save, StickyNote, X } from 'lucide-react';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, ExternalLink, Pause, Play, FileText, Maximize2, Minus, Music2, Pencil, Plus, Save, StickyNote, X } from 'lucide-react';
 import { EmptyState, FormError } from '../components/ui';
 import YoutubeVideoCard from '../components/YoutubeVideoCard';
 import { useMinistry } from '../context/MinistryContext';
@@ -11,11 +11,24 @@ import { cifraClubUrlFromNotes, cifraClubSearchUrl } from '../lib/song-search';
 import { isFirefoxInstalledApp } from '../lib/cifra-browser';
 import { pendingCurrentTabImport } from '../lib/cifra-current-tab';
 import { SongEditor } from './SongsPage';
+import { useWakeLock } from '../hooks/useWakeLock';
+import { autoscrollPixelsPerSecond, setlistPosition, setlistSongPath } from '../lib/setlist-navigation';
+
+const SPEED_KEY = 'candeia.reader.scrollSpeed';
+const FONT_KEY = 'candeia.reader.fontSize';
+/** The letter size chosen on this device is kept for every song. */
+function storedFontSize(): number {
+  try { const value = Number(localStorage.getItem(FONT_KEY)); return value >= 14 && value <= 28 ? value : 18; } catch { return 18; }
+}
+function storedSpeed(): number {
+  try { const value = Number(localStorage.getItem(SPEED_KEY)); return value >= 1 && value <= 8 ? value : 3; } catch { return 3; }
+}
 import './songs.css';
 
 export default function SongPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { data, canEditLibrary, canPlan, saveService, busy, profile } = useMinistry();
   const song = data.songs.find(item => item.id === id);
@@ -24,8 +37,10 @@ export default function SongPage() {
   const defaultKey = setlistItem?.key || song?.churchKey || 'C';
   const [viewKey, setViewKey] = useState(defaultKey);
   const [showChords, setShowChords] = useState(true);
-  const [fontSize, setFontSize] = useState(18);
-  const [reading, setReading] = useState(false);
+  const [fontSize, setFontSize] = useState(storedFontSize);
+  const [reading, setReading] = useState(Boolean((location.state as { reading?: boolean } | null)?.reading));
+  const [scrolling, setScrolling] = useState(false);
+  const [speed, setSpeed] = useState(storedSpeed);
   const [editing, setEditing] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -42,7 +57,36 @@ export default function SongPage() {
 
   useEffect(() => { setViewKey(defaultKey); setSaveError(null); }, [id, defaultKey]);
   useEffect(() => { setSaved(false); }, [id]);
-  useEffect(() => { setReading(false); }, [id]);
+  // Moving to the next song of the service keeps reading mode and starts at the top.
+  useEffect(() => {
+    setReading(Boolean((location.state as { reading?: boolean } | null)?.reading));
+    setScrolling(false);
+    readerRef.current?.scrollTo?.({ top: 0 });
+    window.scrollTo?.({ top: 0 });
+  }, [id, setlistItem?.id]);
+  // The screen must not go dark in the middle of a song.
+  useWakeLock(Boolean(song));
+  useEffect(() => { if (!reading) setScrolling(false); }, [reading]);
+  useEffect(() => { try { localStorage.setItem(SPEED_KEY, String(speed)); } catch { /* Preference only. */ } }, [speed]);
+  useEffect(() => { try { localStorage.setItem(FONT_KEY, String(fontSize)); } catch { /* Preference only. */ } }, [fontSize]);
+  useEffect(() => {
+    const target = readerRef.current;
+    if (!scrolling || !target) return;
+    let frame = 0; let last = performance.now(); let carry = 0;
+    const step = (now: number) => {
+      carry += (now - last) / 1000 * autoscrollPixelsPerSecond(speed);
+      last = now;
+      const whole = Math.floor(carry);
+      if (whole > 0) {
+        carry -= whole;
+        target.scrollTop += whole;
+        if (target.scrollTop + target.clientHeight >= target.scrollHeight - 1) { setScrolling(false); return; }
+      }
+      frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [scrolling, speed]);
   useEffect(() => {
     const reader = readerRef.current;
     if (!reading || !song || !reader) return;
@@ -110,6 +154,7 @@ export default function SongPage() {
   const serviceVideoUrl = normalizeYouTubeUrl(setlistItem?.youtubeUrl);
   const referenceVideoUrl = serviceVideoUrl || normalizeYouTubeUrl(song.youtubeUrl);
   const cifraClubUrl = cifraClubUrlFromNotes(song.notes) || cifraClubSearchUrl(song.title, song.artist);
+  const position = setlistPosition(service, setlistItem?.id);
   const serviceLabel = service ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long' }).format(new Date(`${service.date}T12:00:00`)) : '';
 
   return <div ref={readerRef} className={`song-page ${reading ? 'song-reading' : ''}`} role={reading ? 'dialog' : undefined} aria-modal={reading || undefined} aria-label={reading ? `Leitura de ${song.title}` : undefined} tabIndex={reading ? -1 : undefined}>
@@ -128,6 +173,16 @@ export default function SongPage() {
       <div className={`song-sheet ${showChords ? 'song-sheet-chords' : ''}`} style={{ fontSize: `${fontSize}px` }}>
         {showChords ? content.split('\n').map((line, lineIndex) => <div className="song-line" key={lineIndex}>{line.length ? chordSegments(line).filter(segment => segment.chord || segment.text).map((segment, index) => <span className={`song-segment${segment.chord && !segment.text.trim() ? ' song-segment-instrumental' : ''}`} key={index}><span className="song-chord">{segment.chord || '\u00a0'}</span><span className="song-lyric">{segment.text}</span></span>) : <span className="song-blank-line">&nbsp;</span>}</div>) : <div className="song-lyrics-only">{stripChords(content)}</div>}
       </div>
+      {(reading || position) && <nav className={`song-stage-bar ${reading ? 'song-stage-floating' : ''}`} aria-label="Controles de palco">
+        {position && service ? (position.previous ? <Link className="button button-secondary song-stage-step" to={setlistSongPath(service.id, position.previous)} state={{ reading }} aria-label="Música anterior do repertório"><ChevronLeft size={18} /><span>Anterior</span></Link> : <span className="song-stage-step song-stage-placeholder" aria-hidden="true" />) : null}
+        {reading ? <div className="song-stage-scroll" role="group" aria-label="Rolagem automática">
+          <button type="button" className={`button ${scrolling ? 'button-primary' : 'button-secondary'}`} aria-pressed={scrolling} onClick={() => setScrolling(value => !value)}>{scrolling ? <Pause size={17} /> : <Play size={17} />}<span>{scrolling ? 'Pausar' : 'Rolar'}</span></button>
+          <button type="button" className="icon-button" aria-label="Rolagem mais lenta" disabled={speed <= 1} onClick={() => setSpeed(value => Math.max(1, value - 1))}><Minus size={15} /></button>
+          <span className="song-stage-speed" aria-live="polite">Velocidade {speed}</span>
+          <button type="button" className="icon-button" aria-label="Rolagem mais rápida" disabled={speed >= 8} onClick={() => setSpeed(value => Math.min(8, value + 1))}><Plus size={15} /></button>
+        </div> : position && <span className="song-stage-count">Música {position.index + 1} de {position.total}</span>}
+        {position && service ? (position.next ? <Link className="button button-primary song-stage-step" to={setlistSongPath(service.id, position.next)} state={{ reading }} aria-label="Próxima música do repertório"><span>Próxima</span><ChevronRight size={18} /></Link> : <span className="song-stage-step song-stage-placeholder" aria-hidden="true" />) : null}
+      </nav>}
       {!reading && <div className="song-reader-footer"><span><Check size={14} />A troca de tom altera apenas sua visualização.</span><button className="button button-ghost" disabled={viewKey === defaultKey} onClick={() => changeKey(defaultKey)}>Restaurar tom {defaultKey}</button></div>}
     </section>
     {!reading && <>

@@ -58,3 +58,19 @@
 @media(min-width:1280px){.song-page:not(.song-reading){display:grid;grid-template-columns:minmax(0,1fr) 300px;grid-template-areas:"back back" "head head" "meta meta" "reader aside" "save aside";column-gap:22px;align-items:start}.song-page:not(.song-reading)>*{grid-column:1/-1}.song-page:not(.song-reading)>.song-back{grid-area:back}.song-page:not(.song-reading)>.song-header{grid-area:head}.song-page:not(.song-reading)>.song-meta{grid-area:meta}.song-page:not(.song-reading)>.song-reader{grid-area:reader}.song-page:not(.song-reading)>.song-save-key{grid-area:save}.song-page:not(.song-reading)>.song-detail-grid{grid-area:aside;grid-template-columns:minmax(0,1fr);margin-top:0;position:sticky;top:20px}}
 @media(min-width:1500px){.song-page:not(.song-reading){grid-template-columns:minmax(0,1fr) 340px}}
 @media(min-width:1000px){.modal-wide:has(.songs-editor){width:min(1080px,calc(100vw - 48px))}.songs-editor .form-grid{grid-template-columns:minmax(0,1.3fr) minmax(0,1.3fr) minmax(0,1fr)}.songs-editor .songs-content-input{min-height:min(52vh,560px)}}
+/* Stage controls: previous/next in the service and automatic scrolling while reading. */
+.song-stage-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-top:1px solid var(--border,#e6e2dc);background:var(--surface,#fff)}
+.song-stage-floating{position:sticky;bottom:0;z-index:2;padding-bottom:max(12px,env(safe-area-inset-bottom));box-shadow:0 -6px 18px rgba(23,23,23,.08)}
+.song-stage-step{min-height:44px;flex:0 0 auto}
+.song-stage-placeholder{width:44px}
+.song-stage-scroll{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+.song-stage-scroll .icon-button{width:44px;height:44px;min-width:44px}
+.song-stage-speed,.song-stage-count{font-size:14px;color:var(--text,#243a2c);white-space:nowrap}
+@media(max-width:700px){
+  .song-stage-bar{padding:10px 12px;gap:6px}
+  .song-stage-step span,.song-stage-speed{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .song-stage-step{width:48px;padding:0;justify-content:center}
+}
+/* Library search by a line of the lyrics: the matching line appears under the artist. */
+.songs-lyric-hit{display:block;margin-top:4px;font-size:13px;line-height:1.35;color:var(--muted,#5f6b62);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.songs-lyric-hit mark{background:#fde7c4;color:inherit;border-radius:3px;padding:0 2px;font-style:normal;font-weight:600}

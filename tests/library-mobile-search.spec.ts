@@ -5,7 +5,7 @@ for (const width of [320, 390]) test(`biblioteca permite ler a busca e combinar 
   await page.setViewportSize({ width, height: 850 });
   const mock = await loginAs(page);
   await page.goto('/musicas');
-  const search = page.getByRole('searchbox', { name: 'Buscar por título ou artista', exact: true });
+  const search = page.getByRole('searchbox', { name: 'Buscar por título, artista ou trecho da letra', exact: true });
   const rows = page.locator('.songs-row');
   await expect(rows).toHaveCount(mock.data.songs.length);
 

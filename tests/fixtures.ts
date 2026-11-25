@@ -49,6 +49,8 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
       await expect(page.getByRole('heading', { name: /^Olá,/ })).toBeVisible();
     },
   };
+  // Migration 008 (presence and unavailable dates) is installed in the simulated project.
+  mock.data.unavailability ??= [];
   mock.profiles[0].personId = mock.data.people[0]?.id;
   mock.profiles[1].personId = mock.data.people[1]?.id;
   mock.profiles[2].personId = mock.data.people[3]?.id;
@@ -115,7 +117,9 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
       case 'song_tags': return mock.data.songs.flatMap(song => song.tagIds.map(tagId => ({ song_id: song.id, tag_id: tagId })));
       case 'assignments': return mock.data.services.flatMap(service => service.assignments.map((assignment, position) => ({
         id: assignment.id, service_id: service.id, person_id: assignment.personId, function: assignment.function, position,
+        status: assignment.status ?? 'pending', status_note: assignment.statusNote ?? '',
       })));
+      case 'unavailability': return (mock.data.unavailability ?? []).map(item => ({ id: item.id, person_id: item.personId, date: item.date, note: item.note }));
       case 'repertoire': return mock.data.services.flatMap(service => service.repertoire.map((item, position) => ({
         id: item.id, service_id: service.id, song_id: item.songId, key: item.key, notes: item.notes, position, youtube_url: item.youtubeUrl || '',
       })));
@@ -219,7 +223,33 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
           && !previous?.assignments.some(item => item.id === assignment.id && item.personId === assignment.personId && item.function === assignment.function))) {
           return error(route, '23514', 'Escolha um integrante da equipe ativa para novas escalas.');
         }
+        // Like the database: unchanged rows keep their answer; a new person or function asks again.
+        const previousAssignments = mock.data.services.find(item => item.id === service.id)?.assignments ?? [];
+        service.assignments = service.assignments.map(assignment => {
+          const kept = previousAssignments.find(item => item.id === assignment.id && item.personId === assignment.personId && item.function === assignment.function);
+          const base = { id: assignment.id, personId: assignment.personId, function: assignment.function };
+          return kept?.status && kept.status !== 'pending' ? { ...base, status: kept.status, statusNote: kept.statusNote ?? '' } : base;
+        });
         mock.data.services = put(mock.data.services, service);
+        return respond(route, null);
+      }
+      if (rpc === 'respond_assignment') {
+        if (!authorized('read')) return denied(route);
+        const service = mock.data.services.find(item => item.assignments.some(assignment => assignment.id === body.p_assignment_id));
+        const assignment = service?.assignments.find(item => item.id === body.p_assignment_id);
+        if (!service || !assignment) return error(route, 'P0002', 'Escala não encontrada.', 404);
+        if (!['pending', 'confirmed', 'declined'].includes(String(body.p_status))) return error(route, '22023', 'Status inválido.');
+        if (!authorized('plan') && actor().personId !== assignment.personId) return denied(route);
+        assignment.status = body.p_status as 'pending' | 'confirmed' | 'declined';
+        assignment.statusNote = String(body.p_note || '').trim();
+        return respond(route, null);
+      }
+      if (rpc === 'set_unavailability') {
+        if (!authorized('read')) return denied(route);
+        const personId = String(body.p_person_id); const date = String(body.p_date);
+        if (!authorized('plan') && actor().personId !== personId) return denied(route);
+        const others = (mock.data.unavailability ?? []).filter(item => !(item.personId === personId && item.date === date));
+        mock.data.unavailability = body.p_unavailable ? [...others, { id: crypto.randomUUID(), personId, date, note: String(body.p_note || '').trim() }] : others;
         return respond(route, null);
       }
       if (rpc === 'update_profile') {
