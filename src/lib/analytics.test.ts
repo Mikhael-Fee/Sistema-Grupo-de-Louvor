@@ -134,6 +134,25 @@ describe('planned ministry analytics', () => {
     expect(report.people[0]).not.toHaveProperty('email');
   });
 
+  it('counts the key each song was played in, falling back to the church key when the service has none', () => {
+    const data = ministry();
+    data.songs[1].churchKey = 'G';
+    data.services.push(
+      service('noKey', '2026-10-01', {
+        repertoire: [
+          { id: 'r5', songId: 's2', key: '', notes: '' },
+          { id: 'r6', songId: 's1', key: 'D', notes: '' },
+        ],
+      }),
+    );
+    const report = buildMinistryAnalytics(data, analyticsDateRange('30', today), today);
+    expect(report.keys.map(row => [row.label, row.count, row.percentage, row.songs])).toEqual([
+      ['D', 3, 60, 2],
+      ['C', 1, 20, 1],
+      ['G', 1, 20, 1],
+    ]);
+  });
+
   it('counts each song use in all distinct tags and explains overlapping category totals', () => {
     const report = buildMinistryAnalytics(ministry(), analyticsDateRange('30', today), today);
     expect(report.tags).toEqual([
