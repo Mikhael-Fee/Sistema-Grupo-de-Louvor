@@ -185,3 +185,53 @@ describe('acordes que antes ficavam sem colchetes', () => {
     expect(parseCifraClubText('Refrão:\nSanto, santo').content).toBe('Refrão:\nSanto, santo');
   });
 });
+
+describe('cifra lida no celular, com as linhas quebradas pelo Cifra Club', () => {
+  // Cada linha original começa com um espaço de largura zero; os pedaços seguintes, não.
+  const z = '​';
+  const phone = [
+    `${z}[Intro] A# F  Cm  Gm  A#`,
+    '',
+    `${z}A#                              `,
+    `${z}O que se pode fazer pra trazer a`,
+    '     F',
+    ' presença de novo?',
+    `${z}Cm                             `,
+    `${z}Aquebrantado, atrair novamente `,
+    'Gm       F',
+    'o Noivo  ',
+    `${z}A#                              `,
+    `${z}O que se pode fazer pra `,
+    '        F',
+    'finalmente despertar um povo?',
+    `${z}Eb`,
+    `${z}Por que não aqui?`,
+    `${z}                F`,
+    `${z}Por que não agora?`,
+    `${z}                           `,
+    `${z}Dos seus jovens, eu chamei `,
+    '      Gm',
+    'nazireus',
+    `${z}Até que Ele venha, até que Ele venha e chova`,
+    ' justiça',
+  ].join('\n');
+
+  it('junta os pedaços de volta e coloca todos os acordes entre colchetes', () => {
+    expect(parseCifraClubText(phone).content).toBe([
+      '[Intro] [A#] [F]  [Cm]  [Gm]  [A#]',
+      '',
+      '[A#]O que se pode fazer pra trazer a pres[F]ença de novo?',
+      '[Cm]Aquebrantado, atrair novamente [Gm]o Noivo  [F]',
+      '[A#]O que se pode fazer pra finalmen[F]te despertar um povo?',
+      '[Eb]Por que não aqui?',
+      'Por que não agor[F]a?',
+      'Dos seus jovens, eu chamei nazire[Gm]us',
+      'Até que Ele venha, até que Ele venha e chova justiça',
+    ].join('\n'));
+  });
+
+  it('remove caracteres invisíveis que impediam reconhecer a linha de acordes', () => {
+    expect(parseCifraClubText('​F    C\n​Luz do mundo').content).toBe('[F]Luz d[C]o mundo');
+    expect(parseCifraClubText('﻿G⁠  D\nPaz').content).toBe('[G]Paz[D]');
+  });
+});

@@ -265,11 +265,63 @@ function normalizeInlineMarkers(line: string): string {
   return result + line.slice(cursor);
 }
 
+const LINE_START = '\u200b';
+const INVISIBLE = /[\u200b\u2060\ufeff]/g;
+
+function chordOrBlankRow(line: string): boolean {
+  return !line.trim() || Boolean(readChordRow(expandTabs(line)));
+}
+
+/**
+ * Cifra Club on a phone breaks each long line into pieces that fit the screen:
+ * chord row and lyric of the first piece, then the chord row and lyric of each
+ * following piece. Every original line starts with a zero-width space and the
+ * following pieces do not, so the pieces can be glued back in their columns.
+ */
+function joinPhoneWrappedLines(text: string): string {
+  const lines = text.split('\n');
+  if (!lines.some(line => line.startsWith(LINE_START))) return text;
+  const output: string[] = [];
+  const continuation = (index: number) => index < lines.length && lines[index] !== '' && !lines[index].startsWith(LINE_START);
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    if (!line.startsWith(LINE_START)) { output.push(line); continue; }
+    const first = line.slice(1);
+    const next = lines[index + 1];
+    // A chord row (or an empty chord piece) followed by its lyric piece.
+    if (next?.startsWith(LINE_START) && chordOrBlankRow(first) && !chordOrBlankRow(next.slice(1)) && continuation(index + 2)) {
+      let chords = first;
+      let lyric = next.slice(1);
+      let cursor = index + 2;
+      while (continuation(cursor)) {
+        let chordPiece = '';
+        if (chordOrBlankRow(lines[cursor]) && continuation(cursor + 1) && !chordOrBlankRow(lines[cursor + 1])) chordPiece = lines[cursor++];
+        else if (chordOrBlankRow(lines[cursor])) break;
+        const lyricPiece = lines[cursor++];
+        // The chord piece is padded to the screen width; the lyric piece sets the real column.
+        chords = chords.trimEnd();
+        const width = Math.max(Array.from(lyric).length, Array.from(chords).length);
+        lyric = lyric + ' '.repeat(width - Array.from(lyric).length) + lyricPiece;
+        chords = chords + ' '.repeat(width - Array.from(chords).length) + chordPiece;
+      }
+      output.push(chords.trimEnd(), lyric.trimEnd());
+      index = cursor - 1;
+      continue;
+    }
+    // A lyric without chords that was also broken in pieces.
+    let joined = first;
+    while (continuation(index + 1) && !chordOrBlankRow(lines[index + 1]) && !chordOrBlankRow(first)) joined += lines[++index];
+    output.push(joined);
+  }
+  return output.join('\n');
+}
+
 /** Convert user-pasted chord rows to the inline markers understood by transposition. */
 export function parseCifraClubText(value: string): ParsedCifraClubText {
   if (value.length > 100_000) throw new Error('A cifra é muito longa. Cole somente a letra e os acordes, até 100.000 caracteres.');
   if (!value.trim()) throw new Error('Cole a letra e cifra que você deseja importar.');
-  const normalized = value.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ');
+  const normalized = joinPhoneWrappedLines(value.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' '))
+    .replace(INVISIBLE, '');
   const metadata = chordSheetMetadata(normalized);
   const lines = cleanChordSheet(normalized).split('\n').map(expandTabs);
   const output: string[] = [];
