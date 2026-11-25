@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Check, Download, ExternalLink, ListFilter, LoaderCircle, Music2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
+import HelpTip from '../components/HelpTip';
 import CifraPdfPicker from '../components/CifraPdfPicker';
 import CifraPdfBatchDialog from '../components/CifraPdfBatchDialog';
 import { useMinistry } from '../context/MinistryContext';
@@ -32,6 +33,7 @@ function SourceKeyConfirmation({ value, onChange, reason, detected }: { value: s
 
 type ResumedCifraPreview = { requestId: string; source: SongSearchResult; useSourceMetadata: boolean };
 export function SongEditor({ song, incomingSource, incomingDraftId, resumePreview, resumeFailure, onClose, onSaved }: { song?: Song; incomingSource?: SongSearchResult; incomingDraftId?: string; resumePreview?: ResumedCifraPreview; resumeFailure?: string; onClose: () => void; onSaved?: () => void }) {
+  const fieldId = useId();
   const { data, saveSong, busy, mode, profile } = useMinistry();
   const incomingTonality = useMemo(() => incomingSource ? resolveSourceTonality(incomingSource) : null, [incomingSource]);
   const resumedTonality = useMemo(() => resumePreview ? resolveSourceTonality(resumePreview.source) : null, [resumePreview]);
@@ -285,21 +287,22 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
 
   return <Modal title={song ? 'Editar música' : 'Nova música'} onClose={onClose} wide>
     <form onSubmit={submit} noValidate className="songs-editor">
-      <p className="muted songs-editor-intro">Uma boa biblioteca deixa a preparação mais leve. Organize a letra, a cifra e os tons em um só lugar.</p>
       {hasDraft && <p className="songs-draft-note" role="status"><Check size={14} />Rascunho salvo nesta aba. Fechar a janela mantém seus campos.</p>}
+      <h3 className="songs-step"><span>1</span>Música</h3>
       <div className="form-grid">
         <label className="field">Título<input autoFocus required value={draft.title} onChange={e => change('title', e.target.value)} placeholder="Nome da música" maxLength={200} /></label>
         <label className="field">Artista / compositor<input required value={draft.artist} onChange={e => change('artist', e.target.value)} placeholder="Quem compôs ou interpreta" maxLength={200} /></label>
-        <label className="field">Tom na igreja<select aria-label="Tom na igreja" value={draft.churchKey} onChange={e => change('churchKey', e.target.value)}>{KEYS.map(key => <option key={key}>{key}</option>)}</select><span className="songs-field-hint">A importação usa o tom dos acordes recebidos por padrão. Sua escolha manual é preservada; alterar o tom transpõe os acordes.</span></label>
+        <div className="field"><span className="songs-label-row"><label htmlFor={`${fieldId}-key`}>Tom na igreja</label><HelpTip label="tom na igreja">A importação usa o tom dos acordes recebidos. Se você escolher outro tom aqui, os acordes são transpostos para ele.</HelpTip></span><select id={`${fieldId}-key`} aria-label="Tom na igreja" value={draft.churchKey} onChange={e => change('churchKey', e.target.value)}>{KEYS.map(key => <option key={key}>{key}</option>)}</select></div>
       </div>
+      <h3 className="songs-step"><span>2</span>Letra e cifra</h3>
       <section className="songs-source-search" aria-label="Busca online de letra e cifra">
         <CifraPdfPicker onRead={receivePdf} disabled={busy || saving || searching || Boolean(previewing)} />
         <div className="songs-unified-search-heading">
-          <div><strong>Cifra e letra em uma busca</strong><span>Pesquise pelo título; o artista ajuda a encontrar a versão certa.</span><span>{browserConnected ? 'Importador conectado · cifra automática pelo navegador' : <a href="/conectar-cifra-club" target="_blank" rel="noopener noreferrer">{browserOutdated ? 'Atualizar importador Cifra Club' : 'Conectar importador Cifra Club'}</a>}</span></div>
+          <div><strong>Buscar cifra e letra pelo título</strong><span>{browserConnected ? 'Importador conectado · cifra automática pelo navegador' : <a href="/conectar-cifra-club" target="_blank" rel="noopener noreferrer">{browserOutdated ? 'Atualizar importador Cifra Club' : 'Conectar importador Cifra Club'}</a>}</span></div>
           <button type="button" className="button button-primary" disabled={searching || Boolean(previewing)} onClick={searchOnline}>{searching ? <LoaderCircle className="songs-spinner" size={15} /> : <Search size={15} />}{searching ? 'Pesquisando…' : 'Pesquisar cifra e letra'}</button>
         </div>
         {sourceOpen && <div className="songs-source-body">
-          <div className="songs-source-status"><p>Cifra Club primeiro. O LRCLIB também oferece versões da letra sem acordes. Escolha a música e confira a prévia antes de importar.</p><button type="button" className="button button-ghost" onClick={closeSourceSearch}>Fechar busca<X size={13} /></button></div>
+          <div className="songs-source-status"><p>Escolha uma versão e confira a prévia antes de importar.</p><button type="button" className="button button-ghost" onClick={closeSourceSearch}>Fechar busca<X size={13} /></button></div>
           {sourceWarnings.length > 0 && <div className="songs-source-warnings" role="status">{sourceWarnings.map(warning => <p key={warning}>{warning}</p>)}</div>}
           <FormError error={sourceError} />
           {previewing && browserConnected && sourceResults.some(result => result.id === previewing && result.source === 'Cifra Club') && <div className="songs-source-empty"><p role="status">Lendo a cifra no seu navegador. A prévia aparecerá aqui; aguarde sem fechar a aba de consulta.</p><button type="button" className="button button-ghost" onClick={() => { sourceRequest.current?.abort(); setPreviewing(null); }}>Cancelar consulta</button></div>}
@@ -323,7 +326,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
         </div>}
         {imported && <p className="songs-source-success songs-import-complete" role="status"><Check size={15} />Conteúdo importado no rascunho. Você pode editar a cifra abaixo e buscar o vídeo da versão escolhida.</p>}
       </section>
-      <label className="field">Letra e cifra<textarea className="songs-content-input" required rows={9} maxLength={100000} value={draft.content} onChange={e => { change('content', e.target.value); setError(null); if (!e.target.value.trim()) setPastedSource({ unknown: false, reason: '' }); }} onBlur={() => formatEditedContent()} onPaste={event => {
+      <div className="field"><span className="songs-label-row"><label htmlFor={`${fieldId}-content`}>Letra e cifra</label><HelpTip label="letra e cifra">A busca preenche este campo, e você pode editar ou colar uma cifra aqui. Os acordes são ajustados ao tom {draft.churchKey}. Para escrever à mão, use colchetes: [C], [Am7], [G/B]. Partes como [Refrão] e [Ponte] aparecem destacadas na leitura.</HelpTip></span><textarea id={`${fieldId}-content`} className="songs-content-input" required rows={9} maxLength={100000} value={draft.content} onChange={e => { change('content', e.target.value); setError(null); if (!e.target.value.trim()) setPastedSource({ unknown: false, reason: '' }); }} onBlur={() => formatEditedContent()} onPaste={event => {
         const text = event.clipboardData.getData('text/plain');
         if (!text.trim()) return;
         try {
@@ -345,7 +348,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
             setPastedSource({ unknown: true, reason: parsed.keyUnknownReason || 'Confirme o tom dos acordes colados para ajustá-los ao tom da igreja.' });
           }
         } catch (cause) { event.preventDefault(); setError(cause instanceof Error ? cause.message : 'Não foi possível colar a cifra.'); }
-      }} placeholder={'[C]Tua luz nos [G]guia\n[Am]Seguimos em [F]paz'} /><span className="songs-field-hint">A busca preenche este campo e você pode editar ou colar uma cifra aqui. Os acordes são ajustados ao tom {draft.churchKey}. Para escrever manualmente, use colchetes: [C], [Am7], [G/B]. A visualização “Letra” oculta os acordes. Até 100.000 caracteres.</span></label>
+      }} placeholder={'[C]Tua luz nos [G]guia\n[Am]Seguimos em [F]paz'} /></div>
       {pastedSource.unknown && <SourceKeyConfirmation value="" onChange={key => { if (key) formatEditedContent(key); }} reason={pastedSource.reason} />}
       {song && <details className="songs-manual-import">
         <summary>Corrigir cifra com tom incorreto</summary>
@@ -354,10 +357,10 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
         <button type="button" className="button button-secondary" disabled={!repairWrittenKey || repairApplied} onClick={() => { setDraft(current => ({ ...current, content: contentInChurchKey(current.content, repairWrittenKey, current.churchKey), originalKey: current.churchKey })); setRepairApplied(true); }}>Aplicar correção do tom</button>
         {repairApplied && <p role="status" className="songs-source-success">Acordes corrigidos no rascunho. Confira e salve a música.</p>}
       </details>}
+      <h3 className="songs-step"><span>3</span>Vídeo, observações e etiquetas</h3>
       <section className="songs-youtube" aria-label="Vídeo da música no YouTube">
-        <label className="field">Vídeo no YouTube <span className="songs-optional">opcional</span><input type="url" value={draft.youtubeUrl} onChange={e => change('youtubeUrl', e.target.value)} placeholder="https://www.youtube.com/watch?v=..." /></label>
+        <div className="field"><span className="songs-label-row"><label htmlFor={`${fieldId}-video`}>Vídeo no YouTube <span className="songs-optional">opcional</span></label><HelpTip label="vídeo">Busque pelo título e artista e escolha a versão da biblioteca. Cada culto pode indicar outra versão no repertório.</HelpTip></span><input id={`${fieldId}-video`} type="url" value={draft.youtubeUrl} onChange={e => change('youtubeUrl', e.target.value)} placeholder="https://www.youtube.com/watch?v=..." /></div>
         <div className="songs-video-search-actions"><button type="button" className="button button-secondary" disabled={videoSearching || draft.title.trim().length < 2} onClick={searchVideos}>{videoSearching ? <LoaderCircle className="songs-spinner" size={15} /> : <Search size={15} />}{videoSearching ? 'Buscando vídeos…' : 'Sugerir vídeos'}</button><a className="button button-ghost" href={buildYouTubeSearchUrl(draft.title, draft.artist)} target="_blank" rel="noopener noreferrer">Abrir busca no YouTube<ExternalLink size={13} /></a>{videoSearching && <button type="button" className="button button-ghost" onClick={() => { videoRequest.current?.abort(); setVideoSearching(false); }}>Cancelar busca de vídeos</button>}</div>
-        <p className="songs-field-hint">Busque pelo título e artista e escolha a versão para a biblioteca. Cada culto pode indicar outra versão no repertório.</p>
         <FormError error={videoError} />
         {videoSearched && !videoResults.length && !videoError && <p className="songs-field-hint" role="status">Nenhum vídeo encontrado. Abra a busca no YouTube ou ajuste o título e artista.</p>}
         {videoResults.length > 0 && <ul className="songs-video-results" aria-label="Sugestões de vídeos">{videoResults.map(video => <li key={video.id}><a href={video.url} target="_blank" rel="noopener noreferrer" aria-label={`Assistir ${video.title} no YouTube`}><img src={video.thumbnailUrl} alt="" loading="lazy" decoding="async" /><span><strong>{video.title}</strong><small>{video.channel || 'YouTube'}</small></span></a><button type="button" className={`button ${getYouTubeVideoId(draft.youtubeUrl) === video.id ? 'button-primary' : 'button-secondary'}`} aria-label={`Selecionar vídeo ${video.title}`} aria-pressed={getYouTubeVideoId(draft.youtubeUrl) === video.id} onClick={() => { change('youtubeUrl', video.url); setVideoResults([]); setVideoError(null); setVideoSearched(false); }}><Check size={14} />Selecionar</button></li>)}</ul>}

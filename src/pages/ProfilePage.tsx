@@ -9,6 +9,7 @@ import { getProfilePhoto } from '../lib/avatars';
 import { ROLE_LABELS } from '../types';
 import UnavailabilityCard from '../components/UnavailabilityCard';
 import NotificationsCard from '../components/NotificationsCard';
+import ThemeCard from '../components/ThemeCard';
 
 export default function ProfilePage() {
   const { data, profile, mode, busy, updateProfilePhoto } = useMinistry();
@@ -45,5 +46,6 @@ export default function ProfilePage() {
     </section>
     <UnavailabilityCard />
     <NotificationsCard />
+    <ThemeCard />
   </>;
 }

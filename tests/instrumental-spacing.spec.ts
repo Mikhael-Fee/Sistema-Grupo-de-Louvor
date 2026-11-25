@@ -42,7 +42,7 @@ async function expectReadableInstrumentalChords(page: Page) {
 for (const width of [320, 1200]) {
   test(`introdução e acordes instrumentais ficam separados em ${width}px sem alterar a letra`, async ({ page }) => {
     const { mock, song } = await openInstrumentalChart(page, width);
-    await expect(page.locator('.song-line').first()).toContainText('[Intro]');
+    await expect(page.locator('.song-line').first().locator('.song-section-label')).toHaveText('Intro');
     await expect(page.locator('.song-line').first().locator('.song-chord').filter({ hasText: /^(G|A|D)$/ })).toHaveText(['G', 'A', 'D']);
     await expect(page.locator('.song-line').nth(1).locator('.song-chord')).toHaveText(['Cmaj7', 'G/B', 'Am7', 'F#7(b9)/C#', 'Dmaj7', 'G/B', 'Am7', 'F#7(b9)/C#']);
     await expectReadableInstrumentalChords(page);
@@ -75,7 +75,7 @@ for (const width of [320, 1200]) {
     await expect(page.locator('.song-line').first().locator('.song-chord').filter({ hasText: /^(A|B|E)$/ })).toHaveText(['A', 'B', 'E']);
 
     await page.getByRole('button', { name: 'Somente letra', exact: true }).click();
-    await expect(page.locator('.song-lyrics-only')).toContainText('[Intro]');
+    await expect(page.locator('.song-lyrics-only')).toContainText('Intro');
     await expect(page.locator('.song-lyrics-only')).toContainText('Uma luz nos guia em paz');
     await expect(page.locator('.song-lyrics-only')).not.toContainText('[Cmaj7]');
     await expect(page.locator('.song-lyrics-only')).not.toContainText('[G]');
