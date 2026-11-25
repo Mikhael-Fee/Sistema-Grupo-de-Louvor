@@ -39,7 +39,7 @@ for (const width of [1200, 320]) {
     let dialog = page.getByRole('dialog');
     await expect(dialog.getByRole('combobox', { name: 'Tom neste culto', exact: true })).toHaveValue('Bb');
     await expect(dialog.getByLabel('Observação')).toHaveValue(item.notes);
-    const input = dialog.getByLabel(/^Vídeo do YouTube neste culto/);
+    const input = dialog.getByLabel('Link do vídeo do YouTube neste culto', { exact: true });
     await input.fill(`https://youtube.com.evil.invalid/watch?v=${SERVICE_ID}`);
     await dialog.getByRole('button', { name: 'Salvar ajustes', exact: true }).click();
     await expect(dialog.getByRole('alert')).toHaveText('Informe um link válido de vídeo do YouTube ou deixe o campo vazio.');
@@ -90,7 +90,7 @@ for (const width of [1200, 320]) {
 
     await page.getByRole('button', { name: `Editar tom e observação de ${song.title}`, exact: true }).click();
     dialog = page.getByRole('dialog');
-    await dialog.getByLabel(/^Vídeo do YouTube neste culto/).fill('');
+    await dialog.getByLabel('Link do vídeo do YouTube neste culto', { exact: true }).fill('');
     await dialog.getByRole('button', { name: 'Salvar ajustes', exact: true }).click();
     await expect(dialog).toBeHidden();
     await expect(card()).toHaveAttribute('href', libraryUrl);

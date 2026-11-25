@@ -13,6 +13,7 @@ import {
   MessageCircle,
   Music2,
   Pencil,
+  Search,
   Sparkles,
   Trash2,
   Users,
@@ -21,6 +22,7 @@ import {
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
 import ProfileAvatar from '../components/ProfileAvatar';
 import YoutubeVideoCard from '../components/YoutubeVideoCard';
+import YoutubeVersionPicker from '../components/YoutubeVersionPicker';
 import { useMinistry } from '../context/MinistryContext';
 import { useDraft } from '../hooks/useDraft';
 import { KEYS } from '../lib/music';
@@ -193,24 +195,18 @@ function RepertoireItemForm({
             onChange={event => setDraft({ ...draft, notes: event.target.value })}
           />
         </label>
-        <label className="field service-form-full">
-          <span>
-            Vídeo do YouTube neste culto <span className="muted">(opcional)</span>
-          </span>
-          <input
-            type="url"
-            value={draft.youtubeUrl || ''}
-            placeholder="https://www.youtube.com/watch?v=…"
-            disabled={busy}
-            onChange={event => {
-              setVideoError(null);
-              setDraft({ ...draft, youtubeUrl: event.target.value });
-            }}
-          />
-          <small>Indique a versão que a equipe vai usar. Deixe vazio para usar o vídeo da biblioteca.</small>
-        </label>
       </div>
-      {videoUrl && <YoutubeVideoCard url={videoUrl} title={song?.title || 'Música do repertório'} caption="Versão deste culto" />}
+      <YoutubeVersionPicker
+        value={draft.youtubeUrl || ''}
+        onChange={url => {
+          setVideoError(null);
+          setDraft({ ...draft, youtubeUrl: url });
+        }}
+        songTitle={song?.title || ''}
+        songArtist={song?.artist || ''}
+        libraryUrl={song?.youtubeUrl || ''}
+        disabled={busy}
+      />
       <FormError error={videoError || error} />
       <div className="form-actions">
         <button
@@ -611,6 +607,24 @@ export default function ServicePage() {
                           title={song?.title || 'Música do repertório'}
                           caption={normalizeYouTubeUrl(item.youtubeUrl || '') ? 'Versão deste culto' : 'Vídeo da biblioteca'}
                         />
+                        {canPlan && (
+                          <button
+                            type="button"
+                            className="text-button service-item-version"
+                            disabled={disabled}
+                            onClick={() => {
+                              setActionError(null);
+                              setEditingItem({ ...item });
+                            }}
+                          >
+                            <Search size={13} />
+                            {normalizeYouTubeUrl(item.youtubeUrl || '')
+                              ? 'Trocar a versão deste culto'
+                              : normalizeYouTubeUrl(song?.youtubeUrl)
+                                ? 'Escolher outra versão para este culto'
+                                : 'Escolher um vídeo para este culto'}
+                          </button>
+                        )}
                       </div>
                     </li>
                   );

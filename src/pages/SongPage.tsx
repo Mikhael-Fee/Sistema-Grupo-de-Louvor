@@ -30,7 +30,8 @@ import { isFirefoxInstalledApp } from '../lib/cifra-browser';
 import { pendingCurrentTabImport } from '../lib/cifra-current-tab';
 import { SongEditor } from './SongsPage';
 import { useWakeLock } from '../hooks/useWakeLock';
-import { autoscrollPixelsPerSecond, setlistPosition, setlistSongPath } from '../lib/setlist-navigation';
+import type { SetlistItem } from '../types';
+import { arrowDirection, autoscrollPixelsPerSecond, setlistPosition, setlistSongPath, swipeDirection } from '../lib/setlist-navigation';
 
 const SPEED_KEY = 'candeia.reader.scrollSpeed';
 const FONT_KEY = 'candeia.reader.fontSize';
@@ -223,6 +224,55 @@ export default function SongPage() {
     }
   }
 
+  // Next/previous song of the service: arrow keys on a computer, a sideways swipe on the phone.
+  const stagePosition = setlistPosition(service, setlistItem?.id);
+  const previousStep = stagePosition?.previous;
+  const nextStep = stagePosition?.next;
+  useEffect(() => {
+    const page = readerRef.current;
+    if (!service || !page || editing || (!previousStep && !nextStep)) return;
+    const go = (direction: 'previous' | 'next') => {
+      const target = direction === 'next' ? nextStep : previousStep;
+      if (target) navigate(setlistSongPath(service.id, target), { state: { reading } });
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (document.querySelector('dialog[open]')) return;
+      const direction = arrowDirection(event.key, event.target);
+      if (!direction) return;
+      event.preventDefault();
+      go(direction);
+    };
+    let start: { x: number; y: number; at: number } | null = null;
+    const onStart = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      start =
+        event.touches.length === 1 && touch && !scrollsSideways(event.target, page)
+          ? { x: touch.clientX, y: touch.clientY, at: performance.now() }
+          : null;
+    };
+    const onEnd = (event: TouchEvent) => {
+      const touch = event.changedTouches[0];
+      if (!start || !touch) return;
+      const direction = swipeDirection(touch.clientX - start.x, touch.clientY - start.y, performance.now() - start.at);
+      start = null;
+      if (direction) go(direction);
+    };
+    const onCancel = () => {
+      start = null;
+    };
+    window.addEventListener('keydown', onKey);
+    page.addEventListener('touchstart', onStart, { passive: true });
+    page.addEventListener('touchend', onEnd, { passive: true });
+    page.addEventListener('touchcancel', onCancel, { passive: true });
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      page.removeEventListener('touchstart', onStart);
+      page.removeEventListener('touchend', onEnd);
+      page.removeEventListener('touchcancel', onCancel);
+    };
+  }, [service?.id, previousStep?.id, nextStep?.id, reading, editing, navigate, song?.id]);
+
   if (!song)
     return (
       <>
@@ -247,7 +297,8 @@ export default function SongPage() {
   const serviceVideoUrl = normalizeYouTubeUrl(setlistItem?.youtubeUrl);
   const referenceVideoUrl = serviceVideoUrl || normalizeYouTubeUrl(song.youtubeUrl);
   const cifraClubUrl = cifraClubUrlFromNotes(song.notes) || cifraClubSearchUrl(song.title, song.artist);
-  const position = setlistPosition(service, setlistItem?.id);
+  const position = stagePosition;
+  const stepTitle = (item: SetlistItem) => data.songs.find(candidate => candidate.id === item.songId)?.title || 'Música do repertório';
   const serviceLabel = service
     ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long' }).format(new Date(`${service.date}T12:00:00`))
     : '';
@@ -267,6 +318,43 @@ export default function SongPage() {
             <ArrowLeft size={16} />
             {setlistItem && service ? 'Voltar ao culto' : 'Voltar à biblioteca'}
           </Link>
+          {position && service && (
+            <nav className="song-setlist-nav" aria-label="Músicas deste culto">
+              {position.previous ? (
+                <Link
+                  className="song-setlist-step"
+                  to={setlistSongPath(service.id, position.previous)}
+                  aria-label={`Anterior: ${stepTitle(position.previous)}`}
+                >
+                  <ChevronLeft size={18} />
+                  <span>
+                    <small>Anterior</small>
+                    <strong>{stepTitle(position.previous)}</strong>
+                  </span>
+                </Link>
+              ) : (
+                <span className="song-setlist-step song-setlist-edge">Primeira música</span>
+              )}
+              <span className="song-setlist-count" aria-hidden="true">
+                <strong>{position.index + 1}</strong> de {position.total}
+              </span>
+              {position.next ? (
+                <Link
+                  className="song-setlist-step song-setlist-next"
+                  to={setlistSongPath(service.id, position.next)}
+                  aria-label={`Próxima: ${stepTitle(position.next)}`}
+                >
+                  <span>
+                    <small>Próxima</small>
+                    <strong>{stepTitle(position.next)}</strong>
+                  </span>
+                  <ChevronRight size={18} />
+                </Link>
+              ) : (
+                <span className="song-setlist-step song-setlist-edge">Última música</span>
+              )}
+            </nav>
+          )}
           <header className="song-header">
             <div className="song-heading">
               <span className="song-title-icon">
@@ -574,4 +662,18 @@ export default function SongPage() {
       {editing && <SongEditor song={song} onClose={() => setEditing(false)} />}
     </div>
   );
+}
+
+/** True when the touch starts on something that scrolls sideways (a long chord line), so the swipe stays a scroll. */
+function scrollsSideways(target: EventTarget | null, root: HTMLElement): boolean {
+  for (
+    let element = target instanceof Element ? target : null;
+    element && element !== root.parentElement;
+    element = element.parentElement
+  ) {
+    if (!(element instanceof HTMLElement) || element.scrollWidth <= element.clientWidth + 2) continue;
+    const overflow = getComputedStyle(element).overflowX;
+    if (overflow === 'auto' || overflow === 'scroll') return true;
+  }
+  return false;
 }
