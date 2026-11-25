@@ -6,10 +6,10 @@ import './presence.css';
 
 const HINTS: Record<PushState, string> = {
   on: 'Este aparelho avisa quando você for escalado(a).',
-  off: 'Receba um aviso neste aparelho quando você for escalado(a). Os avisos também chegam por e-mail.',
+  off: 'Receba um aviso neste aparelho quando você for escalado(a).',
   blocked: 'As notificações estão bloqueadas para este site. Libere nas configurações do navegador e volte aqui.',
   'ios-install': 'No iPhone, os avisos só chegam com o Candeia instalado: toque em Compartilhar e depois em "Adicionar à Tela de Início". Abra o Candeia pelo ícone e volte aqui.',
-  unsupported: 'Este navegador não recebe notificações. Os avisos de escala continuam chegando por e-mail.',
+  unsupported: 'Este navegador não recebe notificações. Tente pelo Chrome no Android ou pelo app instalado no iPhone.',
 };
 
 /** Turns scale notices on or off for this device only. */
