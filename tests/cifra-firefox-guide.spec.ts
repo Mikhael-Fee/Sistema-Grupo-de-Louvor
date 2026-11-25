@@ -7,10 +7,18 @@ const release = { status: 'signed', version: '1.1.2', downloadUrl: XPI, sha256: 
 
 test('guia Android mantém PDF e explica assinatura pendente sem oferecer instalação sem assinatura', async ({ page }) => {
   const mock = await setupMockMinistry(page);
-  await page.route(META, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
-    status: 'unsigned', version: '1.1.2', downloadUrl: null, sha256: null,
-    unsignedDownloadUrl: '/downloads/candeia-cifraclub-firefox-unsigned.xpi',
-  }) }));
+  await page.route(META, route =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'unsigned',
+        version: '1.1.2',
+        downloadUrl: null,
+        sha256: null,
+        unsignedDownloadUrl: '/downloads/candeia-cifraclub-firefox-unsigned.xpi',
+      }),
+    }),
+  );
   await page.setViewportSize({ width: 320, height: 740 });
   await mock.login();
   await page.goto('/conectar-cifra-club');
@@ -65,12 +73,18 @@ for (const [name, metadata] of [
 test('falha ao consultar o pacote mantém o guia PDF e o download Chrome continua separado', async ({ page }) => {
   const mock = await setupMockMinistry(page);
   let metadataRequests = 0;
-  await page.route(META, route => { metadataRequests++; return route.fulfill({ status: 503, body: 'temporariamente indisponível' }); });
+  await page.route(META, route => {
+    metadataRequests++;
+    return route.fulfill({ status: 503, body: 'temporariamente indisponível' });
+  });
   await page.setViewportSize({ width: 1200, height: 900 });
   await mock.login();
   await page.goto('/conectar-cifra-club');
   await expect(page.getByRole('tab', { name: 'Computador', exact: true })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('link', { name: 'Baixar importador', exact: true })).toHaveAttribute('href', '/downloads/candeia-cifraclub.zip');
+  await expect(page.getByRole('link', { name: 'Baixar importador', exact: true })).toHaveAttribute(
+    'href',
+    '/downloads/candeia-cifraclub.zip',
+  );
   expect(metadataRequests).toBe(0);
   await page.getByRole('tab', { name: 'Celular', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Não foi possível confirmar o pacote assinado.');

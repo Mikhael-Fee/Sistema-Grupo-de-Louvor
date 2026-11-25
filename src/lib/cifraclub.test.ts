@@ -39,8 +39,7 @@ describe('importação de texto do Cifra Club', () => {
   });
 
   it('mantém acordes instrumentais em linhas separadas de cabeçalhos e outras cifras', () => {
-    expect(parseCifraClubText('C G\n[Refrão]\nAm F\nD E\n\nLuz').content)
-      .toBe('[C] [G]\n[Refrão]\n[Am] [F]\n[D] [E]\n\nLuz');
+    expect(parseCifraClubText('C G\n[Refrão]\nAm F\nD E\n\nLuz').content).toBe('[C] [G]\n[Refrão]\n[Am] [F]\n[D] [E]\n\nLuz');
     expect(() => parseCifraClubText('  ')).toThrow('Cole a letra');
     expect(() => parseCifraClubText('a'.repeat(100_001))).toThrow('100.000');
   });
@@ -53,7 +52,8 @@ describe('importação de texto do Cifra Club', () => {
   });
 
   it('remove tablaturas e aparelhos de violão conservando letra, rótulos e introdução com acordes', () => {
-    const input = 'Afinação: E A D G B E\nCapotraste na 3ª casa\n[Intro] G D/F# Em\n\nTablatura:\nE|--0--2--3---|\nB|--1--0--0---|\nG|--0--0--0---|\nD|--2--0--0---|\nA|--3--2--2---|\nE|-----3--3---|\n\n[Refrão]\nG       C\nUma luz nos guia\nE\nA\nCoração em paz';
+    const input =
+      'Afinação: E A D G B E\nCapotraste na 3ª casa\n[Intro] G D/F# Em\n\nTablatura:\nE|--0--2--3---|\nB|--1--0--0---|\nG|--0--0--0---|\nD|--2--0--0---|\nA|--3--2--2---|\nE|-----3--3---|\n\n[Refrão]\nG       C\nUma luz nos guia\nE\nA\nCoração em paz';
     const cleaned = cleanChordSheet(input);
     expect(cleaned).not.toMatch(/Afinação|Capotraste|Tablatura|\|--/);
     expect(cleaned).toContain('[Intro] G D/F# Em');
@@ -65,17 +65,22 @@ describe('importação de texto do Cifra Club', () => {
   });
 
   it('limpa também o ChordPro salvo sem apagar versos e repetições musicais', () => {
-    const input = '[Intro] [G] [D/F#]\nE|----0----|\n[A]|----2----|\n[Refrão]\n[G]A luz [C]está aqui\n| [G] [C] | (2x)\nA afinação do coração\nSem capotraste no caminho';
-    expect(cleanChordSheet(input)).toBe('[Intro] [G] [D/F#]\n[Refrão]\n[G]A luz [C]está aqui\n| [G] [C] | (2x)\nA afinação do coração\nSem capotraste no caminho');
+    const input =
+      '[Intro] [G] [D/F#]\nE|----0----|\n[A]|----2----|\n[Refrão]\n[G]A luz [C]está aqui\n| [G] [C] | (2x)\nA afinação do coração\nSem capotraste no caminho';
+    expect(cleanChordSheet(input)).toBe(
+      '[Intro] [G] [D/F#]\n[Refrão]\n[G]A luz [C]está aqui\n| [G] [C] | (2x)\nA afinação do coração\nSem capotraste no caminho',
+    );
   });
 
   it('remove diagramas explícitos, mas conserva acordes com letra e barras de repetição', () => {
-    const input = 'Diagramas dos acordes\nE A D G B E\nC x32010\nG: 320003\nDm x x 0 2 3 1\n\n[G]Luz\n| C G |\nC\n|---|---|\n| ● |   |\n|   | ● |\n\n[Refrão]\nSegue a canção';
+    const input =
+      'Diagramas dos acordes\nE A D G B E\nC x32010\nG: 320003\nDm x x 0 2 3 1\n\n[G]Luz\n| C G |\nC\n|---|---|\n| ● |   |\n|   | ● |\n\n[Refrão]\nSegue a canção';
     expect(cleanChordSheet(input)).toBe('\n[G]Luz\n| C G |\nC\n\n[Refrão]\nSegue a canção');
   });
 
   it('remove captions de tab intro e solo, conservando seções instrumentais com acordes', () => {
-    const input = '[Intro] [G] [A] [D]\n[Tab Intro]\nParte 1 de 2\n\ne|--0h2p0-----|\nB|--3---3-----|\nG|--2---------|\nD|--0---------|\nA|------------|\nE|------------|\n\n[Solo] [Em] [Am]\nTab - Solo\n(Parte 2 de 2)\ne|--12b(14)r12--10/12--|\nB|--10~~--------------|\nG|--------------------|\nD|--------------------|\nA|--------------------|\nE|--------------------|\n\n[G]Cantamos juntos, eu nunca estou solo';
+    const input =
+      '[Intro] [G] [A] [D]\n[Tab Intro]\nParte 1 de 2\n\ne|--0h2p0-----|\nB|--3---3-----|\nG|--2---------|\nD|--0---------|\nA|------------|\nE|------------|\n\n[Solo] [Em] [Am]\nTab - Solo\n(Parte 2 de 2)\ne|--12b(14)r12--10/12--|\nB|--10~~--------------|\nG|--------------------|\nD|--------------------|\nA|--------------------|\nE|--------------------|\n\n[G]Cantamos juntos, eu nunca estou solo';
     const cleaned = cleanChordSheet(input);
     expect(cleaned).not.toMatch(/Tab|e\||B\||G\||D\||A\||E\||12b/);
     expect(cleaned).toContain('[Intro] [G] [A] [D]');
@@ -90,26 +95,30 @@ describe('importação de texto do Cifra Club', () => {
   });
 
   it('remove continuações da tab quebradas pela impressão sem apagar separadores comuns', () => {
-    const input = '[Tab Solo]\ne|-----7h9--9/11-------\n------11p9------7-------|\nB|-----7---------------\n------7------<12>-------|\n\n[Intro] G A D\n\n----------\nA paz nasceu\n| C G | (2x)';
+    const input =
+      '[Tab Solo]\ne|-----7h9--9/11-------\n------11p9------7-------|\nB|-----7---------------\n------7------<12>-------|\n\n[Intro] G A D\n\n----------\nA paz nasceu\n| C G | (2x)';
     const cleaned = cleanChordSheet(input);
     expect(cleaned).toBe('\n[Intro] G A D\n\n----------\nA paz nasceu\n| C G | (2x)');
     expect(parseCifraClubText(input).content).toBe('[Intro] [G] [A] [D]\n\n----------\nA paz nasceu\n| [C] [G] | (2x)');
   });
 
   it('preserva acordes junto de captions e elimina captions de tab isoladas sem perder versos', () => {
-    const input = '[TabIntro] G A D\n[Tab Solo] [Em] [Am]\n[Tab Intro] e|---0---2---|\n[Tab Solo]\nTablatura - Solo 2\nTab (Intro)\nIntro (Tab)\n\nSolo de amor em tua voz\nA\nE\n[G]Meu solo encontra paz';
+    const input =
+      '[TabIntro] G A D\n[Tab Solo] [Em] [Am]\n[Tab Intro] e|---0---2---|\n[Tab Solo]\nTablatura - Solo 2\nTab (Intro)\nIntro (Tab)\n\nSolo de amor em tua voz\nA\nE\n[G]Meu solo encontra paz';
     const cleaned = cleanChordSheet(input);
     expect(cleaned).toBe('[Intro] G A D\n[Solo] [Em] [Am]\n[Intro]\n\nSolo de amor em tua voz\nA\nE\n[G]Meu solo encontra paz');
     expect(parseCifraClubText(input).content).toContain('[Intro] [G] [A] [D]');
   });
 
   it('reconhece um grupo de tablatura sem nomes das cordas, mas conserva uma linha avulsa', () => {
-    const input = '-----0h2----|\n-----3-----|\n-----2-----|\n----------|\n----------|\n----------|\n\n[Solo] [G] [A]\n\n-----0-----\n[G]Luz no caminho';
+    const input =
+      '-----0h2----|\n-----3-----|\n-----2-----|\n----------|\n----------|\n----------|\n\n[Solo] [G] [A]\n\n-----0-----\n[G]Luz no caminho';
     expect(cleanChordSheet(input)).toBe('\n[Solo] [G] [A]\n\n-----0-----\n[G]Luz no caminho');
   });
 
   it('não confunde palavras de letras com captions nem processa cifras acima do limite', () => {
-    const input = 'Tabuleiro de amor\nTab intro para cantar\nA tablatura da introdução toca em meu coração\nSolo\n[Intro]\n[Solo]\nParte 1 de 2\nG A D\nA|uma palavra\nE | 3';
+    const input =
+      'Tabuleiro de amor\nTab intro para cantar\nA tablatura da introdução toca em meu coração\nSolo\n[Intro]\n[Solo]\nParte 1 de 2\nG A D\nA|uma palavra\nE | 3';
     expect(cleanChordSheet(input)).toBe(input);
     expect(cleanChordSheet('Capotraste: 0\nParte 1 de 2\n[G]A paz chegou')).toBe('Parte 1 de 2\n[G]A paz chegou');
     expect(() => cleanChordSheet('a'.repeat(100_001))).toThrow('100.000');
@@ -151,12 +160,20 @@ describe('referências do Cifra Club', () => {
     const url = new URL(buildCifraClubSearchUrl(' Canção & luz ', ' Grupo / local '));
     expect(url.hostname).toBe('www.cifraclub.com.br');
     expect(url.searchParams.get('q')).toBe('Canção & luz Grupo / local');
-    expect(normalizeCifraClubUrl('https://cifraclub.com.br/equipe/cancao?utm_source=teste#tom'))
-      .toBe('https://www.cifraclub.com.br/equipe/cancao/');
+    expect(normalizeCifraClubUrl('https://cifraclub.com.br/equipe/cancao?utm_source=teste#tom')).toBe(
+      'https://www.cifraclub.com.br/equipe/cancao/',
+    );
   });
 
   it('rejeita links externos, credenciais, caminhos de conta e protocolos inseguros', () => {
-    for (const url of ['http://www.cifraclub.com.br/equipe/cancao/', 'https://www.cifraclub.com.br.evil.test/equipe/cancao/', 'https://user@www.cifraclub.com.br/equipe/cancao/', 'https://www.cifraclub.com.br:8443/equipe/cancao/', 'https://www.cifraclub.com.br/login/', 'javascript:alert(1)']) {
+    for (const url of [
+      'http://www.cifraclub.com.br/equipe/cancao/',
+      'https://www.cifraclub.com.br.evil.test/equipe/cancao/',
+      'https://user@www.cifraclub.com.br/equipe/cancao/',
+      'https://www.cifraclub.com.br:8443/equipe/cancao/',
+      'https://www.cifraclub.com.br/login/',
+      'javascript:alert(1)',
+    ]) {
       expect(normalizeCifraClubUrl(url)).toBeNull();
     }
   });
@@ -167,8 +184,7 @@ describe('acordes que antes ficavam sem colchetes', () => {
     expect(parseCifraClubText('E7(9-)    A\nSenhor eu te amo').content).toBe('[E7(9-)]Senhor eu [A]te amo');
     expect(parseCifraClubText('F#m7(5-)  B7\nSenhor eu te amo').content).toBe('[F#m7(5-)]Senhor eu [B7]te amo');
     expect(parseCifraClubText('A7(9+)  D\nSenhor eu te amo').content).toBe('[A7(9+)]Senhor e[D]u te amo');
-    expect(parseCifraClubText('Cm(7M)  Bº  C(add9)\nlevanta e anda agora').content)
-      .toBe('[Cm(7M)]levanta [Bº]e an[C(add9)]da agora');
+    expect(parseCifraClubText('Cm(7M)  Bº  C(add9)\nlevanta e anda agora').content).toBe('[Cm(7M)]levanta [Bº]e an[C(add9)]da agora');
   });
 
   it('mantém o nome da parte e marca os acordes da linha instrumental', () => {
@@ -220,17 +236,19 @@ describe('cifra lida no celular, com as linhas quebradas pelo Cifra Club', () =>
   ].join('\n');
 
   it('junta os pedaços de volta e coloca todos os acordes entre colchetes', () => {
-    expect(parseCifraClubText(phone).content).toBe([
-      '[Intro] [A#] [F]  [Cm]  [Gm]  [A#]',
-      '',
-      '[A#]O que se pode fazer pra trazer a pres[F]ença de novo?',
-      '[Cm]Aquebrantado, atrair novamente [Gm]o Noivo  [F]',
-      '[A#]O que se pode fazer pra finalmen[F]te despertar um povo?',
-      '[Eb]Por que não aqui?',
-      'Por que não agor[F]a?',
-      'Dos seus jovens, eu chamei nazire[Gm]us',
-      'Até que Ele venha, até que Ele venha e chova justiça',
-    ].join('\n'));
+    expect(parseCifraClubText(phone).content).toBe(
+      [
+        '[Intro] [A#] [F]  [Cm]  [Gm]  [A#]',
+        '',
+        '[A#]O que se pode fazer pra trazer a pres[F]ença de novo?',
+        '[Cm]Aquebrantado, atrair novamente [Gm]o Noivo  [F]',
+        '[A#]O que se pode fazer pra finalmen[F]te despertar um povo?',
+        '[Eb]Por que não aqui?',
+        'Por que não agor[F]a?',
+        'Dos seus jovens, eu chamei nazire[Gm]us',
+        'Até que Ele venha, até que Ele venha e chova justiça',
+      ].join('\n'),
+    );
   });
 
   it('remove caracteres invisíveis que impediam reconhecer a linha de acordes', () => {

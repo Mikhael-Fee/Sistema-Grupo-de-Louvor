@@ -108,7 +108,9 @@ test('no celular seleciona e limpa músicas visíveis sem perder outras seleçõ
   await expect(dialog.getByRole('status')).toHaveText('1 música selecionada');
   await search.fill('');
   await expect(dialog.getByRole('checkbox', { name: 'Selecionar Manhã de esperança', exact: true })).toBeChecked();
-  const touchTargets = await dialog.locator('.service-song-option').evaluateAll(rows => rows.map(row => row.getBoundingClientRect().height));
+  const touchTargets = await dialog
+    .locator('.service-song-option')
+    .evaluateAll(rows => rows.map(row => row.getBoundingClientRect().height));
   expect(touchTargets.every(height => height >= 44)).toBe(true);
   expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);

@@ -4,7 +4,17 @@ import { setupMockMinistry } from './fixtures';
 test('links antigos e sessão visitante exigem conta sem solicitar dados do ministério', async ({ page }) => {
   const mock = await setupMockMinistry(page);
   await page.addInitScript(() => sessionStorage.setItem('candeia.public.session', '1'));
-  for (const path of ['/consulta', '/cultos', '/cultos/legacy', '/musicas', '/pessoas', '/etiquetas', '/graficos', '/importar-cifra', '/conectar-cifra-club']) {
+  for (const path of [
+    '/consulta',
+    '/cultos',
+    '/cultos/legacy',
+    '/musicas',
+    '/pessoas',
+    '/etiquetas',
+    '/graficos',
+    '/importar-cifra',
+    '/conectar-cifra-club',
+  ]) {
     await page.goto(path);
     await expect(page.getByRole('button', { name: 'Entrar no ministério', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Entrar sem cadastro', exact: true })).toHaveCount(0);
@@ -19,7 +29,11 @@ test('cadastro e recuperação continuam disponíveis com a aprovação explíci
   let signupBody: Record<string, unknown> | undefined;
   await page.route('**/auth/v1/signup**', route => {
     signupBody = route.request().postDataJSON();
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: { id: 'new-user', email: 'new@example.invalid', identities: [] }, session: null }) });
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ user: { id: 'new-user', email: 'new@example.invalid', identities: [] }, session: null }),
+    });
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Criar conta', exact: true }).click();
@@ -66,7 +80,11 @@ test('administrador mantém navegação rolável pelo teclado sem barra visível
   await mock.login();
   const sidebar = page.getByLabel('Menu do ministério', { exact: true });
   await expect(sidebar).toBeVisible();
-  const styles = await sidebar.evaluate(element => ({ scrollbar: getComputedStyle(element).scrollbarWidth, overflow: getComputedStyle(element).overflowY, canScroll: element.scrollHeight > element.clientHeight }));
+  const styles = await sidebar.evaluate(element => ({
+    scrollbar: getComputedStyle(element).scrollbarWidth,
+    overflow: getComputedStyle(element).overflowY,
+    canScroll: element.scrollHeight > element.clientHeight,
+  }));
   expect(styles).toEqual({ scrollbar: 'none', overflow: 'auto', canScroll: true });
   await sidebar.focus();
   await sidebar.press('PageDown');
@@ -91,8 +109,18 @@ test('celular exige conta e mostra ícones de instalação da mesma chama da mar
   expect(source).toContain('stroke="#f0a340"');
   expect(source).toContain('fill="#2e251b"');
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/apple-touch-icon.png');
-  for (const [path, size] of [['/pwa-192.png', 192], ['/pwa-512.png', 512], ['/pwa-maskable-512.png', 512], ['/apple-touch-icon.png', 180]] as const) {
-    const result = await page.evaluate(async url => { const image = new Image(); image.src = url; await image.decode(); return { width: image.naturalWidth, height: image.naturalHeight }; }, path);
+  for (const [path, size] of [
+    ['/pwa-192.png', 192],
+    ['/pwa-512.png', 512],
+    ['/pwa-maskable-512.png', 512],
+    ['/apple-touch-icon.png', 180],
+  ] as const) {
+    const result = await page.evaluate(async url => {
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      return { width: image.naturalWidth, height: image.naturalHeight };
+    }, path);
     expect(result).toEqual({ width: size, height: size });
   }
 });

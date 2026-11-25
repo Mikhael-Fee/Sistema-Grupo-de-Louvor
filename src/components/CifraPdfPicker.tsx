@@ -14,7 +14,13 @@ export default function CifraPdfPicker({ onRead, disabled = false }: { onRead: (
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  useEffect(() => () => { active.current?.abort(); active.current = null; }, []);
+  useEffect(
+    () => () => {
+      active.current?.abort();
+      active.current = null;
+    },
+    [],
+  );
 
   async function chooseFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
@@ -23,7 +29,9 @@ export default function CifraPdfPicker({ onRead, disabled = false }: { onRead: (
     active.current?.abort();
     const controller = new AbortController();
     active.current = controller;
-    setReading(true); setError(null); setDone(false);
+    setReading(true);
+    setError(null);
+    setDone(false);
     try {
       if (file.size > MAX_PDF_BYTES) throw new Error('O PDF deve ter até 8 MB. Salve somente a cifra e tente novamente.');
       const { readCifraPdf } = await import('../lib/cifra-pdf');
@@ -34,24 +42,69 @@ export default function CifraPdfPicker({ onRead, disabled = false }: { onRead: (
       setDone(true);
     } catch (cause) {
       if (!controller.signal.aborted && active.current === controller) {
-        setError(cause instanceof Error ? cause.message : 'Não foi possível ler este PDF. Salve a cifra como PDF com texto selecionável e tente novamente.');
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : 'Não foi possível ler este PDF. Salve a cifra como PDF com texto selecionável e tente novamente.',
+        );
       }
     } finally {
-      if (active.current === controller) { active.current = null; setReading(false); }
+      if (active.current === controller) {
+        active.current = null;
+        setReading(false);
+      }
     }
   }
 
-  function cancel() { active.current?.abort(); active.current = null; setReading(false); }
+  function cancel() {
+    active.current?.abort();
+    active.current = null;
+    setReading(false);
+  }
 
-  return <section className="cifra-pdf-picker" aria-label="Importar cifra de um PDF" aria-busy={reading}>
-    <div className="cifra-pdf-picker-actions">
-      <button type="button" className="button button-secondary" disabled={disabled} aria-describedby={hintId} onClick={() => input.current?.click()}>{reading ? <LoaderCircle size={17} className="spin" /> : <FileText size={17} />}Escolher PDF da cifra</button>
-      {reading && <button type="button" className="button button-ghost" onClick={cancel}>Cancelar leitura</button>}
-    </div>
-    <input ref={input} className="cifra-pdf-file-input" type="file" accept="application/pdf,.pdf" aria-label="Arquivo PDF da cifra" disabled={disabled} tabIndex={-1} onChange={event => void chooseFile(event)} />
-    <p id={hintId} className="cifra-pdf-picker-hint">PDF com texto selecionável, até 8 MB. Fotos e PDFs digitalizados não são aceitos. Confira a fonte e o tom na prévia antes de importar.</p>
-    {reading && <p className="cifra-pdf-picker-status" role="status">Lendo PDF…</p>}
-    {done && <p className="cifra-pdf-picker-status" role="status">PDF lido. Confira a prévia e o tom antes de importar.</p>}
-    <FormError error={error} />
-  </section>;
+  return (
+    <section className="cifra-pdf-picker" aria-label="Importar cifra de um PDF" aria-busy={reading}>
+      <div className="cifra-pdf-picker-actions">
+        <button
+          type="button"
+          className="button button-secondary"
+          disabled={disabled}
+          aria-describedby={hintId}
+          onClick={() => input.current?.click()}
+        >
+          {reading ? <LoaderCircle size={17} className="spin" /> : <FileText size={17} />}Escolher PDF da cifra
+        </button>
+        {reading && (
+          <button type="button" className="button button-ghost" onClick={cancel}>
+            Cancelar leitura
+          </button>
+        )}
+      </div>
+      <input
+        ref={input}
+        className="cifra-pdf-file-input"
+        type="file"
+        accept="application/pdf,.pdf"
+        aria-label="Arquivo PDF da cifra"
+        disabled={disabled}
+        tabIndex={-1}
+        onChange={event => void chooseFile(event)}
+      />
+      <p id={hintId} className="cifra-pdf-picker-hint">
+        PDF com texto selecionável, até 8 MB. Fotos e PDFs digitalizados não são aceitos. Confira a fonte e o tom na prévia antes de
+        importar.
+      </p>
+      {reading && (
+        <p className="cifra-pdf-picker-status" role="status">
+          Lendo PDF…
+        </p>
+      )}
+      {done && (
+        <p className="cifra-pdf-picker-status" role="status">
+          PDF lido. Confira a prévia e o tom antes de importar.
+        </p>
+      )}
+      <FormError error={error} />
+    </section>
+  );
 }

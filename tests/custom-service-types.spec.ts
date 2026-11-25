@@ -6,7 +6,7 @@ for (const width of [1280, 350]) {
     await page.setViewportSize({ width, height: 800 });
     const mock = await loginAs(page);
     await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+    await page.getByRole('button', { name: 'Cards', exact: true }).click();
     await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
     let dialog = page.getByRole('dialog');
     const theme = dialog.getByRole('combobox', { name: 'Tipo de culto', exact: true });
@@ -47,7 +47,7 @@ for (const width of [1280, 350]) {
     await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
 
     await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+    await page.getByRole('button', { name: 'Cards', exact: true }).click();
     await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
     dialog = page.getByRole('dialog');
     await expect(dialog.locator('datalist option[value="Santa Ceia"]')).toHaveCount(1);

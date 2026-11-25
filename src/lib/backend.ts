@@ -5,11 +5,12 @@ const url = import.meta.env.VITE_SUPABASE_URL?.trim();
 const anonymousKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
 /** Only the public project URL and public anonymous key belong in the browser. */
-export const supabase: SupabaseClient | null = url && anonymousKey
-  ? createClient(url, anonymousKey, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-    })
-  : null;
+export const supabase: SupabaseClient | null =
+  url && anonymousKey
+    ? createClient(url, anonymousKey, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+      })
+    : null;
 
 function client(): SupabaseClient {
   if (!supabase) throw new Error('Configure a URL e a chave pública do Supabase para usar os dados compartilhados.');
@@ -27,12 +28,20 @@ function check(error: { message: string; code?: string } | null): void {
 
 type ProfileRow = { id: string; name: string; role: Profile['role']; approved: boolean; person_id: string | null; photo_url?: string };
 function profileFromRow(row: ProfileRow): Profile {
-  return { id: row.id, name: row.name, role: row.role, approved: row.approved, personId: row.person_id ?? undefined, photoUrl: row.photo_url || undefined };
+  return {
+    id: row.id,
+    name: row.name,
+    role: row.role,
+    approved: row.approved,
+    personId: row.person_id ?? undefined,
+    photoUrl: row.photo_url || undefined,
+  };
 }
 
 const AVATAR_LIMIT = 2 * 1024 * 1024;
 const AVATAR_TYPES: Record<string, string> = { 'image/webp': 'webp', 'image/png': 'png', 'image/jpeg': 'jpeg' };
-const AVATAR_PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(webp|png|jpeg)$/;
+const AVATAR_PATH =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(webp|png|jpeg)$/;
 
 function avatarPath(photoUrl: string): string {
   if (!url) throw new Error('Configure o armazenamento do ministério.');
@@ -40,11 +49,122 @@ function avatarPath(photoUrl: string): string {
   const parsed = new URL(photoUrl);
   const prefix = '/storage/v1/object/public/avatars/';
   const path = parsed.pathname.slice(prefix.length);
-  if (parsed.origin !== origin || parsed.protocol !== 'https:' || !parsed.pathname.startsWith(prefix)
-    || parsed.search || parsed.hash || !AVATAR_PATH.test(path)) {
+  if (
+    parsed.origin !== origin ||
+    parsed.protocol !== 'https:' ||
+    !parsed.pathname.startsWith(prefix) ||
+    parsed.search ||
+    parsed.hash ||
+    !AVATAR_PATH.test(path)
+  ) {
     throw new Error('A foto precisa usar o armazenamento deste ministério.');
   }
   return path;
+}
+
+export type DataPart = 'songs' | 'tags' | 'people' | 'services' | 'unavailability';
+const ALL_PARTS: DataPart[] = ['songs', 'tags', 'people', 'services', 'unavailability'];
+// Before migration 008 the table does not exist: the app works without these features.
+const featureMissing = (error: { code?: string } | null) => Boolean(error && ['42P01', 'PGRST205', 'PGRST200'].includes(error.code || ''));
+
+async function loadParts(db: SupabaseClient, parts: DataPart[]): Promise<Partial<MinistryData>> {
+  const want = new Set(parts);
+  const loaders: Record<DataPart, () => Promise<Partial<MinistryData>>> = {
+    async tags() {
+      const tags = await db.from('tags').select('*').order('name');
+      check(tags.error);
+      return { tags: (tags.data ?? []).map(row => ({ id: row.id, name: row.name, color: row.color })) };
+    },
+    async people() {
+      const [people, teamPhotos] = await Promise.all([
+        db.from('people').select('*').order('name'),
+        db.rpc('read_team_profile_photos', {}, { get: true }),
+      ]);
+      check(people.error);
+      check(teamPhotos.error);
+      if (!Array.isArray(teamPhotos.data)) throw new Error('Não foi possível consultar as fotos vinculadas à equipe.');
+      const accountPhotos = new Map<string, string>(
+        teamPhotos.data.map((row: { personId: string; photoUrl: string }) => [row.personId, row.photoUrl]),
+      );
+      return {
+        people: (people.data ?? []).map(row => ({
+          id: row.id,
+          name: row.name,
+          email: row.email,
+          functions: row.functions,
+          active: row.active !== false,
+          photoUrl: row.photo_url || undefined,
+          accountPhotoUrl: accountPhotos.get(row.id) || undefined,
+        })),
+      };
+    },
+    async songs() {
+      const [songs, songTags] = await Promise.all([
+        db.from('songs').select('*').order('title'),
+        db.from('song_tags').select('song_id, tag_id'),
+      ]);
+      check(songs.error);
+      check(songTags.error);
+      return {
+        songs: (songs.data ?? []).map(row => ({
+          id: row.id,
+          title: row.title,
+          artist: row.artist,
+          originalKey: row.original_key,
+          churchKey: row.church_key,
+          content: row.content,
+          youtubeUrl: row.youtube_url,
+          notes: row.notes,
+          tagIds: (songTags.data ?? []).filter(link => link.song_id === row.id).map(link => link.tag_id),
+        })),
+      };
+    },
+    async services() {
+      const [services, assignments, repertoire] = await Promise.all([
+        db.from('services').select('*').order('date').order('time'),
+        db.from('assignments').select('*').order('position'),
+        db.from('repertoire').select('*').order('position'),
+      ]);
+      check(services.error);
+      check(assignments.error);
+      check(repertoire.error);
+      return {
+        services: (services.data ?? []).map(row => ({
+          id: row.id,
+          date: row.date,
+          time: row.time.slice(0, 5),
+          type: row.type,
+          notes: row.notes,
+          isEvent: row.is_event === true,
+          assignments: (assignments.data ?? [])
+            .filter(link => link.service_id === row.id)
+            .map(link => ({
+              id: link.id,
+              personId: link.person_id,
+              function: link.function,
+              ...(typeof link.status === 'string' ? { status: link.status, statusNote: link.status_note || '' } : {}),
+            })),
+          repertoire: (repertoire.data ?? [])
+            .filter(link => link.service_id === row.id)
+            .map(link => ({
+              id: link.id,
+              songId: link.song_id,
+              key: link.key,
+              notes: link.notes,
+              youtubeUrl: link.youtube_url || '',
+            })),
+        })),
+      };
+    },
+    async unavailability() {
+      const result = await db.from('unavailability').select('id, person_id, date, note').order('date');
+      if (featureMissing(result.error)) return {};
+      check(result.error);
+      return { unavailability: (result.data ?? []).map(row => ({ id: row.id, personId: row.person_id, date: row.date, note: row.note })) };
+    },
+  };
+  const results = await Promise.all(ALL_PARTS.filter(part => want.has(part)).map(part => loaders[part]()));
+  return Object.assign({}, ...results);
 }
 
 export const repository = {
@@ -58,48 +178,20 @@ export const repository = {
     const profile = await repository.getProfile(auth.user.id);
     if (!profile.approved) throw new Error('Seu cadastro aguarda aprovação de um administrador.');
 
-    const [songs, tags, people, services, songTags, assignments, repertoire, teamPhotos, unavailability] = await Promise.all([
-      db.from('songs').select('*').order('title'),
-      db.from('tags').select('*').order('name'),
-      db.from('people').select('*').order('name'),
-      db.from('services').select('*').order('date').order('time'),
-      db.from('song_tags').select('song_id, tag_id'),
-      db.from('assignments').select('*').order('position'),
-      db.from('repertoire').select('*').order('position'),
-      db.rpc('read_team_profile_photos', {}, { get: true }),
-      db.from('unavailability').select('id, person_id, date, note').order('date'),
-    ]);
-    for (const result of [songs, tags, people, services, songTags, assignments, repertoire, teamPhotos]) check(result.error);
-    // Before migration 008 the table does not exist: the app works without these features.
-    const featureMissing = (error: { code?: string } | null) => Boolean(error && ['42P01', 'PGRST205', 'PGRST200'].includes(error.code || ''));
-    if (!featureMissing(unavailability.error)) check(unavailability.error);
-    if (!Array.isArray(teamPhotos.data)) throw new Error('Não foi possível consultar as fotos vinculadas à equipe.');
-    const accountPhotos = new Map<string, string>(teamPhotos.data.map((row: { personId: string; photoUrl: string }) => [row.personId, row.photoUrl]));
-    return {
-      tags: (tags.data ?? []).map(row => ({ id: row.id, name: row.name, color: row.color })),
-      people: (people.data ?? []).map(row => ({ id: row.id, name: row.name, email: row.email, functions: row.functions, active: row.active !== false,
-        photoUrl: row.photo_url || undefined, accountPhotoUrl: accountPhotos.get(row.id) || undefined })),
-      songs: (songs.data ?? []).map(row => ({
-        id: row.id, title: row.title, artist: row.artist, originalKey: row.original_key,
-        churchKey: row.church_key, content: row.content, youtubeUrl: row.youtube_url, notes: row.notes,
-        tagIds: (songTags.data ?? []).filter(link => link.song_id === row.id).map(link => link.tag_id),
-      })),
-      services: (services.data ?? []).map(row => ({
-        id: row.id, date: row.date, time: row.time.slice(0, 5), type: row.type, notes: row.notes, isEvent: row.is_event === true,
-        assignments: (assignments.data ?? []).filter(link => link.service_id === row.id).map(link => ({
-          id: link.id, personId: link.person_id, function: link.function,
-          ...(typeof link.status === 'string' ? { status: link.status, statusNote: link.status_note || '' } : {}),
-        })),
-        repertoire: (repertoire.data ?? []).filter(link => link.service_id === row.id).map(link => ({
-          id: link.id, songId: link.song_id, key: link.key, notes: link.notes, youtubeUrl: link.youtube_url || '',
-        })),
-      })),
-      ...(featureMissing(unavailability.error) ? {} : { unavailability: (unavailability.data ?? []).map(row => ({ id: row.id, personId: row.person_id, date: row.date, note: row.note })) }),
-    };
+    return { ...(await loadParts(db, ALL_PARTS)) } as MinistryData;
+  },
+
+  /** Reloads only the lists a change can touch, instead of the whole ministry. */
+  async loadParts(parts: DataPart[]): Promise<Partial<MinistryData>> {
+    return loadParts(client(), parts);
   },
 
   async getProfile(userId: string): Promise<Profile> {
-    const { data, error } = await client().from('profiles').select('id, name, role, approved, person_id, photo_url').eq('id', userId).single();
+    const { data, error } = await client()
+      .from('profiles')
+      .select('id, name, role, approved, person_id, photo_url')
+      .eq('id', userId)
+      .single();
     check(error);
     return profileFromRow(data as ProfileRow);
   },
@@ -115,10 +207,15 @@ export const repository = {
   async savePerson(person: Person): Promise<void> {
     // Membership status is changed separately, so saving a stale editor can
     // never reactivate someone removed from the active team in another tab.
-    const { error } = await client().rpc('save_person', { p_person: {
-      id: person.id, name: person.name.trim(), email: person.email.trim(), functions: person.functions,
-      ...(person.photoUrl === undefined ? {} : { photoUrl: person.photoUrl }),
-    } });
+    const { error } = await client().rpc('save_person', {
+      p_person: {
+        id: person.id,
+        name: person.name.trim(),
+        email: person.email.trim(),
+        functions: person.functions,
+        ...(person.photoUrl === undefined ? {} : { photoUrl: person.photoUrl }),
+      },
+    });
     check(error);
   },
   async archivePerson(id: string): Promise<void> {
@@ -139,7 +236,9 @@ export const repository = {
     if (!auth.user) throw new Error('Entre na sua conta para enviar uma foto.');
     const path = `${auth.user.id}/${crypto.randomUUID()}.${extension}`;
     const { error } = await client().storage.from('avatars').upload(path, photo, {
-      upsert: false, contentType: photo.type, cacheControl: '31536000',
+      upsert: false,
+      contentType: photo.type,
+      cacheControl: '31536000',
     });
     check(error);
     const publicUrl = client().storage.from('avatars').getPublicUrl(path).data.publicUrl;
@@ -181,7 +280,12 @@ export const repository = {
     check(error);
   },
   async setUnavailability(personId: string, date: string, unavailable: boolean, note = ''): Promise<void> {
-    const { error } = await client().rpc('set_unavailability', { p_person_id: personId, p_date: date, p_unavailable: unavailable, p_note: note });
+    const { error } = await client().rpc('set_unavailability', {
+      p_person_id: personId,
+      p_date: date,
+      p_unavailable: unavailable,
+      p_note: note,
+    });
     check(error);
   },
   async listProfiles(): Promise<Profile[]> {
@@ -196,7 +300,8 @@ export const repository = {
   },
   async updateProfile(profile: Profile): Promise<void> {
     const { error } = await client().rpc('update_profile', { p_profile: { ...profile, personId: profile.personId ?? null } });
-    if (error?.code === '23505') throw new Error('Esta pessoa já está vinculada a outra conta. Desvincule a conta anterior ou escolha outra pessoa.');
+    if (error?.code === '23505')
+      throw new Error('Esta pessoa já está vinculada a outra conta. Desvincule a conta anterior ou escolha outra pessoa.');
     check(error);
   },
 };

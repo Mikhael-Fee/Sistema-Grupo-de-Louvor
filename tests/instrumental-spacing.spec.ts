@@ -21,10 +21,12 @@ async function openInstrumentalChart(page: Page, width: number) {
 async function expectReadableInstrumentalChords(page: Page) {
   for (const row of await page.locator('.song-line').all()) {
     const chords = row.locator('.song-segment-instrumental .song-chord');
-    const bounds = await chords.evaluateAll(elements => elements.map(element => {
-      const box = element.getBoundingClientRect();
-      return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
-    }));
+    const bounds = await chords.evaluateAll(elements =>
+      elements.map(element => {
+        const box = element.getBoundingClientRect();
+        return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+      }),
+    );
     for (let index = 1; index < bounds.length; index++) {
       const previous = bounds[index - 1];
       const current = bounds[index];
@@ -43,11 +45,30 @@ for (const width of [320, 1200]) {
   test(`introdução e acordes instrumentais ficam separados em ${width}px sem alterar a letra`, async ({ page }) => {
     const { mock, song } = await openInstrumentalChart(page, width);
     await expect(page.locator('.song-line').first().locator('.song-section-label')).toHaveText('Intro');
-    await expect(page.locator('.song-line').first().locator('.song-chord').filter({ hasText: /^(G|A|D)$/ })).toHaveText(['G', 'A', 'D']);
-    await expect(page.locator('.song-line').nth(1).locator('.song-chord')).toHaveText(['Cmaj7', 'G/B', 'Am7', 'F#7(b9)/C#', 'Dmaj7', 'G/B', 'Am7', 'F#7(b9)/C#']);
+    await expect(
+      page
+        .locator('.song-line')
+        .first()
+        .locator('.song-chord')
+        .filter({ hasText: /^(G|A|D)$/ }),
+    ).toHaveText(['G', 'A', 'D']);
+    await expect(page.locator('.song-line').nth(1).locator('.song-chord')).toHaveText([
+      'Cmaj7',
+      'G/B',
+      'Am7',
+      'F#7(b9)/C#',
+      'Dmaj7',
+      'G/B',
+      'Am7',
+      'F#7(b9)/C#',
+    ]);
     await expectReadableInstrumentalChords(page);
     if (width === 320) {
-      const tops = await page.locator('.song-line').nth(1).locator('.song-chord').evaluateAll(elements => elements.map(element => Math.round(element.getBoundingClientRect().top)));
+      const tops = await page
+        .locator('.song-line')
+        .nth(1)
+        .locator('.song-chord')
+        .evaluateAll(elements => elements.map(element => Math.round(element.getBoundingClientRect().top)));
       expect(new Set(tops).size).toBeGreaterThan(1);
     }
 
@@ -67,12 +88,33 @@ for (const width of [320, 1200]) {
     }
 
     await page.getByLabel('Tom da visualização').selectOption('E');
-    await expect(page.locator('.song-line').first().locator('.song-chord').filter({ hasText: /^(A|B|E)$/ })).toHaveText(['A', 'B', 'E']);
-    await expect(page.locator('.song-line').nth(1).locator('.song-chord')).toHaveText(['Dmaj7', 'A/C#', 'Bm7', 'G#7(b9)/D#', 'Emaj7', 'A/C#', 'Bm7', 'G#7(b9)/D#']);
+    await expect(
+      page
+        .locator('.song-line')
+        .first()
+        .locator('.song-chord')
+        .filter({ hasText: /^(A|B|E)$/ }),
+    ).toHaveText(['A', 'B', 'E']);
+    await expect(page.locator('.song-line').nth(1).locator('.song-chord')).toHaveText([
+      'Dmaj7',
+      'A/C#',
+      'Bm7',
+      'G#7(b9)/D#',
+      'Emaj7',
+      'A/C#',
+      'Bm7',
+      'G#7(b9)/D#',
+    ]);
     await expectReadableInstrumentalChords(page);
     await page.getByRole('button', { name: 'Restaurar tom D', exact: true }).click();
     await page.getByLabel('Tom da visualização').selectOption('E');
-    await expect(page.locator('.song-line').first().locator('.song-chord').filter({ hasText: /^(A|B|E)$/ })).toHaveText(['A', 'B', 'E']);
+    await expect(
+      page
+        .locator('.song-line')
+        .first()
+        .locator('.song-chord')
+        .filter({ hasText: /^(A|B|E)$/ }),
+    ).toHaveText(['A', 'B', 'E']);
 
     await page.getByRole('button', { name: 'Somente letra', exact: true }).click();
     await expect(page.locator('.song-lyrics-only')).toContainText('Intro');

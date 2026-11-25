@@ -2,11 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { autoscrollPixelsPerSecond, setlistPosition, setlistSongPath } from './setlist-navigation';
 import type { Service } from '../types';
 
-const service: Service = { id: 's1', date: '2026-11-29', time: '18:00', type: 'Ceia', notes: '', assignments: [], repertoire: [
-  { id: 'a', songId: 'song-a', key: 'G', notes: '' },
-  { id: 'b', songId: 'song-b', key: 'C', notes: '' },
-  { id: 'c', songId: 'song-c', key: 'F', notes: '' },
-] };
+const service: Service = {
+  id: 's1',
+  date: '2026-11-29',
+  time: '18:00',
+  type: 'Ceia',
+  notes: '',
+  assignments: [],
+  repertoire: [
+    { id: 'a', songId: 'song-a', key: 'G', notes: '' },
+    { id: 'b', songId: 'song-b', key: 'C', notes: '' },
+    { id: 'c', songId: 'song-c', key: 'F', notes: '' },
+  ],
+};
 
 describe('navegação no repertório', () => {
   it('encontra a música anterior e a próxima', () => {

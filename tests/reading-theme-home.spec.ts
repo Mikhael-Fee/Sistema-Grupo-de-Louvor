@@ -19,7 +19,8 @@ test('início mostra minhas próximas escalas e o tema escuro fica salvo no apar
   const mock = await setupMockMinistry(page, 'musician');
   const me = mock.data.people[0];
   const service = mock.data.services[0];
-  if (!service.assignments.some(item => item.personId === me.id)) service.assignments.push({ id: crypto.randomUUID(), personId: me.id, function: me.functions[0] });
+  if (!service.assignments.some(item => item.personId === me.id))
+    service.assignments.push({ id: crypto.randomUUID(), personId: me.id, function: me.functions[0] });
   await mock.login();
   const mine = page.getByRole('region', { name: 'Minhas próximas escalas' });
   await expect(mine.getByRole('link').first()).toContainText(service.type);
@@ -42,11 +43,27 @@ test('editor de música em três passos com a ajuda escondida num ícone', async
   const mock = await setupMockMinistry(page, 'admin');
   await mock.login();
   await page.goto('/musicas');
-  await page.getByRole('button', { name: /Nova música/ }).first().click();
+  await page
+    .getByRole('button', { name: /Nova música/ })
+    .first()
+    .click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.locator('.songs-step')).toHaveText(['1Música', '2Letra e cifra', '3Vídeo, observações e etiquetas']);
   await expect(dialog.getByText(/Para escrever à mão, use colchetes/)).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Ajuda: letra e cifra' }).click();
   await expect(dialog.getByText(/Para escrever à mão, use colchetes/)).toBeVisible();
   await expect(dialog.getByRole('textbox', { name: 'Letra e cifra', exact: true })).toBeVisible();
+});
+
+test('o tema claro é o padrão mesmo com o aparelho no modo escuro', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const mock = await setupMockMinistry(page, 'musician');
+  await mock.login();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.goto('/perfil');
+  await expect(page.getByRole('radio', { name: 'Claro' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radio', { name: 'Automático' }).click();
+  await page.reload();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', /./);
+  await expect(page.getByRole('radio', { name: 'Automático' })).toHaveAttribute('aria-checked', 'true');
 });

@@ -7,16 +7,55 @@ export function relativeMajor(minorRoot: string): string {
 }
 
 const NOTE_VALUES: Record<string, number> = {
-  C: 0, 'B#': 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4,
-  Fb: 4, 'E#': 5, F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8,
-  A: 9, 'A#': 10, Bb: 10, B: 11, Cb: 11,
+  C: 0,
+  'B#': 0,
+  'C#': 1,
+  Db: 1,
+  D: 2,
+  'D#': 3,
+  Eb: 3,
+  E: 4,
+  Fb: 4,
+  'E#': 5,
+  F: 5,
+  'F#': 6,
+  Gb: 6,
+  G: 7,
+  'G#': 8,
+  Ab: 8,
+  A: 9,
+  'A#': 10,
+  Bb: 10,
+  B: 11,
+  Cb: 11,
 };
 const SHARP_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const FLAT_NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 // Consume suffixes once. Repeating a numeric regex inside another repetition
 // makes malformed pasted chords (for example C111…x) block the browser.
 // Brazilian sources write diminished chords with the ordinal sign (Bº) as often as with the degree sign.
-const QUALITIES = ['maj', 'Maj', 'min', 'Min', 'dim', 'Dim', 'aug', 'Aug', 'sus', 'Sus', 'add', 'Add', 'omit', 'no', 'm', 'M', 'Δ', '°', 'º', 'ø'];
+const QUALITIES = [
+  'maj',
+  'Maj',
+  'min',
+  'Min',
+  'dim',
+  'Dim',
+  'aug',
+  'Aug',
+  'sus',
+  'Sus',
+  'add',
+  'Add',
+  'omit',
+  'no',
+  'm',
+  'M',
+  'Δ',
+  '°',
+  'º',
+  'ø',
+];
 const PAREN_QUALITIES = ['maj', 'Maj', 'min', 'add', 'Add', 'sus', 'Sus', 'omit', 'no', 'm', 'M'];
 
 function validSuffix(value: string): boolean {
@@ -57,13 +96,19 @@ function validSuffix(value: string): boolean {
       cursor++;
       if (!digits()) return false;
     } else if (quality(QUALITIES)) digits();
-    else if (token === '+' || token === '-') { cursor++; digits(); }
-    else if (!signedNumber()) return false;
+    else if (token === '+' || token === '-') {
+      cursor++;
+      digits();
+    } else if (!signedNumber()) return false;
   }
   return true;
 }
 
-interface Chord { root: string; suffix: string; bass?: string }
+interface Chord {
+  root: string;
+  suffix: string;
+  bass?: string;
+}
 
 /** Scan each character once, even when pasted text contains unclosed markers. */
 export function* chordMarkers(content: string) {
@@ -133,5 +178,9 @@ export function chordSegments(line: string): { chord: string; text: string }[] {
 
 /** Portuguese-friendly search, without changing the displayed source text. */
 export function normalizeSearch(text: string): string {
-  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR')
+    .trim();
 }

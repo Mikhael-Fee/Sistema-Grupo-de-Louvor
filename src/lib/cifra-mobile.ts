@@ -17,10 +17,19 @@ export function decodeMobileCifra(encoded: string): SongSearchResult {
   try {
     const bytes = Uint8Array.from(atob(encoded.replace(/-/g, '+').replace(/_/g, '/')), character => character.charCodeAt(0));
     envelope = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-  } catch { throw new Error('Não foi possível ler a cifra recebida. Execute novamente o importador na página da música.'); }
+  } catch {
+    throw new Error('Não foi possível ler a cifra recebida. Execute novamente o importador na página da música.');
+  }
   const raw = envelope?.result as Record<string, unknown> | undefined;
-  if (envelope?.version !== 1 || !raw || typeof raw !== 'object' || Array.isArray(raw)
-    || typeof raw.sourceUrl !== 'string' || raw.sourceUrl.length > 2_048) throw new Error('A transferência da cifra não é válida.');
+  if (
+    envelope?.version !== 1 ||
+    !raw ||
+    typeof raw !== 'object' ||
+    Array.isArray(raw) ||
+    typeof raw.sourceUrl !== 'string' ||
+    raw.sourceUrl.length > 2_048
+  )
+    throw new Error('A transferência da cifra não é válida.');
   const url = normalizeCifraClubUrl(raw.sourceUrl);
   if (!url) throw new Error('A transferência precisa ser de uma música do Cifra Club.');
   return parseBrowserCifra({ id: url, sourceUrl: url, source: 'Cifra Club', kind: 'chords', title: '', artist: '' }, raw);
@@ -35,24 +44,47 @@ export function captureMobileCifra(): void {
   try {
     decodeMobileCifra(encoded);
     memory = { id: crypto.randomUUID(), encoded };
-    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(memory)); } catch { /* The current page remains usable without storage. */ }
-  } catch (cause) { captureError = cause instanceof Error ? cause.message : 'A cifra recebida não pôde ser lida.'; }
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(memory));
+    } catch {
+      /* The current page remains usable without storage. */
+    }
+  } catch (cause) {
+    captureError = cause instanceof Error ? cause.message : 'A cifra recebida não pôde ser lida.';
+  }
 }
 
 export function pendingMobileCifra(): { id: string; song: SongSearchResult } | null {
   try {
     if (!memory) {
       const stored = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null');
-      if (stored && typeof stored.id === 'string' && /^[0-9a-f-]{36}$/i.test(stored.id)
-        && typeof stored.encoded === 'string' && stored.encoded.length <= MAX_MOBILE_CIFRA) memory = stored;
+      if (
+        stored &&
+        typeof stored.id === 'string' &&
+        /^[0-9a-f-]{36}$/i.test(stored.id) &&
+        typeof stored.encoded === 'string' &&
+        stored.encoded.length <= MAX_MOBILE_CIFRA
+      )
+        memory = stored;
     }
     return memory ? { id: memory.id, song: decodeMobileCifra(memory.encoded) } : null;
-  } catch { clearPendingMobileCifra(); captureError = 'A transferência guardada não é válida. Importe novamente pelo navegador.'; return null; }
+  } catch {
+    clearPendingMobileCifra();
+    captureError = 'A transferência guardada não é válida. Importe novamente pelo navegador.';
+    return null;
+  }
 }
 
-export function mobileCifraError(): string | null { return captureError; }
+export function mobileCifraError(): string | null {
+  return captureError;
+}
 
 export function clearPendingMobileCifra(): void {
-  memory = null; captureError = null;
-  try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* Clearing in-memory input is sufficient in this page. */ }
+  memory = null;
+  captureError = null;
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* Clearing in-memory input is sufficient in this page. */
+  }
 }

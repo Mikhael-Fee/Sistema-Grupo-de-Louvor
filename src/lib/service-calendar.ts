@@ -1,13 +1,23 @@
 /** Calendar dates stay as YYYY-MM-DD strings, including across timezone and year boundaries. */
-export interface ServiceCalendarDay { date: string; day: number; inMonth: boolean }
+export interface ServiceCalendarDay {
+  date: string;
+  day: number;
+  inMonth: boolean;
+}
 
 export function ministryToday(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
   const part = (name: Intl.DateTimeFormatPartTypes) => parts.find(value => value.type === name)!.value;
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
-const isoDate = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+const isoDate = (date: Date) =>
+  `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 
 function monthStart(month: string): Date {
   if (!/^\d{4}-(?:0[1-9]|1[0-2])$/.test(month)) throw new Error('Mês inválido.');

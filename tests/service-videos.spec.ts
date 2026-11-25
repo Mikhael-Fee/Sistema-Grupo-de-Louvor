@@ -78,7 +78,11 @@ for (const width of [1200, 320]) {
     await page.getByLabel('Tom da visualização').selectOption('B');
     await page.getByRole('button', { name: 'Salvar tom no culto', exact: true }).click();
     await expect(page.getByRole('status')).toHaveText('Tom salvo no repertório.');
-    expect(saved().repertoire.find(candidate => candidate.id === item.id)).toEqual({ ...original.repertoire[0], key: 'B', youtubeUrl: serviceUrl });
+    expect(saved().repertoire.find(candidate => candidate.id === item.id)).toEqual({
+      ...original.repertoire[0],
+      key: 'B',
+      youtubeUrl: serviceUrl,
+    });
     await page.goto(`/musicas/${song.id}`);
     await expect(readerCard).toHaveAttribute('href', libraryUrl);
     await expect(readerCard).toContainText('Vídeo da biblioteca');

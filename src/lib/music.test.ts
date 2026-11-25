@@ -8,15 +8,14 @@ describe('musical chord notation', () => {
   });
 
   it('uses flat spelling for flat target keys, including inverted bass notes', () => {
-    expect(transposeContent('[A]Um [C#m7/G#]novo [Dadd9]dia [E]virá', 'A', 'Bb'))
-      .toBe('[Bb]Um [Dm7/A]novo [Ebadd9]dia [F]virá');
-    expect(transposeContent('[Bbmaj7/D]Paz [Ebsus4]em [F7]Ti', 'Bb', 'C'))
-      .toBe('[Cmaj7/E]Paz [Fsus4]em [G7]Ti');
+    expect(transposeContent('[A]Um [C#m7/G#]novo [Dadd9]dia [E]virá', 'A', 'Bb')).toBe('[Bb]Um [Dm7/A]novo [Ebadd9]dia [F]virá');
+    expect(transposeContent('[Bbmaj7/D]Paz [Ebsus4]em [F7]Ti', 'Bb', 'C')).toBe('[Cmaj7/E]Paz [Fsus4]em [G7]Ti');
   });
 
   it('keeps extended chord qualities unchanged, including numeric slash extensions', () => {
-    expect(transposeContent('[C6/9/E]a [Cm(maj7)]b [C7(b9,#11)]c [CmMaj7]d', 'C', 'D'))
-      .toBe('[D6/9/F#]a [Dm(maj7)]b [D7(b9,#11)]c [DmMaj7]d');
+    expect(transposeContent('[C6/9/E]a [Cm(maj7)]b [C7(b9,#11)]c [CmMaj7]d', 'C', 'D')).toBe(
+      '[D6/9/F#]a [Dm(maj7)]b [D7(b9,#11)]c [DmMaj7]d',
+    );
   });
 
   it('wraps around twelve semitones and accepts enharmonic source keys', () => {
@@ -41,11 +40,15 @@ describe('musical chord notation', () => {
 
   it('aligns each chord above its following text, including initial text and consecutive chords', () => {
     expect(chordSegments('Intro [C]Tua [G/B]paz [Am7][F]vem')).toEqual([
-      { chord: '', text: 'Intro ' }, { chord: 'C', text: 'Tua ' },
-      { chord: 'G/B', text: 'paz ' }, { chord: 'Am7', text: '' }, { chord: 'F', text: 'vem' },
+      { chord: '', text: 'Intro ' },
+      { chord: 'C', text: 'Tua ' },
+      { chord: 'G/B', text: 'paz ' },
+      { chord: 'Am7', text: '' },
+      { chord: 'F', text: 'vem' },
     ]);
     expect(chordSegments('[Refrão] [C]Paz [não é acorde] agora')).toEqual([
-      { chord: '', text: '[Refrão] ' }, { chord: 'C', text: 'Paz [não é acorde] agora' },
+      { chord: '', text: '[Refrão] ' },
+      { chord: 'C', text: 'Paz [não é acorde] agora' },
     ]);
     expect(chordSegments('')).toEqual([{ chord: '', text: '' }]);
   });
@@ -63,7 +66,8 @@ describe('musical chord notation', () => {
     expect(stripChords(content)).toBe(`${marker} Palavra final`);
     expect(transposeContent(content, 'C', 'D')).toBe(`${marker} Palavra [D7(b9,#11)/F#]final`);
     expect(chordSegments(content)).toEqual([
-      { chord: '', text: `${marker} Palavra ` }, { chord: 'C7(b9,#11)/E', text: 'final' },
+      { chord: '', text: `${marker} Palavra ` },
+      { chord: 'C7(b9,#11)/E', text: 'final' },
     ]);
   });
 
@@ -76,8 +80,9 @@ describe('musical chord notation', () => {
   });
 
   it('transposes Brazilian chord spellings with trailing alterations and º', () => {
-    expect(transposeContent('[E7(9-)] [F#m7(5-)] [A7(9+)] [Cm(7M)] [Bº] [C(add9)]', 'C', 'D'))
-      .toBe('[F#7(9-)] [G#m7(5-)] [B7(9+)] [Dm(7M)] [C#º] [D(add9)]');
+    expect(transposeContent('[E7(9-)] [F#m7(5-)] [A7(9+)] [Cm(7M)] [Bº] [C(add9)]', 'C', 'D')).toBe(
+      '[F#7(9-)] [G#m7(5-)] [B7(9+)] [Dm(7M)] [C#º] [D(add9)]',
+    );
     expect(stripChords('[Refrão] [E7(9-)]Santo')).toBe('[Refrão] Santo');
   });
 });

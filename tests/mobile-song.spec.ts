@@ -78,7 +78,9 @@ test('modo leitura no celular ocupa a tela e preserva tom e fonte ao sair', asyn
   await page.keyboard.press('Shift+Tab');
   await expect(reader.getByRole('button', { name: 'Sair do modo leitura', exact: true })).toBeFocused();
   expect(await page.locator('.topbar').evaluate(element => (element as HTMLElement).inert)).toBe(true);
-  await reader.evaluate(element => { element.scrollTop = 300; });
+  await reader.evaluate(element => {
+    element.scrollTop = 300;
+  });
   const toolbar = await page.locator('.song-reader-toolbar').boundingBox();
   expect(toolbar?.y).toBeGreaterThanOrEqual(0);
   expect(toolbar?.y).toBeLessThanOrEqual(1);
@@ -100,8 +102,12 @@ test('editor móvel usa um campo de cifra e salva os metadados da busca com arti
   const fixture = await loginAs(page);
   const source = {
     id: 'https://www.cifraclub.com.br/equipe/cancao-mobile/',
-    title: 'Canção no celular', artist: 'Equipe de teste', source: 'Cifra Club', kind: 'chords',
-    sourceUrl: 'https://www.cifraclub.com.br/equipe/cancao-mobile/', originalKey: 'G',
+    title: 'Canção no celular',
+    artist: 'Equipe de teste',
+    source: 'Cifra Club',
+    kind: 'chords',
+    sourceUrl: 'https://www.cifraclub.com.br/equipe/cancao-mobile/',
+    originalKey: 'G',
     content: '[G]Uma [D/F#]voz nos guia\n[Em7]Seguimos em [C]paz\ne|--0--2--3--|',
   };
   await page.route('https://lrclib.net/api/search**', route => route.fulfill({ contentType: 'application/json', body: '[]' }));
@@ -133,7 +139,9 @@ test('editor móvel usa um campo de cifra e salva os metadados da busca com arti
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(dialog).toBeHidden();
   expect(fixture.data.songs.find(song => song.title === source.title)).toMatchObject({
-    artist: source.artist, originalKey: 'Bb', churchKey: 'Bb',
+    artist: source.artist,
+    originalKey: 'Bb',
+    churchKey: 'Bb',
     content: '[Bb]Uma [F/A]voz nos guia\n[Gm7]Seguimos em [Eb]paz',
   });
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);

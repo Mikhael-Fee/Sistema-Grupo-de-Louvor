@@ -23,7 +23,17 @@ const HTML = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
   <div id="cifra_tom">Tom: Bb (forma dos acordes no tom de G)</div><div class="cifra_capo">Capotraste: 3</div>
   <pre data-original-key="C"><b>G</b>           <b>D/F#</b>\nUma luz nos guia\n<b>Em7</b>         <b>C</b>\nSeguimos em paz\n<span class="tablatura">e|--0--2--3--|\nB|--1--3--0--|</span></pre>
   </body></html>`;
-const MIME: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.txt': 'text/plain' };
+const MIME: Record<string, string> = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.woff2': 'font/woff2',
+  '.json': 'application/json',
+  '.webmanifest': 'application/manifest+json',
+  '.txt': 'text/plain',
+};
 
 function chromiumForMobileFixtures(): string {
   if (process.env.CANDEIA_EXTENSION_CHROMIUM_EXECUTABLE_PATH) return process.env.CANDEIA_EXTENSION_CHROMIUM_EXECUTABLE_PATH;
@@ -31,34 +41,53 @@ function chromiumForMobileFixtures(): string {
   const parts = executable.split(sep);
   const revision = parts.findIndex(part => /^chromium-\d+$/.test(part));
   const cached = revision < 0 ? '' : join('/workspace/scratch/playwright-cifra-browsers', ...parts.slice(revision));
-  return cached && existsSync(cached) ? cached : process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
-    || (existsSync(executable) ? executable : '/usr/bin/chromium');
+  return cached && existsSync(cached)
+    ? cached
+    : process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || (existsSync(executable) ? executable : '/usr/bin/chromium');
 }
 
 function transfer(result: unknown = SOURCE): string {
   return `${SITE}/importar-cifra${PREFIX}${Buffer.from(JSON.stringify({ version: 1, result }), 'utf8').toString('base64url')}`;
 }
 
-interface Harness { browser: Browser; context: BrowserContext; page: Page; mock: MockMinistry; dispose(): Promise<void> }
+interface Harness {
+  browser: Browser;
+  context: BrowserContext;
+  page: Page;
+  mock: MockMinistry;
+  dispose(): Promise<void>;
+}
 
 async function harness(role: Role = 'admin'): Promise<Harness> {
   // This is desktop Chromium with mobile viewport/touch emulation. It does
   // not assert that physical Android favorites or native Apple Shortcuts ran.
-  const env = Object.fromEntries(Object.entries(process.env).filter(([name, value]) => value !== undefined
-    && !/TOKEN|PASSWORD|SECRET|SERVICE_ROLE|DEBUG|PWDEBUG/i.test(name))) as Record<string, string>;
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name, value]) => value !== undefined && !/TOKEN|PASSWORD|SECRET|SERVICE_ROLE|DEBUG|PWDEBUG/i.test(name),
+    ),
+  ) as Record<string, string>;
   const browser = await chromium.launch({ executablePath: chromiumForMobileFixtures(), headless: true, env, args: ['--no-sandbox'] });
   const context = await browser.newContext({ ...devices['Pixel 7'], baseURL: SITE });
   const outside: string[] = [];
   await context.route('**/*', async route => {
     const url = new URL(route.request().url());
-    if (url.origin === 'https://www.cifraclub.com.br') return route.fulfill({ status: 200, contentType: 'text/html', body: HTML,
-      headers: { 'content-security-policy': "default-src 'none'; script-src 'none'", 'cross-origin-opener-policy': 'same-origin' } });
-    if (url.origin !== SITE) { outside.push(`${url.origin}${url.pathname}`); return route.abort('blockedbyclient'); }
+    if (url.origin === 'https://www.cifraclub.com.br')
+      return route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: HTML,
+        headers: { 'content-security-policy': "default-src 'none'; script-src 'none'", 'cross-origin-opener-policy': 'same-origin' },
+      });
+    if (url.origin !== SITE) {
+      outside.push(`${url.origin}${url.pathname}`);
+      return route.abort('blockedbyclient');
+    }
     if (url.pathname === '/sw.js') return route.fulfill({ status: 404, body: '' });
     const path = resolve(DIST, `.${decodeURIComponent(url.pathname)}`);
     if (path !== DIST && !path.startsWith(`${DIST}${sep}`)) return route.abort('blockedbyclient');
-    try { return route.fulfill({ contentType: MIME[extname(path)] || 'application/octet-stream', body: await readFile(path) }); }
-    catch {
+    try {
+      return route.fulfill({ contentType: MIME[extname(path)] || 'application/octet-stream', body: await readFile(path) });
+    } catch {
       if (extname(url.pathname)) return route.fulfill({ status: 404, body: '' });
       return route.fulfill({ contentType: 'text/html', body: await readFile(join(DIST, 'index.html')) });
     }
@@ -76,14 +105,29 @@ async function harness(role: Role = 'admin'): Promise<Harness> {
     };
   });
   const mock = await setupMockMinistry(page, role);
-  return { browser, context, page, mock, async dispose() {
-    try { await browser.close(); expect(outside, 'Nenhuma chamada fora das fixtures foi iniciada.').toEqual([]); }
-    finally { /* Playwright owns and removes the temporary browser profile. */ }
-  } };
+  return {
+    browser,
+    context,
+    page,
+    mock,
+    async dispose() {
+      try {
+        await browser.close();
+        expect(outside, 'Nenhuma chamada fora das fixtures foi iniciada.').toEqual([]);
+      } finally {
+        /* Playwright owns and removes the temporary browser profile. */
+      }
+    },
+  };
 }
 
-const writes = (mock: MockMinistry) => mock.calls.filter(call => !['GET', 'HEAD', 'OPTIONS'].includes(call.method)
-  && call.path.startsWith('/rest/v1/') && !/\/rpc\/(get_public_access|read_public_ministry)$/.test(call.path));
+const writes = (mock: MockMinistry) =>
+  mock.calls.filter(
+    call =>
+      !['GET', 'HEAD', 'OPTIONS'].includes(call.method) &&
+      call.path.startsWith('/rest/v1/') &&
+      !/\/rpc\/(get_public_access|read_public_ministry)$/.test(call.path),
+  );
 
 async function signInOnCurrentPage(page: Page) {
   await page.getByLabel('E-mail', { exact: true }).fill('fixture@example.invalid');
@@ -113,7 +157,9 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
       expect(writes(h.mock)).toHaveLength(0);
       await signInOnCurrentPage(h.page);
       await pending(h.page);
-      const authSnapshots = await h.page.evaluate(() => (window as unknown as { __mobileAuthHashSnapshots: string[] }).__mobileAuthHashSnapshots);
+      const authSnapshots = await h.page.evaluate(
+        () => (window as unknown as { __mobileAuthHashSnapshots: string[] }).__mobileAuthHashSnapshots,
+      );
       expect(authSnapshots.length).toBeGreaterThan(0);
       expect(authSnapshots.every(hash => hash === '')).toBe(true);
       await h.page.reload();
@@ -135,11 +181,14 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
       const saved = h.mock.data.songs.find(song => song.title === TITLE)!;
       expect(saved.artist).toBe(ARTIST);
       expect(saved.content).toBe(CONVERTED);
-      expect(saved.originalKey).toBe('Bb'); expect(saved.churchKey).toBe('Bb');
+      expect(saved.originalKey).toBe('Bb');
+      expect(saved.churchKey).toBe('Bb');
       expect(saved.notes).toContain(CIFRA);
       expect(writes(h.mock)).toEqual([{ method: 'POST', path: '/rest/v1/rpc/save_song' }]);
       expect(await h.page.evaluate(() => sessionStorage.getItem('candeia.mobile-cifra.v1'))).toBeNull();
-    } finally { await h.dispose(); }
+    } finally {
+      await h.dispose();
+    }
   });
 
   test('rascunho da importação fica isolado e preserva a nova música comum', async () => {
@@ -171,14 +220,18 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
       await expect(dialog.getByLabel('Artista / compositor', { exact: true })).toHaveValue('Equipe local');
       await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('[C]Texto do rascunho comum');
       expect(writes(h.mock)).toHaveLength(0);
-    } finally { await h.dispose(); }
+    } finally {
+      await h.dispose();
+    }
   });
 
   test('sem metadados de tom e com harmonia ambígua exige confirmação antes de importar ou salvar', async () => {
     const h = await harness();
     try {
       await h.mock.login();
-      await h.page.goto(transfer({ ...SOURCE, displayedKey: undefined, soundingKey: undefined, keyUnknownReason: 'Confirme o tom dos acordes escritos.' }));
+      await h.page.goto(
+        transfer({ ...SOURCE, displayedKey: undefined, soundingKey: undefined, keyUnknownReason: 'Confirme o tom dos acordes escritos.' }),
+      );
       await pending(h.page);
       await h.page.getByRole('button', { name: 'Revisar e salvar na biblioteca', exact: true }).click();
       const dialog = h.page.getByRole('dialog');
@@ -192,43 +245,53 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
       await expect(dialog).toBeHidden();
       expect(h.mock.data.songs.find(song => song.title === TITLE)!.content).toBe(CONVERTED);
       expect(writes(h.mock)).toHaveLength(1);
-    } finally { await h.dispose(); }
+    } finally {
+      await h.dispose();
+    }
   });
 
-  for (const kind of ['fonte externa', 'payload grande'] as const) test(`rejeita ${kind}, remove hash e não envia gravações`, async () => {
-    const h = await harness();
-    try {
-      await h.mock.login();
-      const url = kind === 'fonte externa' ? transfer({ ...SOURCE, sourceUrl: 'https://example.invalid/artista/cifra/' })
-        : `${SITE}/importar-cifra${PREFIX}${'a'.repeat(100_001)}`;
-      await h.page.goto(url);
-      await expect(h.page).toHaveURL(`${SITE}/importar-cifra`);
-      await expect(h.page.getByRole('alert')).toContainText(kind === 'fonte externa' ? 'Cifra Club' : 'grande');
-      await expect(h.page.getByRole('button', { name: 'Revisar e salvar na biblioteca', exact: true })).toHaveCount(0);
-      expect(await h.page.evaluate(() => sessionStorage.getItem('candeia.mobile-cifra.v1'))).toBeNull();
-      expect(writes(h.mock)).toHaveLength(0);
-    } finally { await h.dispose(); }
-  });
-
-  for (const role of ['guest', 'musician'] as const) test(`${role} precisa de aprovação para consultar e de administração para salvar`, async () => {
-    const h = await harness(role === 'guest' ? 'admin' : role);
-    try {
-      if (role === 'musician') await h.mock.login();
-      await h.page.goto(transfer());
-      if (role === 'guest') {
-        await expect(h.page.getByRole('button', { name: 'Entrar no ministério', exact: true })).toBeVisible();
-        await expect(h.page.getByRole('button', { name: 'Entrar sem cadastro', exact: true })).toHaveCount(0);
+  for (const kind of ['fonte externa', 'payload grande'] as const)
+    test(`rejeita ${kind}, remove hash e não envia gravações`, async () => {
+      const h = await harness();
+      try {
+        await h.mock.login();
+        const url =
+          kind === 'fonte externa'
+            ? transfer({ ...SOURCE, sourceUrl: 'https://example.invalid/artista/cifra/' })
+            : `${SITE}/importar-cifra${PREFIX}${'a'.repeat(100_001)}`;
+        await h.page.goto(url);
+        await expect(h.page).toHaveURL(`${SITE}/importar-cifra`);
+        await expect(h.page.getByRole('alert')).toContainText(kind === 'fonte externa' ? 'Cifra Club' : 'grande');
         await expect(h.page.getByRole('button', { name: 'Revisar e salvar na biblioteca', exact: true })).toHaveCount(0);
+        expect(await h.page.evaluate(() => sessionStorage.getItem('candeia.mobile-cifra.v1'))).toBeNull();
         expect(writes(h.mock)).toHaveLength(0);
-        return;
+      } finally {
+        await h.dispose();
       }
-      await pending(h.page);
-      await expect(h.page.getByRole('button', { name: 'Revisar e salvar na biblioteca', exact: true })).toHaveCount(0);
-      await expect(h.page.getByRole('button', { name: 'Salvar música', exact: true })).toHaveCount(0);
-      await expect(h.page.getByText('Uma conta administradora pode salvar esta cifra na biblioteca.', { exact: false })).toBeVisible();
-      expect(writes(h.mock)).toHaveLength(0);
-    } finally { await h.dispose(); }
-  });
+    });
+
+  for (const role of ['guest', 'musician'] as const)
+    test(`${role} precisa de aprovação para consultar e de administração para salvar`, async () => {
+      const h = await harness(role === 'guest' ? 'admin' : role);
+      try {
+        if (role === 'musician') await h.mock.login();
+        await h.page.goto(transfer());
+        if (role === 'guest') {
+          await expect(h.page.getByRole('button', { name: 'Entrar no ministério', exact: true })).toBeVisible();
+          await expect(h.page.getByRole('button', { name: 'Entrar sem cadastro', exact: true })).toHaveCount(0);
+          await expect(h.page.getByRole('button', { name: 'Revisar e salvar na biblioteca', exact: true })).toHaveCount(0);
+          expect(writes(h.mock)).toHaveLength(0);
+          return;
+        }
+        await pending(h.page);
+        await expect(h.page.getByRole('button', { name: 'Revisar e salvar na biblioteca', exact: true })).toHaveCount(0);
+        await expect(h.page.getByRole('button', { name: 'Salvar música', exact: true })).toHaveCount(0);
+        await expect(h.page.getByText('Uma conta administradora pode salvar esta cifra na biblioteca.', { exact: false })).toBeVisible();
+        expect(writes(h.mock)).toHaveLength(0);
+      } finally {
+        await h.dispose();
+      }
+    });
 
   test('favorito empacotado navega por javascript: com CSP/COOP e entrega cifra/metadados sem clipboard', async () => {
     const h = await harness();
@@ -236,7 +299,10 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
       await h.mock.login();
       await h.page.goto(CIFRA);
       const alerts: string[] = [];
-      h.page.on('dialog', async dialog => { alerts.push(dialog.message()); await dialog.dismiss(); });
+      h.page.on('dialog', async dialog => {
+        alerts.push(dialog.message());
+        await dialog.dismiss();
+      });
       const favorite = (await readFile(resolve('public/downloads/candeia-cifra-celular.txt'), 'utf8')).trim();
       expect(favorite).toMatch(/^javascript:/);
       const cdp = await h.context.newCDPSession(h.page);
@@ -252,7 +318,9 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
       await expect(dialog.getByLabel('Tom na igreja', { exact: true })).toHaveValue('G');
       await expect(dialog.getByLabel('Artista / compositor', { exact: true })).toHaveValue(ARTIST);
       await expect(dialog).toContainText('Capotraste na fonte: 3ª casa');
-    } finally { await h.dispose(); }
+    } finally {
+      await h.dispose();
+    }
   });
 
   test('script empacotado do AtalhoApple chama completion uma vez e transfere a mesma cifra', async () => {
@@ -264,7 +332,9 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
       const cdp = await h.context.newCDPSession(h.page);
       // completion is an Apple Shortcuts host function. Stub only that native
       // host boundary; execute the exact assembled script against a real DOM.
-      const execution = await cdp.send('Runtime.evaluate', { expression: `window.__shortcutOutputs = []; window.completion = value => window.__shortcutOutputs.push(value);\n${shortcut}` });
+      const execution = await cdp.send('Runtime.evaluate', {
+        expression: `window.__shortcutOutputs = []; window.completion = value => window.__shortcutOutputs.push(value);\n${shortcut}`,
+      });
       expect(execution.exceptionDetails).toBeUndefined();
       const outputs = await h.page.evaluate(() => (window as unknown as { __shortcutOutputs: unknown[] }).__shortcutOutputs);
       expect(outputs).toHaveLength(1);
@@ -274,19 +344,29 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
       await h.page.goto(outputs[0] as string);
       await pending(h.page);
       expect(writes(h.mock)).toHaveLength(0);
-    } finally { await h.dispose(); }
+    } finally {
+      await h.dispose();
+    }
   });
 
   test('AtalhoApple sem cifra lança erro legível sem alert, completion ou gravação', async () => {
     const h = await harness();
     try {
       await h.mock.login();
-      await h.context.route(CIFRA, route => route.fulfill({ status: 200, contentType: 'text/html',
-        body: `<!doctype html><title>${TITLE} - ${ARTIST} - Cifra Club</title><h1>${TITLE}</h1><p>A cifra ainda não apareceu.</p>`,
-        headers: { 'content-security-policy': "default-src 'none'; script-src 'none'", 'cross-origin-opener-policy': 'same-origin' } }));
+      await h.context.route(CIFRA, route =>
+        route.fulfill({
+          status: 200,
+          contentType: 'text/html',
+          body: `<!doctype html><title>${TITLE} - ${ARTIST} - Cifra Club</title><h1>${TITLE}</h1><p>A cifra ainda não apareceu.</p>`,
+          headers: { 'content-security-policy': "default-src 'none'; script-src 'none'", 'cross-origin-opener-policy': 'same-origin' },
+        }),
+      );
       await h.page.goto(CIFRA);
       const alerts: string[] = [];
-      h.page.on('dialog', async dialog => { alerts.push(dialog.message()); await dialog.dismiss(); });
+      h.page.on('dialog', async dialog => {
+        alerts.push(dialog.message());
+        await dialog.dismiss();
+      });
       const shortcut = await readFile(resolve('public/downloads/candeia-cifra-iphone.js'), 'utf8');
       const cdp = await h.context.newCDPSession(h.page);
       const execution = await cdp.send('Runtime.evaluate', {
@@ -298,6 +378,8 @@ test.describe('importação móvel: Chromium com toque, rede totalmente simulada
       expect(alerts).toEqual([]);
       await expect(h.page).toHaveURL(CIFRA);
       expect(writes(h.mock)).toHaveLength(0);
-    } finally { await h.dispose(); }
+    } finally {
+      await h.dispose();
+    }
   });
 });

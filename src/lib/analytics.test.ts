@@ -4,12 +4,34 @@ import { analyticsDateRange, analyticsRangeError, buildMinistryAnalytics, minist
 
 const today = '2026-10-08';
 const all = { start: '', end: '' };
-const service = (id: string, date: string, values: Partial<Service> = {}): Service => ({ id, date, time: '19:00', type: 'Santa Ceia', notes: '', assignments: [], repertoire: [], ...values });
-const song = (id: string, tagIds: string[]) => ({ id, title: `Música ${id}`, artist: 'Equipe', originalKey: 'C', churchKey: 'C', content: '[C]Verso', youtubeUrl: '', notes: '', tagIds });
+const service = (id: string, date: string, values: Partial<Service> = {}): Service => ({
+  id,
+  date,
+  time: '19:00',
+  type: 'Santa Ceia',
+  notes: '',
+  assignments: [],
+  repertoire: [],
+  ...values,
+});
+const song = (id: string, tagIds: string[]) => ({
+  id,
+  title: `Música ${id}`,
+  artist: 'Equipe',
+  originalKey: 'C',
+  churchKey: 'C',
+  content: '[C]Verso',
+  youtubeUrl: '',
+  notes: '',
+  tagIds,
+});
 
 function ministry(): MinistryData {
   return {
-    tags: [{ id: 't1', name: 'Adoração', color: '#ff8800' }, { id: 't2', name: 'Comunhão', color: '#111111' }],
+    tags: [
+      { id: 't1', name: 'Adoração', color: '#ff8800' },
+      { id: 't2', name: 'Comunhão', color: '#111111' },
+    ],
     people: [
       { id: 'p1', name: 'Ana', email: 'private-ana@example.invalid', functions: ['Voz', 'Teclado'] },
       { id: 'p2', name: 'João', email: 'private-joao@example.invalid', functions: ['Voz'] },
@@ -24,13 +46,19 @@ function ministry(): MinistryData {
           { id: 'a3', personId: 'p1', function: 'Voz' },
           { id: 'a4', personId: 'p2', function: 'Voz' },
         ],
-        repertoire: [{ id: 'r1', songId: 's1', key: 'C', notes: '' }, { id: 'r2', songId: 's1', key: 'C', notes: '' }, { id: 'r3', songId: 's2', key: 'D', notes: '' }],
+        repertoire: [
+          { id: 'r1', songId: 's1', key: 'C', notes: '' },
+          { id: 'r2', songId: 's1', key: 'C', notes: '' },
+          { id: 'r3', songId: 's2', key: 'D', notes: '' },
+        ],
       }),
       service('b', '2026-10-08', {
-        type: 'Culto de Louvor', assignments: [{ id: 'b1', personId: 'p1', function: 'Voz' }],
+        type: 'Culto de Louvor',
+        assignments: [{ id: 'b1', personId: 'p1', function: 'Voz' }],
         repertoire: [{ id: 'r4', songId: 's1', key: 'D', notes: '' }],
       }),
-      service('before', '2026-09-08'), service('future', '2026-10-09'),
+      service('before', '2026-09-08'),
+      service('future', '2026-10-09'),
     ],
   };
 }
@@ -70,14 +98,35 @@ describe('planned ministry analytics', () => {
     const snapshot = JSON.stringify(data);
     const report = buildMinistryAnalytics(data, analyticsDateRange('30', today), today);
     expect(report).toMatchObject({
-      services: 2, participations: 3, assignments: 4, songUses: 3,
-      uniquePeople: 2, uniqueSongs: 2, averageTeam: 1.5, servicesWithTeam: 2, servicesWithSongs: 2, futureServices: 0,
+      services: 2,
+      participations: 3,
+      assignments: 4,
+      songUses: 3,
+      uniquePeople: 2,
+      uniqueSongs: 2,
+      averageTeam: 1.5,
+      servicesWithTeam: 2,
+      servicesWithSongs: 2,
+      futureServices: 0,
       inventory: { songs: 3, people: 3, tags: 2, unusedSongs: 1, unscheduledPeople: 1 },
     });
-    expect(report.people[0]).toMatchObject({ id: 'p1', label: 'Ana', count: 2, percentage: 100, functions: ['Teclado', 'Voz'], lastDate: today });
+    expect(report.people[0]).toMatchObject({
+      id: 'p1',
+      label: 'Ana',
+      count: 2,
+      percentage: 100,
+      functions: ['Teclado', 'Voz'],
+      lastDate: today,
+    });
     expect(report.people[1]).toMatchObject({ id: 'p2', count: 1, percentage: 50 });
-    expect(report.songs.map(row => [row.id, row.count, row.percentage])).toEqual([['s1', 2, 100], ['s2', 1, 50]]);
-    expect(report.functions.map(row => [row.label, row.count, row.percentage])).toEqual([['Voz', 3, 75], ['Teclado', 1, 25]]);
+    expect(report.songs.map(row => [row.id, row.count, row.percentage])).toEqual([
+      ['s1', 2, 100],
+      ['s2', 1, 50],
+    ]);
+    expect(report.functions.map(row => [row.label, row.count, row.percentage])).toEqual([
+      ['Voz', 3, 75],
+      ['Teclado', 1, 25],
+    ]);
     expect(report.themes).toHaveLength(2);
     expect(report.times).toEqual([{ id: '19:00', label: '19:00', count: 2, percentage: 100 }]);
     expect(JSON.stringify(data)).toBe(snapshot);
@@ -111,10 +160,15 @@ describe('planned ministry analytics', () => {
   it('keeps counts and clear placeholders for missing records without exposing private metadata', () => {
     const data = ministry();
     data.songs[0].tagIds = ['missing-tag'];
-    data.services = [service('a', today, {
-      assignments: [{ id: 'a1', personId: 'missing-person', function: 'Voz' }],
-      repertoire: [{ id: 'r1', songId: 'missing-song', key: 'C', notes: '' }, { id: 'r2', songId: 's1', key: 'C', notes: '' }],
-    })];
+    data.services = [
+      service('a', today, {
+        assignments: [{ id: 'a1', personId: 'missing-person', function: 'Voz' }],
+        repertoire: [
+          { id: 'r1', songId: 'missing-song', key: 'C', notes: '' },
+          { id: 'r2', songId: 's1', key: 'C', notes: '' },
+        ],
+      }),
+    ];
     const report = buildMinistryAnalytics(data, all, today);
     expect(report).toMatchObject({ services: 1, participations: 1, songUses: 2, uniquePeople: 1, uniqueSongs: 2 });
     expect(report.people[0].label).toBe('Pessoa indisponível');
@@ -128,7 +182,10 @@ describe('planned ministry analytics', () => {
     data.services = [service('jan', '2026-01-08'), service('march', '2026-03-09')];
     const report = buildMinistryAnalytics(data, { start: '2026-01-01', end: '2026-04-30' }, today);
     expect(report.timeline.map(point => [point.id, point.services])).toEqual([
-      ['2026-01', 1], ['2026-02', 0], ['2026-03', 1], ['2026-04', 0],
+      ['2026-01', 1],
+      ['2026-02', 0],
+      ['2026-03', 1],
+      ['2026-04', 0],
     ]);
     expect(report.timelineLabel).toBe('Por mês');
   });

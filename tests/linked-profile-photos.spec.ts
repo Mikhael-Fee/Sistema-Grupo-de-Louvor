@@ -8,10 +8,14 @@ async function seedPhoto(page: Page, mock: MockMinistry, ownerId: string, number
   const image = await page.evaluate(async index => {
     const backendPath = '/src/lib/backend.ts';
     const { supabase } = await import(backendPath);
-    const canvas = document.createElement('canvas'); canvas.width = 24; canvas.height = 24;
+    const canvas = document.createElement('canvas');
+    canvas.width = 24;
+    canvas.height = 24;
     const context = canvas.getContext('2d')!;
-    context.fillStyle = index % 2 ? '#d36c27' : '#333333'; context.fillRect(0, 0, 24, 24);
-    context.fillStyle = '#ffffff'; context.fillRect(6, 6, 12, 12);
+    context.fillStyle = index % 2 ? '#d36c27' : '#333333';
+    context.fillRect(0, 0, 24, 24);
+    context.fillStyle = '#ffffff';
+    context.fillRect(6, 6, 12, 12);
     return { origin: new URL(supabase.supabaseUrl).origin, data: canvas.toDataURL('image/png') };
   }, number);
   const objectId = `30000000-0000-4000-8000-${String(number).padStart(12, '0')}`;
@@ -27,7 +31,8 @@ async function expectPhoto(container: Locator, url: string) {
   await expect.poll(() => image.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(24);
 }
 
-const personCard = (page: Page, name: string) => page.locator('.people-person').filter({ has: page.getByRole('heading', { name, exact: true }) });
+const personCard = (page: Page, name: string) =>
+  page.locator('.people-person').filter({ has: page.getByRole('heading', { name, exact: true }) });
 const teamRow = (page: Page, name: string) => page.locator('.service-team-list li').filter({ has: page.getByText(name, { exact: true }) });
 // The home row also contains the current member's “você” badge.
 const homeTeamRow = (page: Page, name: string) => page.locator('.home-team-person').filter({ hasText: name });
@@ -57,13 +62,18 @@ test('foto cadastrada na pessoa aparece no painel, escala, seleção de equipe e
   await expectPhoto(teamRow(page, person.name), personPhoto);
   await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  await expectPhoto(dialog.locator('.service-batch-person').filter({ has: page.getByRole('checkbox', { name: `Selecionar ${person.name}`, exact: true }) }), personPhoto);
+  await expectPhoto(
+    dialog.locator('.service-batch-person').filter({ has: page.getByRole('checkbox', { name: `Selecionar ${person.name}`, exact: true }) }),
+    personPhoto,
+  );
   await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await page.goto('/perfil');
   await expectPhoto(page.locator('.profile-page-identity'), personPhoto);
   await expect(page.getByRole('button', { name: 'Remover foto', exact: true })).toHaveCount(0);
   expect(mock.profiles[0].photoUrl).toBeUndefined();
-  expect(mock.calls.filter(call => call.method === 'POST' && /\/rpc\/(?:save_service|update_my_profile_photo|update_profile)$/.test(call.path))).toHaveLength(0);
+  expect(
+    mock.calls.filter(call => call.method === 'POST' && /\/rpc\/(?:save_service|update_my_profile_photo|update_profile)$/.test(call.path)),
+  ).toHaveLength(0);
 });
 
 test('administrador vincula selfie à pessoa; desvincular ou suspender acesso retira o fallback', async ({ page }) => {
@@ -118,7 +128,8 @@ test('foto própria da pessoa tem prioridade na equipe; remover selfie usa cadas
   const person = mock.data.people[0];
   const personPhoto = await seedPhoto(page, mock, mock.profiles[0].id, 3);
   const selfie = await seedPhoto(page, mock, mock.profiles[0].id, 4);
-  person.photoUrl = personPhoto; mock.profiles[0].photoUrl = selfie;
+  person.photoUrl = personPhoto;
+  mock.profiles[0].photoUrl = selfie;
   await mock.login();
   await expectPhoto(page.locator('.topbar-profile-link'), selfie);
   await expectNextService(page, mock);
@@ -149,7 +160,9 @@ test('remover foto do cadastro revela selfie vinculada ao músico aprovado, sem 
   const person = mock.data.people[0];
   const personPhoto = await seedPhoto(page, mock, mock.profiles[0].id, 5);
   const selfie = await seedPhoto(page, mock, mock.profiles[0].id, 6);
-  person.photoUrl = personPhoto; person.email = 'private-contact@example.invalid'; mock.profiles[0].photoUrl = selfie;
+  person.photoUrl = personPhoto;
+  person.email = 'private-contact@example.invalid';
+  mock.profiles[0].photoUrl = selfie;
   await mock.login();
   await page.goto('/pessoas');
   await page.getByRole('button', { name: `Editar ${person.name}`, exact: true }).click();
@@ -202,6 +215,9 @@ test('remover foto do cadastro revela selfie vinculada ao músico aprovado, sem 
   await page.goto('/administracao');
   await expect(page).toHaveURL('/');
   await expect(page.locator('.admin-user-row')).toHaveCount(0);
-  expect(mock.calls.slice(readOnlyStart).filter(call => !['GET', 'HEAD', 'OPTIONS'].includes(call.method)
-    && /\/(?:rest|storage)\/v1\//.test(call.path))).toHaveLength(0);
+  expect(
+    mock.calls
+      .slice(readOnlyStart)
+      .filter(call => !['GET', 'HEAD', 'OPTIONS'].includes(call.method) && /\/(?:rest|storage)\/v1\//.test(call.path)),
+  ).toHaveLength(0);
 });

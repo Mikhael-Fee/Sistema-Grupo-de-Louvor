@@ -14,7 +14,10 @@ export function ensurePdfPromiseCompatibility(): void {
     value: function withResolvers<T>(this: PromiseConstructor): PromiseCapability<T> {
       let resolve!: PromiseCapability<T>['resolve'];
       let reject!: PromiseCapability<T>['reject'];
-      const promise = new this<T>((complete, fail) => { resolve = complete; reject = fail; });
+      const promise = new this<T>((complete, fail) => {
+        resolve = complete;
+        reject = fail;
+      });
       return { promise, resolve, reject };
     },
   });

@@ -45,7 +45,9 @@ for (const width of [1280, 320]) {
     await expect(page.getByRole('heading', { name: 'Nenhuma música com esses filtros', exact: true })).toBeVisible();
     await expect(page.locator('.songs-row')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    expect(mock.calls.filter(call => !['GET', 'HEAD', 'OPTIONS'].includes(call.method) && call.path.startsWith('/rest/v1/'))).toHaveLength(0);
+    expect(mock.calls.filter(call => !['GET', 'HEAD', 'OPTIONS'].includes(call.method) && call.path.startsWith('/rest/v1/'))).toHaveLength(
+      0,
+    );
   });
 
   test(`editar e excluir etiqueta preserva músicas e não abre a biblioteca (${width}px)`, async ({ page }) => {

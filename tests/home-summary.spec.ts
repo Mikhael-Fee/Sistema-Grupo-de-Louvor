@@ -3,8 +3,13 @@ import { setupMockMinistry } from './fixtures';
 
 test.use({ trace: 'off', screenshot: 'off' });
 
-for (const scenario of [{ width: 1200, role: 'admin' }, { width: 320, role: 'musician' }] as const) {
-  test(`painel resume observação específica do repertório em uma linha (${scenario.width}px, ${scenario.role === 'musician' ? 'músico aprovado' : 'administrador'})`, async ({ page }) => {
+for (const scenario of [
+  { width: 1200, role: 'admin' },
+  { width: 320, role: 'musician' },
+] as const) {
+  test(`painel resume observação específica do repertório em uma linha (${scenario.width}px, ${scenario.role === 'musician' ? 'músico aprovado' : 'administrador'})`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: scenario.width, height: 900 });
     const mock = await setupMockMinistry(page, scenario.role);
     const service = mock.data.services[0];
@@ -46,9 +51,15 @@ for (const scenario of [{ width: 1200, role: 'admin' }, { width: 320, role: 'mus
     }
     const geometry = await longNote.evaluate(element => {
       const style = getComputedStyle(element);
-      return { whiteSpace: style.whiteSpace, textOverflow: style.textOverflow, overflow: style.overflowX,
-        width: element.clientWidth, fullWidth: element.scrollWidth, height: element.clientHeight,
-        lineHeight: Number.parseFloat(style.lineHeight) };
+      return {
+        whiteSpace: style.whiteSpace,
+        textOverflow: style.textOverflow,
+        overflow: style.overflowX,
+        width: element.clientWidth,
+        fullWidth: element.scrollWidth,
+        height: element.clientHeight,
+        lineHeight: Number.parseFloat(style.lineHeight),
+      };
     });
     expect(geometry.whiteSpace).toBe('nowrap');
     expect(geometry.textOverflow).toBe('ellipsis');
@@ -56,7 +67,8 @@ for (const scenario of [{ width: 1200, role: 'admin' }, { width: 320, role: 'mus
     expect(geometry.fullWidth).toBeGreaterThan(geometry.width);
     if (Number.isFinite(geometry.lineHeight)) expect(geometry.height).toBeLessThanOrEqual(geometry.lineHeight + 1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    expect(mock.calls.filter(call => !['GET', 'HEAD', 'OPTIONS'].includes(call.method)
-      && /\/(?:rest|storage)\/v1\//.test(call.path))).toHaveLength(0);
+    expect(
+      mock.calls.filter(call => !['GET', 'HEAD', 'OPTIONS'].includes(call.method) && /\/(?:rest|storage)\/v1\//.test(call.path)),
+    ).toHaveLength(0);
   });
 }

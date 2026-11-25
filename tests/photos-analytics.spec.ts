@@ -2,15 +2,21 @@ import { expect, test, type Page } from '@playwright/test';
 import { loginAs, setupMockMinistry, type MockMinistry } from './fixtures';
 
 test.use({ trace: 'off', screenshot: 'off' });
-const isWrite = (call: { method: string; path: string }) => !['GET', 'HEAD', 'OPTIONS'].includes(call.method)
-  && /\/(?:rest|storage)\/v1\//.test(call.path);
-const uploads = (mock: MockMinistry) => mock.calls.filter(call => call.method === 'POST' && call.path.startsWith('/storage/v1/object/avatars/'));
+const isWrite = (call: { method: string; path: string }) =>
+  !['GET', 'HEAD', 'OPTIONS'].includes(call.method) && /\/(?:rest|storage)\/v1\//.test(call.path);
+const uploads = (mock: MockMinistry) =>
+  mock.calls.filter(call => call.method === 'POST' && call.path.startsWith('/storage/v1/object/avatars/'));
 
 async function photo(page: Page) {
   const url = await page.evaluate(() => {
-    const canvas = document.createElement('canvas'); canvas.width = 48; canvas.height = 32;
-    const context = canvas.getContext('2d')!; context.fillStyle = '#d56825'; context.fillRect(0, 0, 48, 32);
-    context.fillStyle = '#ffffff'; context.fillRect(12, 8, 24, 16);
+    const canvas = document.createElement('canvas');
+    canvas.width = 48;
+    canvas.height = 32;
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = '#d56825';
+    context.fillRect(0, 0, 48, 32);
+    context.fillStyle = '#ffffff';
+    context.fillRect(12, 8, 24, 16);
     return canvas.toDataURL('image/png');
   });
   return { name: 'foto-original-de-teste.png', mimeType: 'image/png', buffer: Buffer.from(url.split(',')[1], 'base64') };
@@ -57,7 +63,11 @@ test('imagem inválida mostra erro e mantém formulário sem enviar foto ou pess
   await page.goto('/pessoas');
   await page.getByRole('button', { name: 'Nova pessoa', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Escolher foto', { exact: true }).setInputFiles({ name: 'invalida.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>') });
+  await dialog.getByLabel('Escolher foto', { exact: true }).setInputFiles({
+    name: 'invalida.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>'),
+  });
   await expect(dialog.getByRole('alert')).toContainText(/JPG|PNG|WebP|imagem|formato/i);
   expect(mock.calls.filter(isWrite)).toHaveLength(0);
   expect(mock.storage.objects.size).toBe(0);
@@ -85,7 +95,8 @@ test('músico atualiza e remove própria foto preservando papel, aprovação e p
   await page.getByRole('button', { name: 'Salvar foto', exact: true }).click();
   await expect.poll(() => mock.profiles[0].photoUrl).toBeUndefined();
   await expect(page.locator('.topbar-profile-link img')).toHaveCount(0);
-  expect(mock.profiles[0].role).toBe('musician'); expect(mock.profiles[0].approved).toBe(true);
+  expect(mock.profiles[0].role).toBe('musician');
+  expect(mock.profiles[0].approved).toBe(true);
   expect(mock.calls.filter(call => call.path === '/rest/v1/rpc/update_my_profile_photo')).toHaveLength(2);
   expect(mock.calls.filter(call => call.path === '/rest/v1/rpc/update_profile')).toHaveLength(0);
 });
@@ -94,27 +105,51 @@ function analyticsData(mock: MockMinistry) {
   const [person, second] = mock.data.people;
   const [song, other, third] = mock.data.songs;
   const make = (index: number, date: string, assignments: { personId: string; function: string }[], songs: string[]) => ({
-    id: `90000000-0000-4000-8000-${String(index).padStart(12, '0')}`, date, time: '18:00', type: index === 3 ? 'Vigília da equipe' : 'Encontro de teste', notes: '',
+    id: `90000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+    date,
+    time: '18:00',
+    type: index === 3 ? 'Vigília da equipe' : 'Encontro de teste',
+    notes: '',
     assignments: assignments.map((assignment, item) => ({ id: `a-${index}-${item}`, ...assignment })),
     repertoire: songs.map((songId, item) => ({ id: `r-${index}-${item}`, songId, key: 'G', notes: '' })),
   });
   mock.data.services = [
-    make(1, '2026-10-01', [{ personId: person.id, function: 'Voz' }, { personId: person.id, function: 'Violão' }, { personId: person.id, function: 'Voz' }, { personId: second.id, function: 'Teclado' }], [song.id, song.id, other.id]),
+    make(
+      1,
+      '2026-10-01',
+      [
+        { personId: person.id, function: 'Voz' },
+        { personId: person.id, function: 'Violão' },
+        { personId: person.id, function: 'Voz' },
+        { personId: second.id, function: 'Teclado' },
+      ],
+      [song.id, song.id, other.id],
+    ),
     make(2, '2026-10-03', [{ personId: person.id, function: 'Voz' }], [song.id]),
     make(3, '2026-11-01', [{ personId: second.id, function: 'Voz' }], [third.id]),
   ];
 }
 
 async function kpi(page: Page, label: string, number: string) {
-  await expect(page.getByRole('region', { name: 'Resumo das análises', exact: true }).locator('.analytics-stat').filter({ has: page.getByText(label, { exact: true }) }).locator('strong')).toHaveText(number);
+  await expect(
+    page
+      .getByRole('region', { name: 'Resumo das análises', exact: true })
+      .locator('.analytics-stat')
+      .filter({ has: page.getByText(label, { exact: true }) })
+      .locator('strong'),
+  ).toHaveText(number);
 }
 
 test('gráficos deduplicam pessoa e música por culto e filtram datas sem gravar dados', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-10-08T15:00:00Z'));
-  const mock = await setupMockMinistry(page); analyticsData(mock); await mock.login();
+  const mock = await setupMockMinistry(page);
+  analyticsData(mock);
+  await mock.login();
   await page.goto('/graficos');
   await expect(page.getByRole('heading', { name: 'Gráficos', exact: true })).toBeVisible();
-  await kpi(page, 'Cultos no período', '3'); await kpi(page, 'Participações na escala', '4'); await kpi(page, 'Músicas nos repertórios', '4');
+  await kpi(page, 'Cultos no período', '3');
+  await kpi(page, 'Participações na escala', '4');
+  await kpi(page, 'Músicas nos repertórios', '4');
   const people = page.getByRole('region', { name: 'Pessoas mais escaladas', exact: true });
   await expect(people).toHaveCount(0);
   await page.getByRole('tab', { name: 'Pessoas', exact: true }).click();
@@ -127,12 +162,16 @@ test('gráficos deduplicam pessoa e música por culto e filtram datas sem gravar
   await expect(page.getByRole('region', { name: 'Temáticas dos cultos', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
   await page.getByLabel('Filtrar gráficos por tipo de culto', { exact: true }).selectOption('Vigília da equipe');
-  await kpi(page, 'Cultos no período', '1'); await kpi(page, 'Participações na escala', '1'); await kpi(page, 'Músicas nos repertórios', '1');
+  await kpi(page, 'Cultos no período', '1');
+  await kpi(page, 'Participações na escala', '1');
+  await kpi(page, 'Músicas nos repertórios', '1');
   await page.getByLabel('Filtrar gráficos por tipo de culto', { exact: true }).selectOption('');
   await page.getByLabel('Período das análises', { exact: true }).selectOption('custom');
   await page.getByLabel('Data inicial das análises', { exact: true }).fill('2026-10-01');
   await page.getByLabel('Data final das análises', { exact: true }).fill('2026-10-03');
-  await kpi(page, 'Cultos no período', '2'); await kpi(page, 'Participações na escala', '3'); await kpi(page, 'Músicas nos repertórios', '3');
+  await kpi(page, 'Cultos no período', '2');
+  await kpi(page, 'Participações na escala', '3');
+  await kpi(page, 'Músicas nos repertórios', '3');
   await page.getByText('Ver números do gráfico', { exact: true }).click();
   const table = page.getByRole('table', { name: 'Planejamento por período', exact: true });
   await expect(table.getByRole('row')).toHaveCount(2);
@@ -146,7 +185,9 @@ test('gráficos deduplicam pessoa e música por culto e filtram datas sem gravar
 
 test('músico aprovado vê gráficos no celular sem administração ou ações de edição', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const mock = await setupMockMinistry(page, 'musician'); analyticsData(mock); await mock.login();
+  const mock = await setupMockMinistry(page, 'musician');
+  analyticsData(mock);
+  await mock.login();
   await page.goto('/graficos');
   await expect(page.getByRole('heading', { name: 'Gráficos', exact: true })).toBeVisible();
   await kpi(page, 'Cultos no período', '3');

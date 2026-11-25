@@ -23,7 +23,16 @@ Uma luz nos guia
 Seguimos em paz</pre>
 </body></html>`;
 const SOURCE = { id: CIFRA, title: 'Luz da equipe', artist: 'Equipe da fonte', source: 'Cifra Club', kind: 'chords', sourceUrl: CIFRA };
-const MIME: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
+const MIME: Record<string, string> = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.woff2': 'font/woff2',
+  '.json': 'application/json',
+  '.webmanifest': 'application/manifest+json',
+};
 
 function extensionChromiumExecutable(): string {
   if (process.env.CANDEIA_EXTENSION_CHROMIUM_EXECUTABLE_PATH) return process.env.CANDEIA_EXTENSION_CHROMIUM_EXECUTABLE_PATH;
@@ -37,44 +46,76 @@ function extensionChromiumExecutable(): string {
   const revision = parts.findIndex(part => /^chromium-\d+$/.test(part));
   const cloudExecutable = revision >= 0 ? join('/workspace/scratch/playwright-cifra-browsers', ...parts.slice(revision)) : '';
   if (cloudExecutable && existsSync(cloudExecutable)) return cloudExecutable;
-  return process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
-    || (existsSync(defaultExecutable) ? defaultExecutable : existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : defaultExecutable);
+  return (
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ||
+    (existsSync(defaultExecutable) ? defaultExecutable : existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : defaultExecutable)
+  );
 }
 
 interface BridgeReply {
-  channel: string; version: number; type: string; requestId: string;
+  channel: string;
+  version: number;
+  type: string;
+  requestId: string;
   result?: { sourceUrl: string; title: string; artist: string; text: string; displayedKey?: string; soundingKey?: string; capo?: number };
   error?: string;
 }
 
 async function exchange(page: Page, type: 'ping' | 'read', sourceUrl?: string, timeout = 30_000): Promise<BridgeReply> {
-  return page.evaluate(({ type, sourceUrl, timeout }) => new Promise((resolve, reject) => {
-    const requestId = crypto.randomUUID();
-    const timer = setTimeout(() => { window.removeEventListener('message', receive); reject(new Error('A extensão não respondeu no prazo do teste.')); }, timeout);
-    function receive(event: MessageEvent) {
-      const reply = event.data;
-      if (event.source !== window || event.origin !== location.origin || reply?.channel !== 'candeia-cifraclub'
-        || reply.version !== 1 || reply.requestId !== requestId || !['ready', 'response'].includes(reply.type)) return;
-      clearTimeout(timer); window.removeEventListener('message', receive); resolve(reply);
-    }
-    window.addEventListener('message', receive);
-    window.postMessage({ channel: 'candeia-cifraclub', version: 1, type, requestId, ...(sourceUrl ? { sourceUrl } : {}) }, location.origin);
-  }), { type, sourceUrl, timeout }) as Promise<BridgeReply>;
+  return page.evaluate(
+    ({ type, sourceUrl, timeout }) =>
+      new Promise((resolve, reject) => {
+        const requestId = crypto.randomUUID();
+        const timer = setTimeout(() => {
+          window.removeEventListener('message', receive);
+          reject(new Error('A extensão não respondeu no prazo do teste.'));
+        }, timeout);
+        function receive(event: MessageEvent) {
+          const reply = event.data;
+          if (
+            event.source !== window ||
+            event.origin !== location.origin ||
+            reply?.channel !== 'candeia-cifraclub' ||
+            reply.version !== 1 ||
+            reply.requestId !== requestId ||
+            !['ready', 'response'].includes(reply.type)
+          )
+            return;
+          clearTimeout(timer);
+          window.removeEventListener('message', receive);
+          resolve(reply);
+        }
+        window.addEventListener('message', receive);
+        window.postMessage(
+          { channel: 'candeia-cifraclub', version: 1, type, requestId, ...(sourceUrl ? { sourceUrl } : {}) },
+          location.origin,
+        );
+      }),
+    { type, sourceUrl, timeout },
+  ) as Promise<BridgeReply>;
 }
 
 async function createHarness(cifraHtml = CIFRA_HTML): Promise<{ context: BrowserContext; page: Page; dispose(): Promise<void> }> {
   const profile = await mkdtemp('/tmp/candeia-cifra-extension-');
-  const env = Object.fromEntries(Object.entries(process.env).filter(([name, value]) => value !== undefined
-    && !/TOKEN|PASSWORD|SECRET|SERVICE_ROLE|DEBUG|PWDEBUG/i.test(name))) as Record<string, string>;
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name, value]) => value !== undefined && !/TOKEN|PASSWORD|SECRET|SERVICE_ROLE|DEBUG|PWDEBUG/i.test(name),
+    ),
+  ) as Record<string, string>;
   let context: BrowserContext;
   try {
     context = await chromium.launchPersistentContext(profile, {
       executablePath: extensionChromiumExecutable(),
-      headless: true, baseURL: SITE, env,
+      headless: true,
+      baseURL: SITE,
+      env,
       ignoreDefaultArgs: ['--disable-extensions'],
       args: ['--no-sandbox', `--disable-extensions-except=${EXTENSION}`, `--load-extension=${EXTENSION}`],
     });
-  } catch (error) { await rm(profile, { recursive: true, force: true }); throw error; }
+  } catch (error) {
+    await rm(profile, { recursive: true, force: true });
+    throw error;
+  }
   const outsideFixtureRequests: string[] = [];
   await context.route('**/*', async route => {
     const url = new URL(route.request().url());
@@ -89,9 +130,13 @@ async function createHarness(cifraHtml = CIFRA_HTML): Promise<{ context: Browser
       return route.abort('blockedbyclient');
     }
     if (url.pathname === '/.netlify/functions/song-search') {
-      return route.fulfill({ status: url.searchParams.has('url') ? 502 : 200,
-        contentType: 'application/json', body: JSON.stringify(url.searchParams.has('url')
-          ? { error: 'O Cifra Club bloqueou a consulta automática no servidor.' } : { results: [SOURCE] }) });
+      return route.fulfill({
+        status: url.searchParams.has('url') ? 502 : 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          url.searchParams.has('url') ? { error: 'O Cifra Club bloqueou a consulta automática no servidor.' } : { results: [SOURCE] },
+        ),
+      });
     }
     // Disable only the site's PWA worker, so fixtures cannot cache responses.
     // The extension's own service worker is still loaded by Chromium normally.
@@ -106,21 +151,29 @@ async function createHarness(cifraHtml = CIFRA_HTML): Promise<{ context: Browser
       return route.fulfill({ contentType: 'text/html', body: await readFile(join(DIST, 'index.html')) });
     }
   });
-  const page = context.pages()[0] || await context.newPage();
+  const page = context.pages()[0] || (await context.newPage());
   page.setDefaultTimeout(15_000);
-  return { context, page, async dispose() {
-    try {
-      await context.close();
-      expect(outsideFixtureRequests, 'Nenhuma chamada externa à rede de fixtures foi iniciada.').toEqual([]);
-    } finally { await rm(profile, { recursive: true, force: true }); }
-  } };
+  return {
+    context,
+    page,
+    async dispose() {
+      try {
+        await context.close();
+        expect(outsideFixtureRequests, 'Nenhuma chamada externa à rede de fixtures foi iniciada.').toEqual([]);
+      } finally {
+        await rm(profile, { recursive: true, force: true });
+      }
+    },
+  };
 }
 
 test.describe('importador Cifra Club: extensão real, websites simulados', () => {
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(45_000);
-  test.skip(!existsSync(join(EXTENSION, 'manifest.json')) || !existsSync(join(DIST, 'index.html')),
-    'Requer extensão do repositório e npm run build para servir a interface na URL permitida.');
+  test.skip(
+    !existsSync(join(EXTENSION, 'manifest.json')) || !existsSync(join(DIST, 'index.html')),
+    'Requer extensão do repositório e npm run build para servir a interface na URL permitida.',
+  );
 
   test('protocolo descobre extensão, lê DOM visível e encerra a aba temporária', async () => {
     const harness = await createHarness();
@@ -147,8 +200,10 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       await expect(ordinary.locator('pre')).toContainText('Uma luz nos guia');
       // Cifra Club also writes major seventh chords as F7M / Am7M. A chart
       // containing only these must still be recognized as a chord sheet.
-      const majorSevenths = CIFRA_HTML.replace(/<pre[^>]*>[\s\S]*?<\/pre>/,
-        '<pre data-original-key="C"><b>F7M</b>         <strong>Am7M</strong>\nUma luz nos guia</pre>');
+      const majorSevenths = CIFRA_HTML.replace(
+        /<pre[^>]*>[\s\S]*?<\/pre>/,
+        '<pre data-original-key="C"><b>F7M</b>         <strong>Am7M</strong>\nUma luz nos guia</pre>',
+      );
       await harness.context.route(CIFRA, route => route.fulfill({ status: 200, contentType: 'text/html', body: majorSevenths }));
       const seventhReply = await exchange(harness.page, 'read', CIFRA);
       expect(seventhReply.error).toBeUndefined();
@@ -156,7 +211,9 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       expect(seventhReply.result!.text).toBe('F7M         Am7M\nUma luz nos guia');
       await expect.poll(() => harness.context.pages().length).toBe(pagesBefore);
       expect(ordinary.isClosed()).toBe(false);
-    } finally { await harness.dispose(); }
+    } finally {
+      await harness.dispose();
+    }
   });
 
   test('ignora destinos fora do Cifra Club sem abrir abas', async () => {
@@ -169,11 +226,15 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       expect(reply.error).toBeTruthy();
       expect(reply.result).toBeUndefined();
       expect(harness.context.pages().length).toBe(pagesBefore);
-    } finally { await harness.dispose(); }
+    } finally {
+      await harness.dispose();
+    }
   });
 
   test('página bloqueada retorna erro explícito e fecha a consulta sem inventar cifra', async () => {
-    const harness = await createHarness('<!doctype html><title>Access Denied</title><h1>Access Denied</h1><p>You do not have permission to access this page.</p>');
+    const harness = await createHarness(
+      '<!doctype html><title>Access Denied</title><h1>Access Denied</h1><p>You do not have permission to access this page.</p>',
+    );
     try {
       await harness.page.goto(SITE);
       const pagesBefore = harness.context.pages().length;
@@ -182,7 +243,9 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       expect(reply.error).toBeTruthy();
       expect(reply.result).toBeUndefined();
       await expect.poll(() => harness.context.pages().length).toBe(pagesBefore);
-    } finally { await harness.dispose(); }
+    } finally {
+      await harness.dispose();
+    }
   });
 
   test('texto grande demais é rejeitado no leitor antes da importação', async () => {
@@ -195,7 +258,9 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       expect(reply.error).toMatch(/limite|100\.000/i);
       expect(reply.result).toBeUndefined();
       await expect.poll(() => harness.context.pages().length).toBe(pagesBefore);
-    } finally { await harness.dispose(); }
+    } finally {
+      await harness.dispose();
+    }
   });
 
   test('cancelamento fecha a aba de leitura e não importa uma resposta tardia', async () => {
@@ -207,13 +272,26 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
         const requestId = crypto.randomUUID();
         (window as unknown as { bridgeReplies: unknown[] }).bridgeReplies = [];
         window.addEventListener('message', event => {
-          if (event.source === window && event.origin === location.origin && event.data?.channel === 'candeia-cifraclub'
-            && event.data.requestId === requestId && event.data.type === 'response') {
+          if (
+            event.source === window &&
+            event.origin === location.origin &&
+            event.data?.channel === 'candeia-cifraclub' &&
+            event.data.requestId === requestId &&
+            event.data.type === 'response'
+          ) {
             (window as unknown as { bridgeReplies: unknown[] }).bridgeReplies.push(event.data);
           }
         });
-        window.postMessage({ channel: 'candeia-cifraclub', version: 1, type: 'read', requestId,
-          sourceUrl: 'https://www.cifraclub.com.br/equipe-de-teste/aguardando/' }, location.origin);
+        window.postMessage(
+          {
+            channel: 'candeia-cifraclub',
+            version: 1,
+            type: 'read',
+            requestId,
+            sourceUrl: 'https://www.cifraclub.com.br/equipe-de-teste/aguardando/',
+          },
+          location.origin,
+        );
         return requestId;
       });
       await expect.poll(() => harness.context.pages().length).toBe(pagesBefore + 1);
@@ -222,12 +300,17 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       expect(duplicate.result).toBeUndefined();
       expect(harness.context.pages().length).toBe(pagesBefore + 1);
       const temporary = harness.context.pages().find(page => page !== harness.page)!;
-      await harness.page.evaluate(requestId => window.postMessage({ channel: 'candeia-cifraclub', version: 1, type: 'cancel', requestId }, location.origin), requestId);
+      await harness.page.evaluate(
+        requestId => window.postMessage({ channel: 'candeia-cifraclub', version: 1, type: 'cancel', requestId }, location.origin),
+        requestId,
+      );
       await expect.poll(() => harness.context.pages().length).toBe(pagesBefore);
       expect(temporary.isClosed()).toBe(true);
       const replies = await harness.page.evaluate(() => (window as unknown as { bridgeReplies: BridgeReply[] }).bridgeReplies);
       expect(replies.every(reply => !reply.result)).toBe(true);
-    } finally { await harness.dispose(); }
+    } finally {
+      await harness.dispose();
+    }
   });
 
   test('site recebe prévia da extensão e exige confirmar troca, preservando tom e fonte', async () => {
@@ -258,7 +341,9 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(ORIGINAL);
       expect(mock.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(0);
       await dialog.getByRole('button', { name: 'Substituir letra e cifra', exact: true }).click();
-      await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('[D]Uma luz nos [A/C#]guia\n[Bm7]Seguimos em [G]paz');
+      await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(
+        '[D]Uma luz nos [A/C#]guia\n[Bm7]Seguimos em [G]paz',
+      );
       await expect(dialog.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveCount(0);
       await expect(dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true })).toHaveValue('D');
       await expect(dialog.getByLabel('Título', { exact: true })).toHaveValue('Título mantido no rascunho');
@@ -271,14 +356,18 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       expect(saved.churchKey).toBe('D');
       expect(saved.notes).toContain(CIFRA);
       expect(mock.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
-    } finally { await harness.dispose(); }
+    } finally {
+      await harness.dispose();
+    }
   });
 
   test('capotraste e tabs da página real do navegador resultam em teclado Bb e visualização C', async () => {
     const html = CIFRA_HTML.replace('Tom: <a>F</a>', 'Tom: <a>Bb</a> (forma dos acordes no tom de G)')
       .replace('<pre data-original-key="C">', '<div class="cifra_capo">Capotraste: 3</div><pre data-original-key="C">')
-      .replace('<b>F</b>', '<b>G</b>').replace('<b>C/E</b>', '<b>D/F#</b>')
-      .replace('<b>Dm7</b>', '<b>Em7</b>').replace('<b>Bb</b>', '<b>C</b>')
+      .replace('<b>F</b>', '<b>G</b>')
+      .replace('<b>C/E</b>', '<b>D/F#</b>')
+      .replace('<b>Dm7</b>', '<b>Em7</b>')
+      .replace('<b>Bb</b>', '<b>C</b>')
       .replace('</pre>', '\ne|--0--2--3--|\nB|--1--3--0--|</pre>');
     const harness = await createHarness(html);
     try {
@@ -291,7 +380,9 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       await dialog.getByRole('combobox', { name: 'Tom na igreja', exact: true }).selectOption('Bb');
       await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
       await dialog.getByRole('button', { name: `Ver prévia de ${SOURCE.title}`, exact: true }).click();
-      await expect(dialog.getByLabel('Prévia do conteúdo para importar', { exact: true })).toHaveText('[G]Uma luz nos [D/F#]guia\n[Em7]Seguimos em [C]paz');
+      await expect(dialog.getByLabel('Prévia do conteúdo para importar', { exact: true })).toHaveText(
+        '[G]Uma luz nos [D/F#]guia\n[Em7]Seguimos em [C]paz',
+      );
       await expect(dialog).toContainText('Capotraste na fonte: 3ª casa');
       await dialog.getByRole('checkbox', { name: 'Atualizar título e artista com os dados da fonte', exact: true }).check();
       await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
@@ -305,6 +396,8 @@ test.describe('importador Cifra Club: extensão real, websites simulados', () =>
       await expect(harness.page.locator('.song-chord').filter({ hasText: /^C$/ })).toHaveCount(1);
       await expect(harness.page.locator('.song-chord').filter({ hasText: /^G\/B$/ })).toHaveCount(1);
       expect(mock.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
-    } finally { await harness.dispose(); }
+    } finally {
+      await harness.dispose();
+    }
   });
 });

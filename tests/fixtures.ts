@@ -19,7 +19,7 @@ type Row = Record<string, unknown>;
 const copy = <T>(value: T): T => structuredClone(value);
 const put = <T extends { id: string }>(items: T[], item: T): T[] =>
   items.some(existing => existing.id === item.id)
-    ? items.map(existing => existing.id === item.id ? copy(item) : existing)
+    ? items.map(existing => (existing.id === item.id ? copy(item) : existing))
     : [...items, copy(item)];
 
 /** Intercept every Auth/PostgREST request; no mock may fall through to Supabase. */
@@ -37,7 +37,9 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
     publicAccess: false,
     calls: [],
     storage: { objects: new Map() },
-    setRole(nextRole) { mock.profiles.find(profile => profile.id === USER_ID)!.role = nextRole; },
+    setRole(nextRole) {
+      mock.profiles.find(profile => profile.id === USER_ID)!.role = nextRole;
+    },
     async login(nextRole) {
       const logout = page.getByRole('button', { name: /^(Sair|Entrar para editar)$/ }).first();
       if (await logout.isVisible()) await logout.click();
@@ -55,19 +57,29 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
   mock.profiles[1].personId = mock.data.people[1]?.id;
   mock.profiles[2].personId = mock.data.people[3]?.id;
   const actor = () => mock.profiles.find(profile => profile.id === USER_ID)!;
-  const authorized = (kind: 'read' | 'library' | 'plan' | 'admin') => signedIn && actor().approved
-    && (kind === 'read' || (kind === 'plan' ? ['admin', 'leader'].includes(actor().role) : actor().role === 'admin'));
-  const respond = (route: Route, data: unknown, status = 200) => route.fulfill({
-    status, contentType: 'application/json', body: JSON.stringify(data),
-    headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' },
-  });
+  const authorized = (kind: 'read' | 'library' | 'plan' | 'admin') =>
+    signedIn &&
+    actor().approved &&
+    (kind === 'read' || (kind === 'plan' ? ['admin', 'leader'].includes(actor().role) : actor().role === 'admin'));
+  const respond = (route: Route, data: unknown, status = 200) =>
+    route.fulfill({
+      status,
+      contentType: 'application/json',
+      body: JSON.stringify(data),
+      headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' },
+    });
   const error = (route: Route, code: string, message: string, status = 400) =>
     respond(route, { code, message, details: null, hint: null }, status);
   const denied = (route: Route) => error(route, '42501', 'Sem permissão para esta operação.', 403);
   const user = () => ({
-    id: USER_ID, aud: 'authenticated', role: 'authenticated', email: EMAIL,
-    email_confirmed_at: '2026-01-01T00:00:00Z', created_at: '2026-01-01T00:00:00Z',
-    app_metadata: { provider: 'email', providers: ['email'] }, user_metadata: { name: actor().name },
+    id: USER_ID,
+    aud: 'authenticated',
+    role: 'authenticated',
+    email: EMAIL,
+    email_confirmed_at: '2026-01-01T00:00:00Z',
+    created_at: '2026-01-01T00:00:00Z',
+    app_metadata: { provider: 'email', providers: ['email'] },
+    user_metadata: { name: actor().name },
     identities: [],
   });
   const session = () => {
@@ -75,8 +87,11 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
     const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
     return {
       access_token: `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: USER_ID, aud: 'authenticated', role: 'authenticated', iat: now, exp: now + 86400 })}.local-test-signature`,
-      refresh_token: 'local-fixture-refresh-token', token_type: 'bearer', expires_in: 86400,
-      expires_at: now + 86400, user: user(),
+      refresh_token: 'local-fixture-refresh-token',
+      token_type: 'bearer',
+      expires_in: 86400,
+      expires_at: now + 86400,
+      user: user(),
     };
   };
 
@@ -99,45 +114,89 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
   });
 
   const profileRow = (profile: Profile): Row => ({ ...profile, person_id: profile.personId ?? null, photo_url: profile.photoUrl || '' });
-  const teamProfilePhotos = () => mock.profiles.filter(profile => profile.approved && profile.personId && profile.photoUrl
-    && mock.data.people.some(person => person.id === profile.personId))
-    .map(profile => ({ personId: profile.personId!, photoUrl: profile.photoUrl! }));
+  const teamProfilePhotos = () =>
+    mock.profiles
+      .filter(
+        profile =>
+          profile.approved && profile.personId && profile.photoUrl && mock.data.people.some(person => person.id === profile.personId),
+      )
+      .map(profile => ({ personId: profile.personId!, photoUrl: profile.photoUrl! }));
   const tableRows = (table: string): Row[] | undefined => {
     switch (table) {
-      case 'profiles': return mock.profiles.map(profileRow);
-      case 'tags': return mock.data.tags.map(tag => ({ ...tag }));
-      case 'people': return mock.data.people.map(person => ({ ...person, photo_url: person.photoUrl || '' }));
-      case 'songs': return mock.data.songs.map(song => ({
-        id: song.id, title: song.title, artist: song.artist, original_key: song.originalKey,
-        church_key: song.churchKey, content: song.content, youtube_url: song.youtubeUrl, notes: song.notes,
-      }));
-      case 'services': return mock.data.services.map(service => ({
-        id: service.id, date: service.date, time: `${service.time}:00`, type: service.type, notes: service.notes, is_event: service.isEvent === true,
-      }));
-      case 'song_tags': return mock.data.songs.flatMap(song => song.tagIds.map(tagId => ({ song_id: song.id, tag_id: tagId })));
-      case 'assignments': return mock.data.services.flatMap(service => service.assignments.map((assignment, position) => ({
-        id: assignment.id, service_id: service.id, person_id: assignment.personId, function: assignment.function, position,
-        status: assignment.status ?? 'pending', status_note: assignment.statusNote ?? '',
-      })));
-      case 'unavailability': return (mock.data.unavailability ?? []).map(item => ({ id: item.id, person_id: item.personId, date: item.date, note: item.note }));
-      case 'repertoire': return mock.data.services.flatMap(service => service.repertoire.map((item, position) => ({
-        id: item.id, service_id: service.id, song_id: item.songId, key: item.key, notes: item.notes, position, youtube_url: item.youtubeUrl || '',
-      })));
-      default: return undefined;
+      case 'profiles':
+        return mock.profiles.map(profileRow);
+      case 'tags':
+        return mock.data.tags.map(tag => ({ ...tag }));
+      case 'people':
+        return mock.data.people.map(person => ({ ...person, photo_url: person.photoUrl || '' }));
+      case 'songs':
+        return mock.data.songs.map(song => ({
+          id: song.id,
+          title: song.title,
+          artist: song.artist,
+          original_key: song.originalKey,
+          church_key: song.churchKey,
+          content: song.content,
+          youtube_url: song.youtubeUrl,
+          notes: song.notes,
+        }));
+      case 'services':
+        return mock.data.services.map(service => ({
+          id: service.id,
+          date: service.date,
+          time: `${service.time}:00`,
+          type: service.type,
+          notes: service.notes,
+          is_event: service.isEvent === true,
+        }));
+      case 'song_tags':
+        return mock.data.songs.flatMap(song => song.tagIds.map(tagId => ({ song_id: song.id, tag_id: tagId })));
+      case 'assignments':
+        return mock.data.services.flatMap(service =>
+          service.assignments.map((assignment, position) => ({
+            id: assignment.id,
+            service_id: service.id,
+            person_id: assignment.personId,
+            function: assignment.function,
+            position,
+            status: assignment.status ?? 'pending',
+            status_note: assignment.statusNote ?? '',
+          })),
+        );
+      case 'unavailability':
+        return (mock.data.unavailability ?? []).map(item => ({ id: item.id, person_id: item.personId, date: item.date, note: item.note }));
+      case 'repertoire':
+        return mock.data.services.flatMap(service =>
+          service.repertoire.map((item, position) => ({
+            id: item.id,
+            service_id: service.id,
+            song_id: item.songId,
+            key: item.key,
+            notes: item.notes,
+            position,
+            youtube_url: item.youtubeUrl || '',
+          })),
+        );
+      default:
+        return undefined;
     }
   };
   const filteredRows = (rows: Row[], url: URL) => {
-    let result = rows.filter(row => [...url.searchParams].every(([key, filter]) => {
-      if (filter.startsWith('eq.')) return String(row[key]) === filter.slice(3);
-      if (filter.startsWith('in.(')) return filter.slice(4, -1).split(',').includes(String(row[key]));
-      return true;
-    }));
+    let result = rows.filter(row =>
+      [...url.searchParams].every(([key, filter]) => {
+        if (filter.startsWith('eq.')) return String(row[key]) === filter.slice(3);
+        if (filter.startsWith('in.(')) return filter.slice(4, -1).split(',').includes(String(row[key]));
+        return true;
+      }),
+    );
     const orders = (url.searchParams.get('order') || '').split(',').filter(Boolean);
     result = [...result].sort((left, right) => {
       for (const order of orders) {
         const [key, direction] = order.split('.');
-        const comparison = typeof left[key] === 'number' && typeof right[key] === 'number'
-          ? Number(left[key]) - Number(right[key]) : String(left[key] ?? '').localeCompare(String(right[key] ?? ''));
+        const comparison =
+          typeof left[key] === 'number' && typeof right[key] === 'number'
+            ? Number(left[key]) - Number(right[key])
+            : String(left[key] ?? '').localeCompare(String(right[key] ?? ''));
         if (comparison) return direction === 'desc' ? -comparison : comparison;
       }
       return 0;
@@ -152,7 +211,7 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
     const method = request.method();
     mock.calls.push({ method, path: `/rest/v1/${path}` });
     if (method === 'OPTIONS') return respond(route, null);
-    const body = request.postData() ? request.postDataJSON() as Row : {};
+    const body = request.postData() ? (request.postDataJSON() as Row) : {};
     const singular = request.headers().accept?.includes('application/vnd.pgrst.object+json');
     const rowsResponse = (rows: Row[]) => {
       if (singular && rows.length !== 1) return error(route, 'PGRST116', 'Registro não encontrado.', 406);
@@ -182,11 +241,21 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
         if (!authorized('library')) return denied(route);
         const next = body.p_person as Person;
         const previous = mock.data.people.find(person => person.id === next.id);
-        if (mock.data.services.some(service => service.assignments.some(assignment => assignment.personId === next.id
-          && !next.functions.includes(assignment.function)))) return error(route, '23514', 'Função em uso na escala.');
-        mock.data.people = put(mock.data.people, { ...previous, id: next.id, name: next.name, email: next.email,
-          functions: next.functions, active: previous?.active !== false,
-          photoUrl: Object.hasOwn(next, 'photoUrl') ? next.photoUrl || undefined : previous?.photoUrl });
+        if (
+          mock.data.services.some(service =>
+            service.assignments.some(assignment => assignment.personId === next.id && !next.functions.includes(assignment.function)),
+          )
+        )
+          return error(route, '23514', 'Função em uso na escala.');
+        mock.data.people = put(mock.data.people, {
+          ...previous,
+          id: next.id,
+          name: next.name,
+          email: next.email,
+          functions: next.functions,
+          active: previous?.active !== false,
+          photoUrl: Object.hasOwn(next, 'photoUrl') ? next.photoUrl || undefined : previous?.photoUrl,
+        });
         return respond(route, null);
       }
       if (rpc === 'set_person_active') {
@@ -214,19 +283,30 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
       if (rpc === 'save_service') {
         if (!authorized('plan')) return denied(route);
         const service = body.p_service as Service;
-        if (service.repertoire.some(item => !mock.data.songs.some(song => song.id === item.songId))
-          || service.assignments.some(assignment => !mock.data.people.some(person => person.id === assignment.personId))) {
+        if (
+          service.repertoire.some(item => !mock.data.songs.some(song => song.id === item.songId)) ||
+          service.assignments.some(assignment => !mock.data.people.some(person => person.id === assignment.personId))
+        ) {
           return error(route, '23503', 'Música ou pessoa inexistente.');
         }
         const previous = mock.data.services.find(item => item.id === service.id);
-        if (service.assignments.some(assignment => mock.data.people.find(person => person.id === assignment.personId)?.active === false
-          && !previous?.assignments.some(item => item.id === assignment.id && item.personId === assignment.personId && item.function === assignment.function))) {
+        if (
+          service.assignments.some(
+            assignment =>
+              mock.data.people.find(person => person.id === assignment.personId)?.active === false &&
+              !previous?.assignments.some(
+                item => item.id === assignment.id && item.personId === assignment.personId && item.function === assignment.function,
+              ),
+          )
+        ) {
           return error(route, '23514', 'Escolha um integrante da equipe ativa para novas escalas.');
         }
         // Like the database: unchanged rows keep their answer; a new person or function asks again.
         const previousAssignments = mock.data.services.find(item => item.id === service.id)?.assignments ?? [];
         service.assignments = service.assignments.map(assignment => {
-          const kept = previousAssignments.find(item => item.id === assignment.id && item.personId === assignment.personId && item.function === assignment.function);
+          const kept = previousAssignments.find(
+            item => item.id === assignment.id && item.personId === assignment.personId && item.function === assignment.function,
+          );
           const base = { id: assignment.id, personId: assignment.personId, function: assignment.function };
           return kept?.status && kept.status !== 'pending' ? { ...base, status: kept.status, statusNote: kept.statusNote ?? '' } : base;
         });
@@ -246,10 +326,13 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
       }
       if (rpc === 'set_unavailability') {
         if (!authorized('read')) return denied(route);
-        const personId = String(body.p_person_id); const date = String(body.p_date);
+        const personId = String(body.p_person_id);
+        const date = String(body.p_date);
         if (!authorized('plan') && actor().personId !== personId) return denied(route);
         const others = (mock.data.unavailability ?? []).filter(item => !(item.personId === personId && item.date === date));
-        mock.data.unavailability = body.p_unavailable ? [...others, { id: crypto.randomUUID(), personId, date, note: String(body.p_note || '').trim() }] : others;
+        mock.data.unavailability = body.p_unavailable
+          ? [...others, { id: crypto.randomUUID(), personId, date, note: String(body.p_note || '').trim() }]
+          : others;
         return respond(route, null);
       }
       if (rpc === 'update_profile') {
@@ -257,17 +340,28 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
         const next = body.p_profile as Profile;
         const previous = mock.profiles.find(profile => profile.id === next.id);
         if (!previous) return error(route, 'PGRST116', 'Perfil inexistente.', 404);
-        if (previous.approved && previous.role === 'admin' && (!next.approved || next.role !== 'admin')
-          && mock.profiles.filter(profile => profile.approved && profile.role === 'admin').length === 1) {
+        if (
+          previous.approved &&
+          previous.role === 'admin' &&
+          (!next.approved || next.role !== 'admin') &&
+          mock.profiles.filter(profile => profile.approved && profile.role === 'admin').length === 1
+        ) {
           return error(route, '23514', 'Mantenha pelo menos um administrador aprovado.');
         }
-        if (next.personId && !mock.data.people.some(person => person.id === next.personId)) return error(route, '23503', 'Pessoa inexistente.');
+        if (next.personId && !mock.data.people.some(person => person.id === next.personId))
+          return error(route, '23503', 'Pessoa inexistente.');
         if (next.personId && mock.profiles.some(profile => profile.id !== next.id && profile.personId === next.personId)) {
           return error(route, '23505', 'Pessoa já vinculada a outra conta.', 409);
         }
         // Administrative access updates never copy or overwrite photographs.
-        mock.profiles = put(mock.profiles, { id: previous.id, name: next.name, role: next.role,
-          approved: next.approved, personId: next.personId || undefined, photoUrl: previous.photoUrl });
+        mock.profiles = put(mock.profiles, {
+          id: previous.id,
+          name: next.name,
+          role: next.role,
+          approved: next.approved,
+          personId: next.personId || undefined,
+          photoUrl: previous.photoUrl,
+        });
         return respond(route, null);
       }
       return error(route, 'mock_rpc_unhandled', `RPC não simulado: ${rpc}`, 404);
@@ -277,9 +371,7 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
     if (!rows) return error(route, 'mock_table_unhandled', `Tabela não simulada: ${path}`, 404);
     if (method === 'GET') {
       if (!signedIn) return denied(route);
-      const visible = path === 'profiles'
-        ? rows.filter(row => authorized('admin') || row.id === USER_ID)
-        : authorized('read') ? rows : [];
+      const visible = path === 'profiles' ? rows.filter(row => authorized('admin') || row.id === USER_ID) : authorized('read') ? rows : [];
       return rowsResponse(filteredRows(visible, url));
     }
     if (!authorized(path === 'services' ? 'plan' : 'library')) return denied(route);
@@ -287,11 +379,20 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
       if (path === 'tags') mock.data.tags = put(mock.data.tags, body as unknown as Tag);
       else {
         const previous = mock.data.people.find(person => person.id === body.id);
-        const person = { id: body.id, name: body.name, email: body.email, functions: body.functions,
+        const person = {
+          id: body.id,
+          name: body.name,
+          email: body.email,
+          functions: body.functions,
           active: previous?.active !== false,
-          photoUrl: Object.hasOwn(body, 'photo_url') ? body.photo_url || undefined : previous?.photoUrl } as Person;
-        if (mock.data.services.some(service => service.assignments.some(assignment => assignment.personId === person.id
-          && !person.functions.includes(assignment.function)))) return error(route, '23514', 'Função em uso na escala.');
+          photoUrl: Object.hasOwn(body, 'photo_url') ? body.photo_url || undefined : previous?.photoUrl,
+        } as Person;
+        if (
+          mock.data.services.some(service =>
+            service.assignments.some(assignment => assignment.personId === person.id && !person.functions.includes(assignment.function)),
+          )
+        )
+          return error(route, '23514', 'Função em uso na escala.');
         mock.data.people = put(mock.data.people, person);
       }
       return rowsResponse([{ id: body.id }]);
@@ -299,9 +400,13 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
     if (method === 'DELETE' && ['songs', 'people', 'tags', 'services'].includes(path)) {
       const selected = filteredRows(rows, url);
       const ids = selected.map(row => row.id);
-      if ((path === 'songs' && mock.data.services.some(service => service.repertoire.some(item => ids.includes(item.songId))))
-        || (path === 'people' && (mock.data.services.some(service => service.assignments.some(assignment => ids.includes(assignment.personId)))
-          || mock.profiles.some(profile => ids.includes(profile.personId))))) return error(route, '23503', 'Registro vinculado.');
+      if (
+        (path === 'songs' && mock.data.services.some(service => service.repertoire.some(item => ids.includes(item.songId)))) ||
+        (path === 'people' &&
+          (mock.data.services.some(service => service.assignments.some(assignment => ids.includes(assignment.personId))) ||
+            mock.profiles.some(profile => ids.includes(profile.personId))))
+      )
+        return error(route, '23503', 'Registro vinculado.');
       if (path === 'songs') mock.data.songs = mock.data.songs.filter(song => !ids.includes(song.id));
       if (path === 'people') mock.data.people = mock.data.people.filter(person => !ids.includes(person.id));
       if (path === 'services') mock.data.services = mock.data.services.filter(service => !ids.includes(service.id));
@@ -325,13 +430,15 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
     if (method === 'GET' && path.startsWith('object/public/avatars/')) {
       const key = path.slice('object/public/avatars/'.length);
       const object = mock.storage.objects.get(key);
-      return object ? route.fulfill({ contentType: object.contentType, body: object.body,
-        headers: { 'access-control-allow-origin': '*' } }) : error(route, '404', 'Foto não encontrada.', 404);
+      return object
+        ? route.fulfill({ contentType: object.contentType, body: object.body, headers: { 'access-control-allow-origin': '*' } })
+        : error(route, '404', 'Foto não encontrada.', 404);
     }
     if (!authorized('read')) return denied(route);
     if (method === 'POST' && path.startsWith('object/avatars/')) {
       const key = path.slice('object/avatars/'.length);
-      if (!key.startsWith(`${USER_ID}/`) || !/^[0-9a-f-]{36}\.(?:webp|png|jpeg)$/i.test(key.slice(USER_ID.length + 1))) return denied(route);
+      if (!key.startsWith(`${USER_ID}/`) || !/^[0-9a-f-]{36}\.(?:webp|png|jpeg)$/i.test(key.slice(USER_ID.length + 1)))
+        return denied(route);
       if (mock.storage.objects.has(key)) return error(route, '23505', 'Foto já existe.', 409);
       const raw = request.postDataBuffer() || Buffer.alloc(0);
       let body = raw;
@@ -346,15 +453,20 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
         contentType = /content-type:\s*([^\r\n]+)/i.exec(headers)?.[1]?.trim() || '';
         body = Buffer.from(file.slice(separator + 4).replace(/\r\n$/, ''), 'latin1');
       }
-      if (!['image/webp', 'image/png', 'image/jpeg'].includes(contentType) || body.length > 2_097_152) return error(route, '22023', 'Foto inválida.');
+      if (!['image/webp', 'image/png', 'image/jpeg'].includes(contentType) || body.length > 2_097_152)
+        return error(route, '22023', 'Foto inválida.');
       mock.storage.objects.set(key, { body, contentType });
       return respond(route, { Key: `avatars/${key}`, Id: key.split('/')[1] });
     }
     if (method === 'DELETE' && path === 'object/avatars') {
       const body = request.postDataJSON() as { prefixes?: unknown };
-      if (!Array.isArray(body.prefixes) || body.prefixes.some(key => typeof key !== 'string' || !key.startsWith(`${USER_ID}/`))) return denied(route);
+      if (!Array.isArray(body.prefixes) || body.prefixes.some(key => typeof key !== 'string' || !key.startsWith(`${USER_ID}/`)))
+        return denied(route);
       for (const key of body.prefixes) mock.storage.objects.delete(key);
-      return respond(route, body.prefixes.map(name => ({ name })));
+      return respond(
+        route,
+        body.prefixes.map(name => ({ name })),
+      );
     }
     return error(route, 'mock_storage_unhandled', `Storage não simulado: ${method} ${path}`, 404);
   });

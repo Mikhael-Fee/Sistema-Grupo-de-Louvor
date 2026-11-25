@@ -16,7 +16,10 @@ for (const width of [320, 390]) {
     });
     const photoPath = `${mock.profiles[0].id}/30000000-0000-4000-8000-000000000011.png`;
     // A one-pixel local PNG keeps avatar rendering independent of network access.
-    mock.storage.objects.set(photoPath, { body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==', 'base64'), contentType: 'image/png' });
+    mock.storage.objects.set(photoPath, {
+      body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==', 'base64'),
+      contentType: 'image/png',
+    });
     person.photoUrl = `${origin}/storage/v1/object/public/avatars/${photoPath}`;
     await mock.login();
     await page.goto('/pessoas');
@@ -38,8 +41,12 @@ for (const width of [320, 390]) {
     await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).not.toContainText('Marque quem vai participar');
-    expect(await dialog.locator('.service-batch-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(2);
-    const pickerCard = dialog.locator('.service-batch-person').filter({ has: page.getByRole('checkbox', { name: `Selecionar ${longName}`, exact: true }) });
+    expect(
+      await dialog.locator('.service-batch-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length),
+    ).toBe(2);
+    const pickerCard = dialog
+      .locator('.service-batch-person')
+      .filter({ has: page.getByRole('checkbox', { name: `Selecionar ${longName}`, exact: true }) });
     await expect(pickerCard.locator('img')).toHaveAttribute('src', person.photoUrl);
     const labelBox = await pickerCard.locator('.service-batch-check').boundingBox();
     expect(labelBox!.height).toBeGreaterThanOrEqual(44);

@@ -13,8 +13,12 @@ export function updateBlocker(doc: Document, busy: boolean): UpdateBlocker | und
   if (doc.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) return 'editor';
   if (doc.querySelector('.photo-picker-status')) return 'photo';
   // Signup/recovery fields are deliberately not persisted as a draft.
-  if ([...doc.querySelectorAll<HTMLInputElement>('form input')].some(input =>
-    ['password', 'email'].includes(input.type) && input.value.length > 0)) return 'credentials';
+  if (
+    [...doc.querySelectorAll<HTMLInputElement>('form input')].some(
+      input => ['password', 'email'].includes(input.type) && input.value.length > 0,
+    )
+  )
+    return 'credentials';
   if (doc.activeElement?.matches('input, textarea, select, [contenteditable="true"]')) return 'typing';
   return undefined;
 }
@@ -28,8 +32,13 @@ type UpdateOptions = {
 };
 
 /** One coordinator per tab; the browser distributes controllerchange to every tab. */
-export function createAppUpdater({ window: win, serviceWorker: workers, blocker, onState,
-  reload = () => win.location.reload() }: UpdateOptions) {
+export function createAppUpdater({
+  window: win,
+  serviceWorker: workers,
+  blocker,
+  onState,
+  reload = () => win.location.reload(),
+}: UpdateOptions) {
   let stopped = false;
   let registration: ServiceWorkerRegistration | undefined;
   let registering: Promise<void> | undefined;
@@ -65,14 +74,24 @@ export function createAppUpdater({ window: win, serviceWorker: workers, blocker,
       return;
     }
     publish({ phase: 'waiting' });
-    if (Date.now() < quietUntil) { schedule(); return; }
+    if (Date.now() < quietUntil) {
+      schedule();
+      return;
+    }
     // An input/submit handler may have just started a save. Check again in the
     // same task immediately before replacing the document.
-    if (blocker()) { schedule(); return; }
+    if (blocker()) {
+      schedule();
+      return;
+    }
     reloading = true;
     publish({ phase: 'reloading' });
-    try { reload(); }
-    catch { reloading = false; publish({ phase: 'error' }); }
+    try {
+      reload();
+    } catch {
+      reloading = false;
+      publish({ phase: 'error' });
+    }
   }
   function queueReload() {
     if (stopped || reloading || pending) return;
@@ -97,7 +116,9 @@ export function createAppUpdater({ window: win, serviceWorker: workers, blocker,
     const updateFound = () => {
       const installing = current.installing;
       if (!installing) return;
-      const changed = () => { if (installing.state === 'installed') activateWaiting(); };
+      const changed = () => {
+        if (installing.state === 'installed') activateWaiting();
+      };
       installing.addEventListener('statechange', changed);
       cleanups.push(() => installing.removeEventListener('statechange', changed));
     };
@@ -109,16 +130,28 @@ export function createAppUpdater({ window: win, serviceWorker: workers, blocker,
     if (registering) return registering;
     workers.addEventListener('controllerchange', controllerChanged);
     cleanups.push(() => workers.removeEventListener('controllerchange', controllerChanged));
-    const activity = () => { if (pending) { quietUntil = Date.now() + UPDATE_QUIET_PERIOD; schedule(); } };
+    const activity = () => {
+      if (pending) {
+        quietUntil = Date.now() + UPDATE_QUIET_PERIOD;
+        schedule();
+      }
+    };
     for (const event of ['input', 'change', 'submit', 'keydown', 'pointerdown']) {
       win.document.addEventListener(event, activity, true);
       cleanups.push(() => win.document.removeEventListener(event, activity, true));
     }
-    const wake = () => { void check(); schedule(); };
+    const wake = () => {
+      void check();
+      schedule();
+    };
     win.addEventListener('online', wake);
     win.addEventListener('focus', wake);
     win.document.addEventListener('visibilitychange', wake);
-    cleanups.push(() => { win.removeEventListener('online', wake); win.removeEventListener('focus', wake); win.document.removeEventListener('visibilitychange', wake); });
+    cleanups.push(() => {
+      win.removeEventListener('online', wake);
+      win.removeEventListener('focus', wake);
+      win.document.removeEventListener('visibilitychange', wake);
+    });
     // If an old lazy chunk disappeared during an atomic deployment, apply the
     // available update through the same guards instead of looping on reload.
     const preloadError = (event: Event) => {
@@ -128,11 +161,18 @@ export function createAppUpdater({ window: win, serviceWorker: workers, blocker,
     };
     win.addEventListener('vite:preloadError', preloadError);
     cleanups.push(() => win.removeEventListener('vite:preloadError', preloadError));
-    interval = win.setInterval(() => { void check(); }, UPDATE_CHECK_INTERVAL);
+    interval = win.setInterval(() => {
+      void check();
+    }, UPDATE_CHECK_INTERVAL);
     lastCheck = Date.now(); // register() itself performs the first update check.
-    registering = workers.register('/sw.js', { scope: '/', updateViaCache: 'none' })
-      .then(current => { if (!stopped) watchRegistration(current); })
-      .catch(() => { /* Offline/private-mode failure must not interrupt the app. */ });
+    registering = workers
+      .register('/sw.js', { scope: '/', updateViaCache: 'none' })
+      .then(current => {
+        if (!stopped) watchRegistration(current);
+      })
+      .catch(() => {
+        /* Offline/private-mode failure must not interrupt the app. */
+      });
     return registering;
   }
   async function check() {
@@ -142,16 +182,26 @@ export function createAppUpdater({ window: win, serviceWorker: workers, blocker,
       // Retrying a failed initial registration is useful after reconnecting.
       lastCheck = Date.now();
       checking = true;
-      try { const current = await workers.register('/sw.js', { scope: '/', updateViaCache: 'none' }); if (!stopped) watchRegistration(current); }
-      catch { /* Try again at the next bounded check. */ }
-      finally { checking = false; }
+      try {
+        const current = await workers.register('/sw.js', { scope: '/', updateViaCache: 'none' });
+        if (!stopped) watchRegistration(current);
+      } catch {
+        /* Try again at the next bounded check. */
+      } finally {
+        checking = false;
+      }
       return;
     }
     lastCheck = Date.now();
     checking = true;
-    try { await registration.update(); if (!stopped) activateWaiting(); }
-    catch { /* Keep the current cached application usable while offline. */ }
-    finally { checking = false; }
+    try {
+      await registration.update();
+      if (!stopped) activateWaiting();
+    } catch {
+      /* Keep the current cached application usable while offline. */
+    } finally {
+      checking = false;
+    }
   }
   function retry() {
     if (!pending || reloading || stopped) return;

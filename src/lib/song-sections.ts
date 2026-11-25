@@ -1,7 +1,8 @@
 import { chordMarkers } from './music';
 
 // Words that name a part of a song when written alone on a line ("Refrão", "Ponte:", "VERSO 2").
-const SECTION_WORDS = /^(intro(dução)?|verso|estrofe|parte|primeira parte|segunda parte|terceira parte|pré[- ]?refrão|refrão|coro|ponte|interlúdio|instrumental|solo|final|tag|outro|chorus|verse|bridge|pre[- ]?chorus)(\s+\d+|\s+[ivx]+)?\s*:?$/i;
+const SECTION_WORDS =
+  /^(intro(dução)?|verso|estrofe|parte|primeira parte|segunda parte|terceira parte|pré[- ]?refrão|refrão|coro|ponte|interlúdio|instrumental|solo|final|tag|outro|chorus|verse|bridge|pre[- ]?chorus)(\s+\d+|\s+[ivx]+)?\s*:?$/i;
 const BRACKET_LABEL = /^[\p{L}][\p{L}\d\s'ºª.()/-]{0,40}$/u;
 const CHORD = /^[A-G](#|b)?[^\s]*$/;
 

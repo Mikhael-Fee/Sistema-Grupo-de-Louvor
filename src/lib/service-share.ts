@@ -1,23 +1,48 @@
 import { FUNCTIONS, type MinistryData, type Service } from '../types';
 
-function capitalize(text: string) { return text.charAt(0).toLocaleUpperCase('pt-BR') + text.slice(1); }
+function capitalize(text: string) {
+  return text.charAt(0).toLocaleUpperCase('pt-BR') + text.slice(1);
+}
 
 const FUNCTION_EMOJI: Record<string, string> = {
-  Voz: '🎤', Teclado: '🎹', 'Violão': '🎸', Guitarra: '🎸', Baixo: '🎸', Bateria: '🥁', 'Percussão': '🪘',
+  Voz: '🎤',
+  Teclado: '🎹',
+  Violão: '🎸',
+  Guitarra: '🎸',
+  Baixo: '🎸',
+  Bateria: '🥁',
+  Percussão: '🪘',
 };
-export function functionEmoji(role: string): string { return FUNCTION_EMOJI[role] || '🎵'; }
+export function functionEmoji(role: string): string {
+  return FUNCTION_EMOJI[role] || '🎵';
+}
 
 /** WhatsApp text: bold headings (*texto*), one item per line and an emoji for each function. */
 export function buildServiceShareText(service: Service, data: Pick<MinistryData, 'songs' | 'people'>, link: string): string {
-  const date = capitalize(new Date(`${service.date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }));
+  const date = capitalize(
+    new Date(`${service.date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }),
+  );
   const lines = [`${service.isEvent ? '✨' : '⛪'} *${service.type}*`, `📅 ${date}`, `🕒 ${service.time}`];
-  if (service.notes.trim()) lines.push('', `📝 ${service.notes.trim().split(/\r?\n/).map(line => line.trim()).filter(Boolean).join('\n')}`);
+  if (service.notes.trim())
+    lines.push(
+      '',
+      `📝 ${service.notes
+        .trim()
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean)
+        .join('\n')}`,
+    );
   lines.push('', '🎶 *Repertório*');
   if (service.repertoire.length) {
     service.repertoire.forEach((item, index) => {
       const song = data.songs.find(candidate => candidate.id === item.songId);
       lines.push(`${index + 1}. ${song?.title || 'Música indisponível'} · Tom *${item.key}*`);
-      const note = item.notes.split(/\r?\n/).map(line => line.trim()).filter(Boolean).join(' ');
+      const note = item.notes
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean)
+        .join(' ');
       if (note) lines.push(`      _${note}_`);
     });
   } else lines.push('Ainda não definido');
@@ -25,7 +50,8 @@ export function buildServiceShareText(service: Service, data: Pick<MinistryData,
   if (service.assignments.length) {
     const order = [...FUNCTIONS, ...service.assignments.map(item => item.function).filter(name => !FUNCTIONS.includes(name))];
     for (const role of [...new Set(order)]) {
-      const names = service.assignments.filter(item => item.function === role)
+      const names = service.assignments
+        .filter(item => item.function === role)
         .map(item => data.people.find(person => person.id === item.personId)?.name || 'Pessoa indisponível');
       if (names.length) lines.push(`${functionEmoji(role)} *${role}:* ${names.join(', ')}`);
     }

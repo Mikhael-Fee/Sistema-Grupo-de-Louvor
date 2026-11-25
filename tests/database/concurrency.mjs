@@ -31,14 +31,18 @@ async function race(firstSql, secondSql) {
   let second;
   const first = spawn('docker', args);
   let firstError = '';
-  first.stderr.on('data', chunk => { firstError += chunk; });
+  first.stderr.on('data', chunk => {
+    firstError += chunk;
+  });
   const firstDone = new Promise(resolve => first.on('close', status => resolve({ status, error: firstError })));
   first.stdout.on('data', chunk => {
     if (!launched && chunk.toString().includes('HOLDING')) {
       launched = true;
       const child = spawn('docker', args);
       let error = '';
-      child.stderr.on('data', chunk => { error += chunk; });
+      child.stderr.on('data', chunk => {
+        error += chunk;
+      });
       child.stdout.resume();
       second = new Promise(resolve => child.on('close', status => resolve({ status, error })));
       child.stdin.end(secondSql);
@@ -53,10 +57,11 @@ async function race(firstSql, secondSql) {
 }
 
 try {
-  const started = spawnSync('docker', [
-    'run', '--detach', '--rm', '--name', container, '--network', 'none',
-    '-e', 'POSTGRES_HOST_AUTH_METHOD=trust', image,
-  ], { encoding: 'utf8' });
+  const started = spawnSync(
+    'docker',
+    ['run', '--detach', '--rm', '--name', container, '--network', 'none', '-e', 'POSTGRES_HOST_AUTH_METHOD=trust', image],
+    { encoding: 'utf8' },
+  );
   assert.equal(started.status, 0, started.stderr);
 
   let ready = false;
@@ -64,7 +69,10 @@ try {
     const logs = spawnSync('docker', ['logs', container], { encoding: 'utf8' });
     if (`${logs.stdout}${logs.stderr}`.includes('PostgreSQL init process complete; ready for start up.')) {
       const probe = spawnSync('docker', ['exec', container, 'pg_isready', '-U', 'postgres'], { encoding: 'utf8' });
-      if (probe.status === 0) { ready = true; break; }
+      if (probe.status === 0) {
+        ready = true;
+        break;
+      }
     }
     await new Promise(resolve => setTimeout(resolve, 100));
   }
@@ -111,7 +119,9 @@ try {
     update public.profiles set role='leader' where id='${b}';`);
   run(`${actor(b)} insert into public.assignments(id,service_id,person_id,function,position)
     values('${assignment}','${service}','${person}','Voz',0);`);
-  console.log('4 live PostgreSQL 17 scenarios passed: concurrent admin demotions, both assignment/function update orders, leader row locking.');
+  console.log(
+    '4 live PostgreSQL 17 scenarios passed: concurrent admin demotions, both assignment/function update orders, leader row locking.',
+  );
 } finally {
   spawnSync('docker', ['rm', '--force', container], { encoding: 'utf8' });
 }

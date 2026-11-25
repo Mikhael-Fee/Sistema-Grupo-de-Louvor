@@ -1,14 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearCurrentTabImport, CURRENT_TAB_IMPORT_KEY, CURRENT_TAB_IMPORT_TTL, pendingCurrentTabImport, saveCurrentTabImport } from './cifra-current-tab';
+import {
+  clearCurrentTabImport,
+  CURRENT_TAB_IMPORT_KEY,
+  CURRENT_TAB_IMPORT_TTL,
+  pendingCurrentTabImport,
+  saveCurrentTabImport,
+} from './cifra-current-tab';
 import type { SongSearchResult } from './song-search';
 
 const ACCOUNT = '20000000-0000-4000-8000-000000000001';
 const OTHER = '20000000-0000-4000-8000-000000000002';
 const SONG = '20000000-0000-4000-8000-000000000003';
-const SOURCE: SongSearchResult = { id: 'search-id', title: 'Luz', artist: 'Equipe', source: 'Cifra Club', kind: 'chords', sourceUrl: 'https://www.cifraclub.com.br/equipe/luz/' };
+const SOURCE: SongSearchResult = {
+  id: 'search-id',
+  title: 'Luz',
+  artist: 'Equipe',
+  source: 'Cifra Club',
+  kind: 'chords',
+  sourceUrl: 'https://www.cifraclub.com.br/equipe/luz/',
+};
 let storage: Map<string, string>;
 beforeEach(() => {
-  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-16T12:00:00Z'));
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-16T12:00:00Z'));
   storage = new Map();
   vi.stubGlobal('sessionStorage', {
     getItem: (key: string) => storage.get(key) ?? null,
@@ -16,7 +30,10 @@ beforeEach(() => {
     removeItem: (key: string) => storage.delete(key),
   });
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
 
 describe('contexto da consulta na mesma janela', () => {
   it('persiste só seleção pública e identifica exatamente o rascunho original da conta', () => {
@@ -50,7 +67,14 @@ describe('contexto da consulta na mesma janela', () => {
   it.each([
     '{',
     '[]',
-    JSON.stringify({ version: 1, accountId: ACCOUNT, requestId: crypto.randomUUID(), target: 'new', source: { ...SOURCE, sourceUrl: 'https://example.com/roubar/' }, expires: 1 }),
+    JSON.stringify({
+      version: 1,
+      accountId: ACCOUNT,
+      requestId: crypto.randomUUID(),
+      target: 'new',
+      source: { ...SOURCE, sourceUrl: 'https://example.com/roubar/' },
+      expires: 1,
+    }),
   ])('descarta contexto malformado sem iniciar consulta %#', stored => {
     storage.set(CURRENT_TAB_IMPORT_KEY, stored);
     expect(pendingCurrentTabImport(ACCOUNT, null)).toMatchObject({ pending: null, error: expect.any(String) });
@@ -69,11 +93,19 @@ describe('contexto da consulta na mesma janela', () => {
     expect(pendingCurrentTabImport(ACCOUNT, null)).toEqual({ pending: null });
   });
   it('não navega quando o navegador recusa armazenamento', () => {
-    vi.stubGlobal('sessionStorage', { setItem: () => { throw new Error('denied'); } });
+    vi.stubGlobal('sessionStorage', {
+      setItem: () => {
+        throw new Error('denied');
+      },
+    });
     expect(() => saveCurrentTabImport(ACCOUNT, SONG, SOURCE, false)).toThrow(/armazenamento/);
   });
   it('não apresenta erro de importação na biblioteca comum com armazenamento indisponível', () => {
-    vi.stubGlobal('sessionStorage', { getItem: () => { throw new Error('denied'); } });
+    vi.stubGlobal('sessionStorage', {
+      getItem: () => {
+        throw new Error('denied');
+      },
+    });
     expect(pendingCurrentTabImport(ACCOUNT, null)).toEqual({ pending: null });
     expect(pendingCurrentTabImport(ACCOUNT, crypto.randomUUID())).toMatchObject({ pending: null, error: expect.any(String) });
   });

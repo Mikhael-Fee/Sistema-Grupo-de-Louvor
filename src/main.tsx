@@ -13,4 +13,15 @@ import './ui-polish.css';
 
 applyTheme();
 
-ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><BrowserRouter><MinistryProvider><AppErrorBoundary><App /></AppErrorBoundary><UpdatePrompt /></MinistryProvider></BrowserRouter></React.StrictMode>);
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <MinistryProvider>
+        <AppErrorBoundary>
+          <App />
+        </AppErrorBoundary>
+        <UpdatePrompt />
+      </MinistryProvider>
+    </BrowserRouter>
+  </React.StrictMode>,
+);

@@ -1,29 +1,70 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createAppUpdater, updateBlocker, UPDATE_CHECK_INTERVAL, UPDATE_CHECK_MINIMUM, type AppUpdateState, type UpdateBlocker } from './pwa-update';
+import {
+  createAppUpdater,
+  updateBlocker,
+  UPDATE_CHECK_INTERVAL,
+  UPDATE_CHECK_MINIMUM,
+  type AppUpdateState,
+  type UpdateBlocker,
+} from './pwa-update';
 
 function fixture(controlled = true) {
-  const doc = Object.assign(new EventTarget(), { visibilityState: 'visible',
-    querySelector: vi.fn(() => null), querySelectorAll: vi.fn(() => []), activeElement: null });
-  const win = Object.assign(new EventTarget(), { document: doc, navigator: { onLine: true },
-    setTimeout, clearTimeout, setInterval, clearInterval });
-  const registration = Object.assign(new EventTarget(), { waiting: null as null | { postMessage: ReturnType<typeof vi.fn> },
-    installing: null, update: vi.fn(async () => {}) });
-  const workers = Object.assign(new EventTarget(), { controller: controlled ? {} : null,
-    register: vi.fn(async () => registration) });
+  const doc = Object.assign(new EventTarget(), {
+    visibilityState: 'visible',
+    querySelector: vi.fn(() => null),
+    querySelectorAll: vi.fn(() => []),
+    activeElement: null,
+  });
+  const win = Object.assign(new EventTarget(), {
+    document: doc,
+    navigator: { onLine: true },
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+  });
+  const registration = Object.assign(new EventTarget(), {
+    waiting: null as null | { postMessage: ReturnType<typeof vi.fn> },
+    installing: null,
+    update: vi.fn(async () => {}),
+  });
+  const workers = Object.assign(new EventTarget(), { controller: controlled ? {} : null, register: vi.fn(async () => registration) });
   const reload = vi.fn();
   const states: AppUpdateState[] = [];
   let blocked: UpdateBlocker | undefined;
-  const updater = createAppUpdater({ window: win as unknown as Window,
+  const updater = createAppUpdater({
+    window: win as unknown as Window,
     serviceWorker: workers as unknown as ServiceWorkerContainer,
-    blocker: () => blocked, reload, onState: state => states.push(state) });
-  return { doc, win, workers, registration, reload, states, updater,
-    block(value?: UpdateBlocker) { blocked = value; },
-    changeController() { workers.controller = {}; workers.dispatchEvent(new Event('controllerchange')); } };
+    blocker: () => blocked,
+    reload,
+    onState: state => states.push(state),
+  });
+  return {
+    doc,
+    win,
+    workers,
+    registration,
+    reload,
+    states,
+    updater,
+    block(value?: UpdateBlocker) {
+      blocked = value;
+    },
+    changeController() {
+      workers.controller = {};
+      workers.dispatchEvent(new Event('controllerchange'));
+    },
+  };
 }
 
 describe('mandatory application updates', () => {
-  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-15T12:00:00Z')); });
-  afterEach(() => { vi.useRealTimers(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-15T12:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('registers the root worker with cache bypass, independently of the current route', async () => {
     const f = fixture();
@@ -69,7 +110,8 @@ describe('mandatory application updates', () => {
   it('reloads exactly once for an actual new controller and duplicate notifications', async () => {
     const f = fixture();
     await f.updater.start();
-    f.changeController(); f.changeController();
+    f.changeController();
+    f.changeController();
     await vi.advanceTimersByTimeAsync(1_500);
     expect(f.reload).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(2_000);
@@ -82,10 +124,12 @@ describe('mandatory application updates', () => {
   });
 
   it.each<UpdateBlocker>(['editor', 'operation', 'photo', 'credentials', 'typing', 'background'])(
-    'keeps %s untouched and applies the required update after it becomes safe', async blocker => {
+    'keeps %s untouched and applies the required update after it becomes safe',
+    async blocker => {
       const f = fixture();
       await f.updater.start();
-      f.block(blocker); f.changeController();
+      f.block(blocker);
+      f.changeController();
       await vi.advanceTimersByTimeAsync(10_000);
       expect(f.reload).not.toHaveBeenCalled();
       expect(f.states.at(-1)).toEqual({ phase: 'waiting', blocker });
@@ -93,7 +137,8 @@ describe('mandatory application updates', () => {
       await vi.advanceTimersByTimeAsync(3_000);
       expect(f.reload).toHaveBeenCalledTimes(1);
       f.updater.stop();
-    });
+    },
+  );
 
   it('waits for typing to settle even when the text already has a tab draft', async () => {
     const f = fixture();
@@ -138,7 +183,8 @@ describe('mandatory application updates', () => {
     await f.updater.start();
     f.changeController();
     f.updater.stop();
-    f.changeController(); f.win.dispatchEvent(new Event('focus'));
+    f.changeController();
+    f.win.dispatchEvent(new Event('focus'));
     await vi.advanceTimersByTimeAsync(UPDATE_CHECK_INTERVAL * 2);
     expect(f.reload).not.toHaveBeenCalled();
     expect(f.registration.update).not.toHaveBeenCalled();
@@ -147,8 +193,12 @@ describe('mandatory application updates', () => {
 
 describe('non-durable work guards', () => {
   function documentFixture(selector: string | null = null, inputs: { type: string; value: string }[] = [], active = false) {
-    return { visibilityState: 'visible', querySelector: (value: string) => value === selector ? {} : null,
-      querySelectorAll: () => inputs, activeElement: active ? { matches: () => true } : null } as unknown as Document;
+    return {
+      visibilityState: 'visible',
+      querySelector: (value: string) => (value === selector ? {} : null),
+      querySelectorAll: () => inputs,
+      activeElement: active ? { matches: () => true } : null,
+    } as unknown as Document;
   }
   it('protects a native dialog, including PDF previews and selected photographs', () => {
     expect(updateBlocker(documentFixture('dialog[open], [role="dialog"][aria-modal="true"]'), false)).toBe('editor');

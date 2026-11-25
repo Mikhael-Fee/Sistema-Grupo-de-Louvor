@@ -16,7 +16,10 @@ test('sem internet, o app abre os dados salvos no aparelho e bloqueia edições'
   await expect(page.getByRole('heading', { name: service.type, level: 1 })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Editar culto' })).toHaveCount(0);
   const first = mock.data.songs.find(song => song.id === service.repertoire[0].songId)!;
-  await page.getByRole('link', { name: new RegExp(first.title) }).first().click();
+  await page
+    .getByRole('link', { name: new RegExp(first.title) })
+    .first()
+    .click();
   await expect(page.getByRole('heading', { name: first.title, level: 1 })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Editar música' })).toHaveCount(0);
 });
@@ -28,7 +31,10 @@ test('com o aparelho desconectado, abre a cópia salva na hora e recarrega quand
   await page.addInitScript(() => {
     const state = { online: false };
     Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => state.online });
-    (window as unknown as { goOnline: () => void }).goOnline = () => { state.online = true; window.dispatchEvent(new Event('online')); };
+    (window as unknown as { goOnline: () => void }).goOnline = () => {
+      state.online = true;
+      window.dispatchEvent(new Event('online'));
+    };
   });
   const blocked = (route: import('@playwright/test').Route) => route.abort('internetdisconnected');
   await page.route(/\/(auth|rest|storage)\/v1\//, blocked);
@@ -119,7 +125,8 @@ test('integrante confirma presença, marca data indisponível e o líder vê os 
   const mock = await setupMockMinistry(page, 'musician');
   const me = mock.data.people[0];
   const service = mock.data.services[0];
-  if (!service.assignments.some(item => item.personId === me.id)) service.assignments.push({ id: crypto.randomUUID(), personId: me.id, function: me.functions[0] });
+  if (!service.assignments.some(item => item.personId === me.id))
+    service.assignments.push({ id: crypto.randomUUID(), personId: me.id, function: me.functions[0] });
   await mock.login();
   // Home: answer for the next service.
   await page.getByRole('button', { name: 'Confirmar presença' }).click();
@@ -149,8 +156,13 @@ test('integrante confirma presença, marca data indisponível e o líder vê os 
 
 test('sem a atualização do banco, o app funciona sem os botões de presença', async ({ page }) => {
   const mock = await setupMockMinistry(page, 'musician');
-  await page.route('**/rest/v1/unavailability**', route => route.fulfill({ status: 404, contentType: 'application/json',
-    body: JSON.stringify({ code: 'PGRST205', message: "Could not find the table 'public.unavailability' in the schema cache" }) }));
+  await page.route('**/rest/v1/unavailability**', route =>
+    route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 'PGRST205', message: "Could not find the table 'public.unavailability' in the schema cache" }),
+    }),
+  );
   await mock.login();
   await expect(page.getByRole('link', { name: 'Abrir culto', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Confirmar presença' })).toHaveCount(0);
@@ -163,8 +175,12 @@ test('ao salvar a equipe, o app pede o envio dos avisos e o perfil oferece ativa
   const service = mock.data.services.find(item => item.assignments.length)!;
   const notices: unknown[] = [];
   await page.route('**/.netlify/functions/notify-assignments', route => {
-    if (route.request().method() === 'POST') notices.push({ body: route.request().postDataJSON(), auth: route.request().headers().authorization });
-    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(route.request().method() === 'POST' ? { emails: 1, pushes: 0, configured: true } : { publicKey: null }) });
+    if (route.request().method() === 'POST')
+      notices.push({ body: route.request().postDataJSON(), auth: route.request().headers().authorization });
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(route.request().method() === 'POST' ? { emails: 1, pushes: 0, configured: true } : { publicKey: null }),
+    });
   });
   await mock.login();
   await page.goto(`/cultos/${service.id}`);

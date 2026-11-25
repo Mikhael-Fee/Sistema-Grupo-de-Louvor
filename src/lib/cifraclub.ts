@@ -15,7 +15,17 @@ function normalizedKey(value?: string): string | undefined {
   if (!value) return undefined;
   const match = /^([A-G][#b]?)(min|maj|m)?$/i.exec(value[0].toUpperCase() + value.slice(1).replace('♯', '#').replace('♭', 'b'));
   if (!match) return undefined;
-  const equivalent: Record<string, string> = { 'C#': 'Db', 'D#': 'Eb', Gb: 'F#', 'G#': 'Ab', 'A#': 'Bb', 'B#': 'C', Cb: 'B', Fb: 'E', 'E#': 'F' };
+  const equivalent: Record<string, string> = {
+    'C#': 'Db',
+    'D#': 'Eb',
+    Gb: 'F#',
+    'G#': 'Ab',
+    'A#': 'Bb',
+    'B#': 'C',
+    Cb: 'B',
+    Fb: 'E',
+    'E#': 'F',
+  };
   const key = equivalent[match[1]] || match[1];
   if (!KEYS.includes(key)) return undefined;
   // A song in Gm shares the chords of Bb: keys are named by their major scale.
@@ -35,15 +45,27 @@ export function chordSheetMetadata(value: string): Omit<ParsedCifraClubText, 'co
     if (match && Number(match[1]) <= 12) capo ??= Number(match[1]);
   }
   if (written) return { originalKey: written, ...(sounding ? { soundingKey: sounding } : {}), ...(capo !== undefined ? { capo } : {}) };
-  if (capo) return { ...(sounding ? { soundingKey: sounding } : {}), capo, keyUnknownReason: 'A fonte informa capotraste, mas não o tom das posições dos acordes. Confirme o tom dos acordes escritos antes de importar.' };
+  if (capo)
+    return {
+      ...(sounding ? { soundingKey: sounding } : {}),
+      capo,
+      keyUnknownReason:
+        'A fonte informa capotraste, mas não o tom das posições dos acordes. Confirme o tom dos acordes escritos antes de importar.',
+    };
   return { ...(sounding ? { originalKey: sounding } : {}), ...(capo !== undefined ? { capo } : {}) };
 }
 
-interface TabEvidence { labelled: boolean; fretted: boolean }
+interface TabEvidence {
+  labelled: boolean;
+  fretted: boolean;
+}
 
 function tabRow(line: string): TabEvidence | null {
   // Printing can substitute Unicode bars/dashes or wrap a string onto an unlabelled row.
-  const normalized = line.trim().replace(/[‐‑‒–—−─━]/g, '-').replace(/[│┃¦]/g, '|');
+  const normalized = line
+    .trim()
+    .replace(/[‐‑‒–—−─━]/g, '-')
+    .replace(/[│┃¦]/g, '|');
   const labelled = /^(?:[A-Ga-g][#b♯♭]?|\d{1,2}|\[(?:[A-Ga-g][#b♯♭]?|\d{1,2})\])\s*\|/.exec(normalized);
   const body = labelled ? normalized.slice(labelled[0].length) : normalized.replace(/^\|/, '');
   if (body.length < 3 || !/^[\d\s|=\-~hHpPbBrRsStT/\\().xX*^+vV<>:↑↓]+$/.test(body)) return null;
@@ -52,23 +74,38 @@ function tabRow(line: string): TabEvidence | null {
   let technique = false;
   for (const character of body) {
     if (character === '-' || character === '=') separators++;
-    else if (character >= '0' && character <= '9' || character === 'x' || character === 'X') fretted = true;
+    else if ((character >= '0' && character <= '9') || character === 'x' || character === 'X') fretted = true;
     else if ('hHpPbBrRsStT/\\~<>↑↓'.includes(character)) technique = true;
   }
   // "E", "A", meter numbers and isolated repetition bars are never enough evidence.
   const plausible = labelled
-    ? separators >= 2 || separators >= 1 && fretted || fretted && technique && body.length >= 4
+    ? separators >= 2 || (separators >= 1 && fretted) || (fretted && technique && body.length >= 4)
     : body.length >= 6 && separators >= 3;
   return plausible ? { labelled: Boolean(labelled), fretted } : null;
 }
 
 function tabCaption(label: string): { section?: string } | null {
-  const plain = label.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[\[\](){}:–—-]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
-  const match = /^(?:tab|tablatura|tablature)\s*(?:(?:da|do|de)\s+)?(?:(intro|introducao|solo|riff|ponte|final|instrumental)(?:\s+\d+)?)?$/.exec(plain)
-    || /^(intro|introducao|solo|riff|ponte|final|instrumental)(?:\s+\d+)?\s+(?:tab|tablatura|tablature)$/.exec(plain);
+  const plain = label
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\[\](){}:–—-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  const match =
+    /^(?:tab|tablatura|tablature)\s*(?:(?:da|do|de)\s+)?(?:(intro|introducao|solo|riff|ponte|final|instrumental)(?:\s+\d+)?)?$/.exec(
+      plain,
+    ) || /^(intro|introducao|solo|riff|ponte|final|instrumental)(?:\s+\d+)?\s+(?:tab|tablatura|tablature)$/.exec(plain);
   if (!match) return null;
-  const names: Record<string, string> = { intro: 'Intro', introducao: 'Intro', solo: 'Solo', riff: 'Riff', ponte: 'Ponte', final: 'Final', instrumental: 'Instrumental' };
+  const names: Record<string, string> = {
+    intro: 'Intro',
+    introducao: 'Intro',
+    solo: 'Solo',
+    riff: 'Riff',
+    ponte: 'Ponte',
+    final: 'Final',
+    instrumental: 'Instrumental',
+  };
   return { ...(match[1] ? { section: names[match[1]] } : {}) };
 }
 
@@ -76,15 +113,18 @@ function compactDiagram(line: string): boolean {
   // Six fret positions after a chord name form a guitar fingering, not an instrumental chord row.
   const tokens = line.trim().split(/\s+/);
   const header = tokens[0].replace(/[:=]$/, '').replace(/^\[([^\]]+)\]$/, '$1');
-  if (normalizedChord(header) && (tokens.length === 2 && /^[xX\d]{6}$/.test(tokens[1])
-    || tokens.length === 7 && tokens.slice(1).every(token => /^[xX\d]$/.test(token)))) return true;
+  if (
+    normalizedChord(header) &&
+    ((tokens.length === 2 && /^[xX\d]{6}$/.test(tokens[1])) ||
+      (tokens.length === 7 && tokens.slice(1).every(token => /^[xX\d]$/.test(token))))
+  )
+    return true;
   const joined = /^(\[[^\]\r\n]{1,84}\]|[^\s:=]{1,84})[:=]([xX\d]{6})$/.exec(line.trim());
   return Boolean(joined && normalizedChord(joined[1].replace(/^\[([^\]]+)\]$/, '$1')));
 }
 
 function gridRow(line: string): boolean {
-  return /^[|│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪─━+\-\s○●oOxX\d]{5,}$/.test(line.trim())
-    && /[│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪|]/.test(line);
+  return /^[|│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪─━+\-\s○●oOxX\d]{5,}$/.test(line.trim()) && /[│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪|]/.test(line);
 }
 
 /** Remove explicit guitar apparatus from raw text or saved ChordPro without changing the song. */
@@ -107,10 +147,15 @@ export function cleanChordSheet(value: string): string {
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
     const label = line.replace(/\s+/g, ' ').trim();
-    if (tabRows[index]?.labelled || tabCaptions[index] || compactDiagram(line)
-      || /^(?:afina[çc][aã]o|tuning)\s*:\s*\S.*$/i.test(label)
-      || /^(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(?:\d{1,2}(?:\s*[ªºao])?(?:\s*casa)?|sem|none)\s*[.!]?$/i.test(label)
-      || /^\(?forma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?[A-G](?:[#♯b♭])?(?:m|min|maj)?\)?$/i.test(label)) removed.add(index);
+    if (
+      tabRows[index]?.labelled ||
+      tabCaptions[index] ||
+      compactDiagram(line) ||
+      /^(?:afina[çc][aã]o|tuning)\s*:\s*\S.*$/i.test(label) ||
+      /^(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(?:\d{1,2}(?:\s*[ªºao])?(?:\s*casa)?|sem|none)\s*[.!]?$/i.test(label) ||
+      /^\(?forma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?[A-G](?:[#♯b♭])?(?:m|min|maj)?\)?$/i.test(label)
+    )
+      removed.add(index);
     if (!gridRow(line)) continue;
     let end = index + 1;
     while (end < lines.length && gridRow(lines[end])) end++;
@@ -124,7 +169,7 @@ export function cleanChordSheet(value: string): string {
     if (!tabRows[index]) continue;
     const start = index;
     let end = index + 1;
-    while (end < lines.length && (tabRows[end] || !lines[end].trim() && tabRows[end + 1])) end++;
+    while (end < lines.length && (tabRows[end] || (!lines[end].trim() && tabRows[end + 1]))) end++;
     let previous = start - 1;
     while (previous >= 0 && start - previous <= 3 && !lines[previous].trim()) previous--;
     let labelled = false;
@@ -136,24 +181,30 @@ export function cleanChordSheet(value: string): string {
       labelled ||= tabRows[row]!.labelled;
       if (tabRows[row]!.fretted) frettedRows++;
     }
-    if (labelled || previous >= 0 && Boolean(tabCaptions[previous]) || rows >= 3 && frettedRows >= 2) {
+    if (labelled || (previous >= 0 && Boolean(tabCaptions[previous])) || (rows >= 3 && frettedRows >= 2)) {
       for (let row = start; row < end; row++) if (tabRows[row]) removed.add(row);
     }
     index = end - 1;
   }
   // Remove guitar-only captions immediately adjoining an actual diagram/tab.
-  for (let pass = 0; pass < 3; pass++) for (const index of [...removed]) {
-    for (const direction of [-1, 1]) {
-      let adjacent = index + direction;
-      // Print layouts often separate "Parte 1 de 2" from the strings by a blank row.
-      if (adjacent >= 0 && adjacent < lines.length && !lines[adjacent].trim()) adjacent += direction;
-      if (adjacent < 0 || adjacent >= lines.length) continue;
-      const caption = lines[adjacent].replace(/\s+/g, ' ').trim();
-      if (/^(?:\[?\s*(?:tablatura|tab(?:lature)?|diagrama(?:s)?(?:\s+dos?\s+acordes)?|dedilhado)\s*\]?\s*:?|(?:[eEaAgGbBdD]\s+){5}[eEaAgGbBdD])$/i.test(caption)
-        || (tabRows[index] || compactDiagram(lines[index]) || gridRow(lines[index]))
-          && /^(?:\[|\()?parte \d{1,2} de \d{1,2}(?:\]|\))?:?$/i.test(caption)) removed.add(adjacent);
+  for (let pass = 0; pass < 3; pass++)
+    for (const index of [...removed]) {
+      for (const direction of [-1, 1]) {
+        let adjacent = index + direction;
+        // Print layouts often separate "Parte 1 de 2" from the strings by a blank row.
+        if (adjacent >= 0 && adjacent < lines.length && !lines[adjacent].trim()) adjacent += direction;
+        if (adjacent < 0 || adjacent >= lines.length) continue;
+        const caption = lines[adjacent].replace(/\s+/g, ' ').trim();
+        if (
+          /^(?:\[?\s*(?:tablatura|tab(?:lature)?|diagrama(?:s)?(?:\s+dos?\s+acordes)?|dedilhado)\s*\]?\s*:?|(?:[eEaAgGbBdD]\s+){5}[eEaAgGbBdD])$/i.test(
+            caption,
+          ) ||
+          ((tabRows[index] || compactDiagram(lines[index]) || gridRow(lines[index])) &&
+            /^(?:\[|\()?parte \d{1,2} de \d{1,2}(?:\]|\))?:?$/i.test(caption))
+        )
+          removed.add(adjacent);
+      }
     }
-  }
   return lines.filter((_, index) => !removed.has(index)).join('\n');
 }
 
@@ -161,10 +212,19 @@ export function cleanChordSheet(value: string): string {
 export function normalizeCifraClubUrl(value: string): string | null {
   try {
     const url = new URL(value.trim());
-    if (url.protocol !== 'https:' || !['cifraclub.com.br', 'www.cifraclub.com.br'].includes(url.hostname)
-      || url.username || url.password || url.port || !/^\/[a-z0-9][a-z0-9_-]*\/[a-z0-9][a-z0-9_-]*\/?$/i.test(url.pathname)) return null;
+    if (
+      url.protocol !== 'https:' ||
+      !['cifraclub.com.br', 'www.cifraclub.com.br'].includes(url.hostname) ||
+      url.username ||
+      url.password ||
+      url.port ||
+      !/^\/[a-z0-9][a-z0-9_-]*\/[a-z0-9][a-z0-9_-]*\/?$/i.test(url.pathname)
+    )
+      return null;
     return `https://www.cifraclub.com.br${url.pathname.replace(/\/$/, '')}/`;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export function buildCifraClubSearchUrl(title: string, artist: string): string {
@@ -186,7 +246,7 @@ function expandTabs(line: string): string {
   let result = '';
   let column = 0;
   for (const character of line) {
-    const value = character === '\t' ? ' '.repeat(8 - column % 8) : character;
+    const value = character === '\t' ? ' '.repeat(8 - (column % 8)) : character;
     result += value;
     column += value.length;
   }
@@ -199,9 +259,13 @@ interface ChordRow {
 }
 
 // Plain-text sources often name an instrumental row without brackets: "Intro: F G Am" or "Solo F G".
-const SECTION_NAME = '(?:intro(?:du[çc][aã]o)?|solo|riff|ponte|final|outro|coda|interl[uú]dio|instrumental|base|passagem|'
-  + 'refr[aã]o|pr[eé][- ]?refr[aã]o|verso|estrofe|(?:primeira|segunda|terceira|quarta)\\s+parte|parte(?:\\s*\\d{1,2})?)';
-const ROW_LABEL = new RegExp(`^\\s*(?:\\[[^\\]\\r\\n]+\\]|${SECTION_NAME}(?:\\s*\\d{1,2})?\\s*:?|[^\\s:\\[\\]][^:\\[\\]\\r\\n]{0,30}:)\\s+`, 'i');
+const SECTION_NAME =
+  '(?:intro(?:du[çc][aã]o)?|solo|riff|ponte|final|outro|coda|interl[uú]dio|instrumental|base|passagem|' +
+  'refr[aã]o|pr[eé][- ]?refr[aã]o|verso|estrofe|(?:primeira|segunda|terceira|quarta)\\s+parte|parte(?:\\s*\\d{1,2})?)';
+const ROW_LABEL = new RegExp(
+  `^\\s*(?:\\[[^\\]\\r\\n]+\\]|${SECTION_NAME}(?:\\s*\\d{1,2})?\\s*:?|[^\\s:\\[\\]][^:\\[\\]\\r\\n]{0,30}:)\\s+`,
+  'i',
+);
 // Harmless notation between chords, kept verbatim: "F - G", "C % G", "F → G", "N.C.".
 const ROW_NOTATION = /^(?:[|:()]+|\(?\d+x\)?|\(?x\d+\)?|[-–—%→>~*.…/\\]+|n\.?c\.?)$/i;
 
@@ -288,7 +352,10 @@ function joinPhoneWrappedLines(text: string): string {
   const continuation = (index: number) => index < lines.length && lines[index] !== '' && !lines[index].startsWith(LINE_START);
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
-    if (!line.startsWith(LINE_START)) { output.push(line); continue; }
+    if (!line.startsWith(LINE_START)) {
+      output.push(line);
+      continue;
+    }
     const first = line.slice(1);
     const next = lines[index + 1];
     // A chord row (or an empty chord piece) followed by its lyric piece.
@@ -323,8 +390,12 @@ function joinPhoneWrappedLines(text: string): string {
 export function parseCifraClubText(value: string): ParsedCifraClubText {
   if (value.length > 100_000) throw new Error('A cifra é muito longa. Cole somente a letra e os acordes, até 100.000 caracteres.');
   if (!value.trim()) throw new Error('Cole a letra e cifra que você deseja importar.');
-  const normalized = joinPhoneWrappedLines(value.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' '))
-    .replace(INVISIBLE, '');
+  const normalized = joinPhoneWrappedLines(
+    value
+      .replace(/^\uFEFF/, '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/\u00a0/g, ' '),
+  ).replace(INVISIBLE, '');
   const metadata = chordSheetMetadata(normalized);
   const lines = cleanChordSheet(normalized).split('\n').map(expandTabs);
   const output: string[] = [];
@@ -334,8 +405,14 @@ export function parseCifraClubText(value: string): ParsedCifraClubText {
     if (key) continue;
     const row = readChordRow(line);
     const next = lines[index + 1];
-    const canAlign = row && !row.standalone && next?.trim() && !detectedKey(next)
-      && !readChordRow(next) && !/^\s*\[[^\]]+\]\s*$/.test(next) && !containsMarker(next);
+    const canAlign =
+      row &&
+      !row.standalone &&
+      next?.trim() &&
+      !detectedKey(next) &&
+      !readChordRow(next) &&
+      !/^\s*\[[^\]]+\]\s*$/.test(next) &&
+      !containsMarker(next);
     if (row && canAlign) {
       output.push(alignChords(next, row));
       index++;

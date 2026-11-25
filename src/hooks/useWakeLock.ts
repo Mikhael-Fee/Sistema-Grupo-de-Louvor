@@ -13,7 +13,13 @@ export function useWakeLock(active: boolean) {
     const acquire = () => {
       if (stopped || document.visibilityState !== 'visible' || (sentinel && !sentinel.released)) return;
       // Browsers can refuse (battery saver, unsupported context); the page keeps working.
-      wakeLock.request('screen').then(lock => { if (stopped) void lock.release().catch(() => {}); else sentinel = lock; }).catch(() => {});
+      wakeLock
+        .request('screen')
+        .then(lock => {
+          if (stopped) void lock.release().catch(() => {});
+          else sentinel = lock;
+        })
+        .catch(() => {});
     };
     acquire();
     document.addEventListener('visibilitychange', acquire);

@@ -35,8 +35,8 @@ const actors = [
 const file = (n, extension = 'png') => `53000000-0000-4000-a000-${String(n).padStart(12, '0')}.${extension}`;
 const objectName = (actor, n, extension) => `${ids[actor]}/${file(n, extension)}`;
 const photoUrl = (actor, n, extension) => `${origin}${objectName(actor, n, extension)}`;
-const accountName = (actor) => `Conta privada ${actor}`;
-const accountEmail = (actor) => `private-account-${actor}@example.invalid`;
+const accountName = actor => `Conta privada ${actor}`;
+const accountEmail = actor => `private-account-${actor}@example.invalid`;
 const personEmail = 'private-person@example.invalid';
 
 async function as(actor, role = 'authenticated') {
@@ -52,15 +52,22 @@ function equal(actual, expected, description) {
 
 async function denied(sql, parameters = [], code = '42501') {
   let failure;
-  try { await db.query(sql, parameters); } catch (error) { failure = error; }
+  try {
+    await db.query(sql, parameters);
+  } catch (error) {
+    failure = error;
+  }
   assert.ok(failure, `Operation must be rejected: ${sql}`);
   assert.equal(failure.code, code, failure.message);
   checks++;
 }
 
 async function upload(actor, n, extension = 'png') {
-  await db.query('insert into storage.objects(bucket_id, name, owner_id) values ($1, $2, $3)',
-    ['avatars', objectName(actor, n, extension), ids[actor]]);
+  await db.query('insert into storage.objects(bucket_id, name, owner_id) values ($1, $2, $3)', [
+    'avatars',
+    objectName(actor, n, extension),
+    ids[actor],
+  ]);
 }
 
 async function linkedPhotos() {
@@ -81,11 +88,17 @@ async function ownProfile(actor) {
 }
 
 async function updateProfile(actor, overrides = {}) {
-  const original = actors.find((entry) => entry.key === actor);
-  await db.query('select public.update_profile($1)', [{
-    id: ids[actor], name: accountName(actor), role: original.role,
-    approved: original.approved, personId: original.personId, ...overrides,
-  }]);
+  const original = actors.find(entry => entry.key === actor);
+  await db.query('select public.update_profile($1)', [
+    {
+      id: ids[actor],
+      name: accountName(actor),
+      role: original.role,
+      approved: original.approved,
+      personId: original.personId,
+      ...overrides,
+    },
+  ]);
 }
 
 async function snapshot() {
@@ -120,11 +133,14 @@ try {
     await db.exec(await readFile(new URL(`../../supabase/migrations/${migration}`, import.meta.url), 'utf8'));
   }
   for (const actor of actors) {
-    await db.query('insert into auth.users(id, email, raw_user_meta_data) values ($1, $2, $3)',
-      [ids[actor.key], accountEmail(actor.key), { name: accountName(actor.key) }]);
+    await db.query('insert into auth.users(id, email, raw_user_meta_data) values ($1, $2, $3)', [
+      ids[actor.key],
+      accountEmail(actor.key),
+      { name: accountName(actor.key) },
+    ]);
     await db.query('update public.profiles set role = $1, approved = $2 where id = $3', [actor.role, actor.approved, ids[actor.key]]);
   }
-  for (const { key } of actors.filter((actor) => actor.key !== 'otherAdmin')) {
+  for (const { key } of actors.filter(actor => actor.key !== 'otherAdmin')) {
     await as(key);
     await upload(key, 1);
     await db.query('select public.update_my_profile_photo($1)', [photoUrl(key, 1)]);
@@ -139,16 +155,32 @@ try {
     { id: ids.emptyPerson, name: 'E sem foto na conta', email: '', functions: ['Teclado'], photoUrl: '' },
   ];
   for (const person of people) {
-    await db.query('insert into public.people(id, name, email, functions, photo_url) values ($1, $2, $3, $4, $5)',
-      [person.id, person.name, person.email, person.functions, person.photoUrl]);
+    await db.query('insert into public.people(id, name, email, functions, photo_url) values ($1, $2, $3, $4, $5)', [
+      person.id,
+      person.name,
+      person.email,
+      person.functions,
+      person.photoUrl,
+    ]);
   }
   for (const { key } of actors) await updateProfile(key);
   const song = {
-    id: ids.song, title: 'Canção preservada', artist: 'Ministério', originalKey: 'C', churchKey: 'D',
-    content: '[C]Letra preservada', youtubeUrl: '', notes: 'Nota musical preservada.', tagIds: [],
+    id: ids.song,
+    title: 'Canção preservada',
+    artist: 'Ministério',
+    originalKey: 'C',
+    churchKey: 'D',
+    content: '[C]Letra preservada',
+    youtubeUrl: '',
+    notes: 'Nota musical preservada.',
+    tagIds: [],
   };
   const service = {
-    id: ids.service, date: '2099-01-01', time: '19:00', type: 'Tema preservado', notes: 'Ensaio preservado.',
+    id: ids.service,
+    date: '2099-01-01',
+    time: '19:00',
+    type: 'Tema preservado',
+    notes: 'Ensaio preservado.',
     assignments: [{ id: ids.assignment, personId: ids.explicitPerson, function: 'Voz' }],
     repertoire: [{ id: ids.item, songId: ids.song, key: 'Eb', notes: 'Introdução preservada.' }],
   };
@@ -178,74 +210,134 @@ try {
 
   for (const actor of ['leader', 'musician', 'pending']) {
     await as(actor);
-    equal((await db.query('select id from public.profiles')).rows, [{ id: ids[actor] }],
-      `${actor} still sees only its own profile through the original RLS`);
+    equal(
+      (await db.query('select id from public.profiles')).rows,
+      [{ id: ids[actor] }],
+      `${actor} still sees only its own profile through the original RLS`,
+    );
   }
   await as('musician');
   await denied('update public.profiles set role = $1, approved = true where id = $2', ['admin', ids.musician]);
   await denied('select public.update_profile($1)', [{ id: ids.musician, name: accountName('musician'), role: 'admin', approved: true }]);
-  equal((await db.query('update public.people set name = $1 where id = $2 returning id', ['Forbidden', ids.fallbackPerson])).rows,
-    [], 'reading linked photos grants no team-write permission');
+  equal(
+    (await db.query('update public.people set name = $1 where id = $2 returning id', ['Forbidden', ids.fallbackPerson])).rows,
+    [],
+    'reading linked photos grants no team-write permission',
+  );
   await as('admin');
   await denied('update public.profiles set photo_url = $1 where id = $2', ['', ids.musician]);
   await db.query('select public.save_public_access(true)');
   await as(null, 'anon');
   const publicPayload = await publicData();
-  const expectedPublicPeople = people.map((person) => ({
-    ...person, email: '', accountPhotoUrl: person.id === ids.explicitPerson ? photoUrl('admin', 1)
-      : person.id === ids.fallbackPerson ? photoUrl('musician', 1) : '',
+  const expectedPublicPeople = people.map(person => ({
+    ...person,
+    email: '',
+    accountPhotoUrl:
+      person.id === ids.explicitPerson ? photoUrl('admin', 1) : person.id === ids.fallbackPerson ? photoUrl('musician', 1) : '',
   }));
-  equal(publicPayload.people, expectedPublicPeople,
-    'public people retain explicit photos and expose a separate approved-account fallback; pending, suspended and empty photos are omitted');
-  equal({ songs: publicPayload.songs, services: publicPayload.services }, { songs: [song], services: [service] },
-    'public songs, custom service themes, assignments and repertoire remain unchanged');
+  equal(
+    publicPayload.people,
+    expectedPublicPeople,
+    'public people retain explicit photos and expose a separate approved-account fallback; pending, suspended and empty photos are omitted',
+  );
+  equal(
+    { songs: publicPayload.songs, services: publicPayload.services },
+    { songs: [song], services: [service] },
+    'public songs, custom service themes, assignments and repertoire remain unchanged',
+  );
   equal(Object.keys(publicPayload).sort(), ['people', 'services', 'songs', 'tags'], 'public consultation exports no account collection');
   const withoutPhotoPaths = JSON.stringify({
-    ...publicPayload, people: publicPayload.people.map(({ photoUrl, accountPhotoUrl, ...person }) => person),
+    ...publicPayload,
+    people: publicPayload.people.map(({ photoUrl, accountPhotoUrl, ...person }) => person),
   });
-  equal([personEmail, ...actors.flatMap(({ key }) => [accountEmail(key), accountName(key), ids[key]])]
-    .some((privateValue) => withoutPhotoPaths.includes(privateValue)), false,
-  'public data redacts person contacts and excludes account IDs, account names and Auth contacts outside the authorized avatar paths');
+  equal(
+    [personEmail, ...actors.flatMap(({ key }) => [accountEmail(key), accountName(key), ids[key]])].some(privateValue =>
+      withoutPhotoPaths.includes(privateValue),
+    ),
+    false,
+    'public data redacts person contacts and excludes account IDs, account names and Auth contacts outside the authorized avatar paths',
+  );
 
   await as('musician');
   const beforeSelfUpdate = await ownProfile('musician');
   await upload('musician', 3, 'webp');
   await db.query('select public.update_my_profile_photo($1)', [photoUrl('musician', 3, 'webp')]);
-  equal(await ownProfile('musician'), { ...beforeSelfUpdate, photo_url: photoUrl('musician', 3, 'webp') },
-    'changing a linked account photo preserves its role, approval, name and person link');
+  equal(
+    await ownProfile('musician'),
+    { ...beforeSelfUpdate, photo_url: photoUrl('musician', 3, 'webp') },
+    'changing a linked account photo preserves its role, approval, name and person link',
+  );
   await as('admin');
   equal(await peopleRows(), beforeMigration.people, 'linking and changing account photos never copy or change raw person records');
-  equal(await linkedPhotos(), [expectedLinked[0], { personId: ids.fallbackPerson, photoUrl: photoUrl('musician', 3, 'webp') }],
-    'approved readers receive a changed linked photo on their next query');
+  equal(
+    await linkedPhotos(),
+    [expectedLinked[0], { personId: ids.fallbackPerson, photoUrl: photoUrl('musician', 3, 'webp') }],
+    'approved readers receive a changed linked photo on their next query',
+  );
   await as(null, 'anon');
-  equal((await publicData()).people.find((person) => person.id === ids.fallbackPerson).accountPhotoUrl,
-    photoUrl('musician', 3, 'webp'), 'public consultation reads the current linked photo without a stale copied value');
+  equal(
+    (await publicData()).people.find(person => person.id === ids.fallbackPerson).accountPhotoUrl,
+    photoUrl('musician', 3, 'webp'),
+    'public consultation reads the current linked photo without a stale copied value',
+  );
 
   await as('admin');
   const leaderBeforeFailedLink = await ownProfile('leader');
-  await denied('select public.update_profile($1)', [{
-    id: ids.leader, name: 'Must roll back', role: 'musician', approved: false, personId: ids.fallbackPerson,
-  }], '23505');
-  equal(await ownProfile('leader'), leaderBeforeFailedLink,
-    'linking an occupied person keeps the existing UNIQUE constraint and rolls back all target profile changes');
+  await denied(
+    'select public.update_profile($1)',
+    [
+      {
+        id: ids.leader,
+        name: 'Must roll back',
+        role: 'musician',
+        approved: false,
+        personId: ids.fallbackPerson,
+      },
+    ],
+    '23505',
+  );
+  equal(
+    await ownProfile('leader'),
+    leaderBeforeFailedLink,
+    'linking an occupied person keeps the existing UNIQUE constraint and rolls back all target profile changes',
+  );
   await updateProfile('musician', { approved: false });
   equal(await linkedPhotos(), [expectedLinked[0]], 'revoking approval hides the linked photo from subsequent member queries');
   await as(null, 'anon');
-  equal((await publicData()).people.find((person) => person.id === ids.fallbackPerson).accountPhotoUrl, '',
-    'revoking approval also hides the fallback from subsequent public queries');
+  equal(
+    (await publicData()).people.find(person => person.id === ids.fallbackPerson).accountPhotoUrl,
+    '',
+    'revoking approval also hides the fallback from subsequent public queries',
+  );
   await as('admin');
   await updateProfile('musician', { approved: true, personId: null });
   equal(await linkedPhotos(), [expectedLinked[0]], 'removing a person link hides an approved account photo from the member RPC');
   await as(null, 'anon');
-  equal((await publicData()).people.find((person) => person.id === ids.fallbackPerson).accountPhotoUrl, '',
-    'removing a person link also hides the fallback from public consultation');
+  equal(
+    (await publicData()).people.find(person => person.id === ids.fallbackPerson).accountPhotoUrl,
+    '',
+    'removing a person link also hides the fallback from public consultation',
+  );
   await as('admin');
   await updateProfile('otherAdmin', { approved: false });
-  await denied('select public.update_profile($1)', [{
-    id: ids.admin, name: accountName('admin'), role: 'musician', approved: true, personId: ids.explicitPerson,
-  }], '23514');
-  equal({ role: (await ownProfile('admin')).role, approved: (await ownProfile('admin')).approved },
-    { role: 'admin', approved: true }, 'the linked-photo migration keeps last-administrator protection');
+  await denied(
+    'select public.update_profile($1)',
+    [
+      {
+        id: ids.admin,
+        name: accountName('admin'),
+        role: 'musician',
+        approved: true,
+        personId: ids.explicitPerson,
+      },
+    ],
+    '23514',
+  );
+  equal(
+    { role: (await ownProfile('admin')).role, approved: (await ownProfile('admin')).approved },
+    { role: 'admin', approved: true },
+    'the linked-photo migration keeps last-administrator protection',
+  );
   console.log(`${checks} linked profile photo PostgreSQL checks passed (PGlite; Auth/Storage simulated).`);
 } finally {
   await db.close();
