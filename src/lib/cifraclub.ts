@@ -1,4 +1,4 @@
-import { chordMarkers, KEYS, stripChords } from './music';
+import { chordMarkers, KEYS, relativeMajor, stripChords } from './music';
 
 export interface ParsedCifraClubText {
   content: string;
@@ -8,15 +8,18 @@ export interface ParsedCifraClubText {
   keyUnknownReason?: string;
 }
 
-const WRITTEN_KEY = /\bforma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?([A-G](?:[#♯b♭])?)(?:m|min|maj)?(?=\s|$|[)])/i;
+const WRITTEN_KEY = /\bforma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?([A-G](?:[#♯b♭])?(?:min|maj|m)?)(?=\s|$|[)])/i;
 const CAPO = /\b(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(\d{1,2})(?:\s*[ªºao])?(?:\s*casa)?\b/i;
 
 function normalizedKey(value?: string): string | undefined {
   if (!value) return undefined;
-  const root = value[0].toUpperCase() + value.slice(1).replace('♯', '#').replace('♭', 'b');
+  const match = /^([A-G][#b]?)(min|maj|m)?$/i.exec(value[0].toUpperCase() + value.slice(1).replace('♯', '#').replace('♭', 'b'));
+  if (!match) return undefined;
   const equivalent: Record<string, string> = { 'C#': 'Db', 'D#': 'Eb', Gb: 'F#', 'G#': 'Ab', 'A#': 'Bb', 'B#': 'C', Cb: 'B', Fb: 'E', 'E#': 'F' };
-  const key = equivalent[root] || root;
-  return KEYS.includes(key) ? key : undefined;
+  const key = equivalent[match[1]] || match[1];
+  if (!KEYS.includes(key)) return undefined;
+  // A song in Gm shares the chords of Bb: keys are named by their major scale.
+  return /^m(?:in)?$/i.test(match[2] || '') && match[2] !== 'M' ? relativeMajor(key) : key;
 }
 
 /** The key belongs to the written chords, which can differ from the sounding key with a capo. */
@@ -27,7 +30,7 @@ export function chordSheetMetadata(value: string): Omit<ParsedCifraClubText, 'co
   for (const rawLine of value.replace(/\r\n?/g, '\n').split('\n')) {
     const line = rawLine.replace(/\s+/g, ' ').trim();
     written ??= normalizedKey(WRITTEN_KEY.exec(line)?.[1]);
-    sounding ??= normalizedKey(/^\s*(?:tom|key|tonalidade)\s*:\s*([A-G](?:[#♯b♭])?)(?:m|min|maj)?(?=\s|$|\()/i.exec(line)?.[1]);
+    sounding ??= normalizedKey(/^\s*(?:tom|key|tonalidade)\s*:\s*([A-G](?:[#♯b♭])?(?:min|maj|m)?)(?=\s|$|\()/i.exec(line)?.[1]);
     const match = CAPO.exec(line);
     if (match && Number(match[1]) <= 12) capo ??= Number(match[1]);
   }
@@ -175,7 +178,7 @@ function normalizedChord(value: string): string | null {
 }
 
 function detectedKey(line: string): string | undefined {
-  return normalizedKey(/^\s*(?:tom|key|tonalidade)\s*:\s*([A-G](?:[#♯b♭])?)(?:m|min|maj)?(?=\s|$|\()/i.exec(line)?.[1]);
+  return normalizedKey(/^\s*(?:tom|key|tonalidade)\s*:\s*([A-G](?:[#♯b♭])?(?:min|maj|m)?)(?=\s|$|\()/i.exec(line)?.[1]);
 }
 
 /** Match visual tab stops used by the plain text copied from a chord sheet. */

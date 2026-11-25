@@ -1,6 +1,11 @@
 /** The twelve keys offered by the ministry's song and service editors. */
 export const KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
+/** The major key that uses the same chords as a minor key (Gm → Bb). */
+export function relativeMajor(minorRoot: string): string {
+  return KEYS[(KEYS.indexOf(minorRoot) + 3) % 12];
+}
+
 const NOTE_VALUES: Record<string, number> = {
   C: 0, 'B#': 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4,
   Fb: 4, 'E#': 5, F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8,

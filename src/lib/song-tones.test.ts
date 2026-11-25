@@ -73,3 +73,12 @@ describe('tom real dos acordes cadastrados', () => {
     expect(contentInChurchKey('Nossa luz nos guia', undefined, 'Bb')).toBe('Nossa luz nos guia');
   });
 });
+
+describe('tom provável menor', () => {
+  it('usa a relativa maior como base: Gm provável vira Bb, não G', () => {
+    const content = '[Intro] [A#] [F]  [Cm]  [Gm]  [A#]\n[A#]O que se pode fazer pra trazer a pres[F]ença de novo?\n[Cm]Será que ainda existe quem tenha fome e quem[Gm] tenha sede?\n[Eb]Se Deus só precisa de um disposto,[F] eu me disponho\n[Cm]Arrependido, em favor de toda [Gm]nação\nAté que Ele [Gm]venha\nAté que Ele [Dm]venha';
+    const tonality = resolveSourceTonality({ id: 'x', title: 'Até Que Ele Venha', artist: '', source: 'Cifra Club', sourceUrl: '', kind: 'chords', content });
+    if (tonality.source.keyEstimate?.mode === 'minor') expect(tonality.source.keyEstimate.key).toBe('G');
+    expect(tonality.writtenKey).toBe('Bb');
+  });
+});

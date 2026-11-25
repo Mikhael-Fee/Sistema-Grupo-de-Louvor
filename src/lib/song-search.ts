@@ -1,4 +1,5 @@
-import { KEYS } from './music';
+import { KEYS, relativeMajor } from './music';
+export { relativeMajor };
 import { buildCifraClubSearchUrl, normalizeCifraClubUrl } from './cifraclub';
 import type { SongKeyEstimate } from './key-estimate';
 
@@ -48,11 +49,13 @@ export function notesWithCifraClubSource(notes: string, value: string): string {
 }
 
 export function sourceKey(value?: string): string | null {
-  const root = /^([A-G](?:#|b)?)(?:m|maj|min)?$/.exec(value?.trim() || '')?.[1];
-  if (!root) return null;
+  const match = /^([A-G](?:#|b)?)(m|maj|min)?$/.exec(value?.trim() || '');
+  if (!match) return null;
   const equivalent: Record<string, string> = { 'C#': 'Db', 'D#': 'Eb', Gb: 'F#', 'G#': 'Ab', 'A#': 'Bb', 'B#': 'C', Cb: 'B', Fb: 'E', 'E#': 'F' };
-  const key = equivalent[root] || root;
-  return KEYS.includes(key) ? key : null;
+  const key = equivalent[match[1]] || match[1];
+  if (!KEYS.includes(key)) return null;
+  // Keys are named by their major scale: a song in Gm shares the chords of Bb.
+  return match[2] === 'm' || match[2] === 'min' ? relativeMajor(key) : key;
 }
 
 function readLyrics(value: unknown): string {

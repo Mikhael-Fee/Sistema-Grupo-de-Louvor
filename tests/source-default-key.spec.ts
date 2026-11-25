@@ -37,7 +37,7 @@ test('Cifra Club preenche tom escrito G a partir de Bb/capo3 e limpa tabs de int
   const dialog = await openEditor(page, source);
   await expect(dialog.getByLabel('Prévia do conteúdo para importar', { exact: true })).toBeVisible();
   await expect(dialog.getByLabel('Tom na igreja', { exact: true })).toHaveValue('G');
-  await expect(dialog.getByLabel('Tom dos acordes recebidos', { exact: true })).toHaveCount(0);
+  await expect(dialog.getByLabel('Tom dos acordes recebidos', { exact: true })).toHaveValue('G');
   await expect(dialog).toContainText('Tom dos acordes sem capotraste: G');
   await dialog.getByRole('button', { name: 'Importar cifra e letra', exact: true }).click();
   const content = await dialog.getByRole('textbox', { name: /^Letra e cifra/ }).inputValue();
