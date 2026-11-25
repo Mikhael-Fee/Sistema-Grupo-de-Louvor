@@ -81,7 +81,11 @@ const COLOR = /#[0-9a-fA-F]{3,8}\b|\brgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(
 for (const file of files) {
   const source = readFileSync(file, 'utf8');
   const result = source.replace(/([{;]\s*)([-\w]+)(\s*:\s*)([^;{}]+)/g, (match, lead, property, colon, value) => {
-    if (property.startsWith('--')) return match;
+    if (property.startsWith('--')) {
+      // Semantic variables (--navy-hover etc.) need their colors defined too, or they resolve to nothing.
+      for (const [, hex] of value.matchAll(/var\(--c-([0-9a-f]{8})\)/g)) used.add(hex);
+      return match;
+    }
     const line = LINE.test(property);
     const next = value
       .replace(/var\(--[cl]-([0-9a-f]{8})\)/g, (all, hex) => {
