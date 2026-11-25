@@ -6,6 +6,7 @@ import YoutubeVideoCard from '../components/YoutubeVideoCard';
 import { useMinistry } from '../context/MinistryContext';
 import { chordSegments, KEYS, stripChords, transposeContent } from '../lib/music';
 import { cleanChordSheet } from '../lib/cifraclub';
+import { sectionLabel } from '../lib/song-sections';
 import { normalizeYouTubeUrl } from '../lib/youtube';
 import { cifraClubUrlFromNotes, cifraClubSearchUrl } from '../lib/song-search';
 import { isFirefoxInstalledApp } from '../lib/cifra-browser';
@@ -171,7 +172,16 @@ export default function SongPage() {
       </div>
       <div className="song-reader-context"><span>{reading ? song.title : 'Prepare o coração. Acompanhe a canção.'}</span><span>Tom <strong>{viewKey}</strong>{viewKey !== defaultKey && <span className="song-temporary"> · visualização</span>}</span></div>
       <div className={`song-sheet ${showChords ? 'song-sheet-chords' : ''}`} style={{ fontSize: `${fontSize}px` }}>
-        {showChords ? content.split('\n').map((line, lineIndex) => <div className="song-line" key={lineIndex}>{line.length ? chordSegments(line).filter(segment => segment.chord || segment.text).map((segment, index) => <span className={`song-segment${segment.chord && !segment.text.trim() ? ' song-segment-instrumental' : ''}`} key={index}><span className="song-chord">{segment.chord || '\u00a0'}</span><span className="song-lyric">{segment.text}</span></span>) : <span className="song-blank-line">&nbsp;</span>}</div>) : <div className="song-lyrics-only">{stripChords(content)}</div>}
+        {showChords ? content.split('\n').map((line, lineIndex) => {
+          const section = sectionLabel(line);
+          const rest = section ? section.rest : line;
+          const chords = rest.length ? chordSegments(rest).filter(segment => segment.chord || segment.text).map((segment, index) => <span className={`song-segment${segment.chord && !segment.text.trim() ? ' song-segment-instrumental' : ''}`} key={index}><span className="song-chord">{segment.chord || '\u00a0'}</span><span className="song-lyric">{segment.text}</span></span>) : null;
+          if (section) return <div className="song-line song-section-line" key={lineIndex}><span className="song-section-label">{section.label}</span>{chords}</div>;
+          return <div className="song-line" key={lineIndex}>{chords ?? <span className="song-blank-line">&nbsp;</span>}</div>;
+        }) : <div className="song-lyrics-only">{stripChords(content).split('\n').map((line, lineIndex) => {
+          const section = sectionLabel(line);
+          return section ? <span className="song-section-line" key={lineIndex}><span className="song-section-label">{section.label}</span>{section.rest && ` ${section.rest}`}{'\n'}</span> : <span key={lineIndex}>{line}{'\n'}</span>;
+        })}</div>}
       </div>
       {(reading || position) && <nav className={`song-stage-bar ${reading ? 'song-stage-floating' : ''}`} aria-label="Controles de palco">
         {position && service ? (position.previous ? <Link className="button button-secondary song-stage-step" to={setlistSongPath(service.id, position.previous)} state={{ reading }} aria-label="Música anterior do repertório"><ChevronLeft size={18} /><span>Anterior</span></Link> : <span className="song-stage-step song-stage-placeholder" aria-hidden="true" />) : null}

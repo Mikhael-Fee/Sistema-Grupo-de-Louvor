@@ -38,7 +38,7 @@ test('com o aparelho desconectado, abre a cópia salva na hora e recarrega quand
   await page.unroute(/\/(auth|rest|storage)\/v1\//, blocked);
   await page.evaluate(() => (window as unknown as { goOnline: () => void }).goOnline());
   await expect(page.getByText(/Mostrando os dados salvos/)).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Culto atualizado online' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Culto atualizado online', level: 2 })).toBeVisible();
 });
 
 test('sair apaga a cópia guardada no aparelho', async ({ page }) => {
