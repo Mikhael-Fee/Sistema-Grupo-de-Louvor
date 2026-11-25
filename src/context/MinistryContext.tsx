@@ -1,12 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { repository, supabase } from '../lib/backend';
 import { validatePerson, validateService, validateSong, validateTag } from '../lib/validation';
+import { clearSnapshot, isConnectionFailure, readSnapshot, saveSnapshot } from '../lib/offline-snapshot';
+import { ministryToday } from '../lib/service-calendar';
 import type { MinistryData, Person, Profile, Service, Song, Tag } from '../types';
 
 const EMPTY: MinistryData = { songs: [], tags: [], people: [], services: [] };
 interface MinistryContextValue {
   data: MinistryData; profile: Profile | null; mode: 'supabase' | 'public'; loading: boolean;
   busy: boolean; error: string | null; canEditLibrary: boolean; canPlan: boolean;
+  /** When set, the app is showing the copy saved on this device at that time (no connection). */
+  offlineSavedAt: string | null;
   signOut(): Promise<void>; refresh(): Promise<void>;
   saveSong(song: Song): Promise<void>; deleteSong(id: string): Promise<void>;
   savePerson(person: Person, photoChange?: Blob | null): Promise<void>; deletePerson(id: string): Promise<void>;
@@ -18,6 +22,10 @@ interface MinistryContextValue {
 }
 const Context = createContext<MinistryContextValue | null>(null);
 const check = (message: string | null) => { if (message) throw new Error(message); };
+const OFFLINE_EDIT = 'Sem conexão: você está vendo os dados salvos neste aparelho. Alterações ficam disponíveis quando a internet voltar.';
+/** Refresh shared data when coming back to the app after this long, and every few minutes while open. */
+const FOCUS_REFRESH_MS = 30_000;
+const PERIODIC_REFRESH_MS = 5 * 60_000;
 
 export function MinistryProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<MinistryData>(EMPTY);
@@ -28,6 +36,8 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offlineSavedAt, setOfflineSavedAt] = useState<string | null>(null);
+  const lastLoaded = useRef(0);
   const lock = useRef(false);
   const sequence = useRef(0);
   const loadUser = useCallback(async (userId?: string, blocking = true) => {
@@ -39,8 +49,22 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
       if (!userId) { setProfile(null); setData(EMPTY); return; }
       const nextProfile = await repository.getProfile(userId);
       const nextData = nextProfile.approved ? await repository.loadData() : EMPTY;
-      if (seq === sequence.current) { setProfile(nextProfile); setData(nextData); }
-    } catch (e) { if (seq === sequence.current) { if (blocking) { setProfile(null); setData(EMPTY); } setError(e instanceof Error ? e.message : 'Não foi possível carregar o ministério.'); } }
+      if (seq === sequence.current) {
+        setProfile(nextProfile); setData(nextData); setOfflineSavedAt(null); lastLoaded.current = Date.now();
+        if (nextProfile.approved) saveSnapshot(nextProfile, nextData, ministryToday());
+      }
+    } catch (e) {
+      if (seq !== sequence.current) return;
+      if (isConnectionFailure(e)) {
+        // Without signal, open the copy saved on this device instead of the login page.
+        // A background refresh simply keeps what is already on screen.
+        if (blocking) {
+          const snapshot = readSnapshot(userId);
+          if (snapshot) { setProfile(snapshot.profile); setData(snapshot.data); setOfflineSavedAt(snapshot.savedAt); }
+          else { setProfile(null); setData(EMPTY); setError('Sem conexão. Abra o Candeia com internet uma vez para guardar os cultos e as cifras neste aparelho.'); }
+        }
+      } else { if (blocking) { setProfile(null); setData(EMPTY); } setError(e instanceof Error ? e.message : 'Não foi possível carregar o ministério.'); }
+    }
     finally { if (seq === sequence.current) setLoading(false); }
   }, []);
   useEffect(() => {
@@ -52,9 +76,21 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
     } catch { /* Browser storage may be disabled. */ }
     if (!supabase) { setLoading(false); return; }
     let active = true;
+    // With the phone clearly offline, open the saved copy at once instead of waiting
+    // for Supabase retries. The refresh below reloads everything when the signal returns.
+    const offlineStart = !navigator.onLine ? readSnapshot() : null;
+    if (offlineStart) {
+      sessionUser.current = offlineStart.userId;
+      setProfile(offlineStart.profile); setData(offlineStart.data); setOfflineSavedAt(offlineStart.savedAt); setLoading(false);
+    }
     void supabase.auth.getSession().then(({ data: session, error: authError }) => {
-      if (!active) return;
-      if (authError) { setError(authError.message); setLoading(false); }
+      if (!active || offlineStart) return;
+      if (authError) {
+        const snapshot = isConnectionFailure(authError) ? readSnapshot() : null;
+        if (snapshot) { sessionUser.current = snapshot.userId; setProfile(snapshot.profile); setData(snapshot.data); setOfflineSavedAt(snapshot.savedAt); }
+        else setError(authError.message);
+        setLoading(false);
+      }
       else void loadUser(session.session?.user.id);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
@@ -74,7 +110,31 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
     });
     return () => { active = false; listener.subscription.unsubscribe(); sequence.current++; };
   }, [loadUser]);
+  // Keep shared data current: on returning to the app, when the connection comes back, and every few minutes.
+  const approved = Boolean(profile?.approved);
+  useEffect(() => {
+    if (!approved) return;
+    const refreshIfStale = (minimumAge: number) => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine || lock.current || !sessionUser.current) return;
+      if (Date.now() - lastLoaded.current < minimumAge) return;
+      lastLoaded.current = Date.now();
+      void loadUser(sessionUser.current, false);
+    };
+    const onReturn = () => refreshIfStale(FOCUS_REFRESH_MS);
+    const onOnline = () => refreshIfStale(0);
+    document.addEventListener('visibilitychange', onReturn);
+    window.addEventListener('focus', onReturn);
+    window.addEventListener('online', onOnline);
+    const timer = window.setInterval(() => refreshIfStale(PERIODIC_REFRESH_MS), 60_000);
+    return () => {
+      document.removeEventListener('visibilitychange', onReturn);
+      window.removeEventListener('focus', onReturn);
+      window.removeEventListener('online', onOnline);
+      window.clearInterval(timer);
+    };
+  }, [approved, loadUser]);
   const authorize = (kind: 'library' | 'plan' | 'admin') => {
+    if (offlineSavedAt) throw new Error(OFFLINE_EDIT);
     if (!profile?.approved || (kind === 'plan' ? !['admin', 'leader'].includes(profile.role) : profile.role !== 'admin')) throw new Error('Seu perfil não tem permissão para esta ação.');
   };
   const mutate = async (kind: 'library' | 'plan' | 'admin', remote: () => Promise<void>) => {
@@ -85,7 +145,10 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
     try {
       await remote();
       const nextData = await repository.loadData();
-      if (sessionUser.current === actor) setData(nextData);
+      if (sessionUser.current === actor) {
+        setData(nextData); lastLoaded.current = Date.now();
+        if (profile) saveSnapshot(profile, nextData, ministryToday());
+      }
     } catch (e) { throw e instanceof Error ? e : new Error('Não foi possível salvar.'); }
     finally { lock.current = false; setBusy(false); }
   };
@@ -94,10 +157,12 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
     return repository.listProfiles();
   }, [profile?.approved, profile?.role]);
   const value: MinistryContextValue = {
-    data, profile, mode, loading, busy, error,
-    canEditLibrary: Boolean(profile?.approved && profile.role === 'admin'),
-    canPlan: Boolean(profile?.approved && ['admin', 'leader'].includes(profile.role)),
+    data, profile, mode, loading, busy, error, offlineSavedAt,
+    canEditLibrary: Boolean(!offlineSavedAt && profile?.approved && profile.role === 'admin'),
+    canPlan: Boolean(!offlineSavedAt && profile?.approved && ['admin', 'leader'].includes(profile.role)),
     async signOut() {
+      // The device copy belongs to this account only.
+      clearSnapshot(); setOfflineSavedAt(null);
       if (supabase) { const { error: e } = await supabase.auth.signOut(); if (e) throw e; }
       try {
         sessionStorage.removeItem('candeia.public.session');
@@ -175,6 +240,7 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
       await repository.updateProfile(nextProfile); await loadUser(profile?.id, false);
     },
     async updateProfilePhoto(photo) {
+      if (offlineSavedAt) throw new Error(OFFLINE_EDIT);
       if (!profile?.approved || !supabase) throw new Error('Entre na sua conta para alterar a foto.');
       if (lock.current) throw new Error('Aguarde a alteração em andamento.');
       const actor = profile.id;

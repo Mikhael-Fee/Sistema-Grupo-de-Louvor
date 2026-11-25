@@ -73,7 +73,8 @@ test('modo leitura no celular ocupa a tela e preserva tom e fonte ao sair', asyn
   expect(await reader.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   await page.keyboard.press('Tab');
   expect(await page.evaluate(() => Boolean(document.activeElement?.closest('.song-reading')))).toBe(true);
-  await expect(reader.getByRole('button', { name: 'Letra e cifra', exact: true })).toBeFocused();
+  // After the reading toolbar comes the stage bar (automatic scrolling).
+  await expect(reader.getByRole('button', { name: 'Rolar', exact: true })).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(reader.getByRole('button', { name: 'Sair do modo leitura', exact: true })).toBeFocused();
   expect(await page.locator('.topbar').evaluate(element => (element as HTMLElement).inert)).toBe(true);

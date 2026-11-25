@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Clock3, Copy, ExternalLink, GripVertical, Music2, Pencil, Sparkles, Trash2, Users, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Check, Clock3, Copy, ExternalLink, GripVertical, MessageCircle, Music2, Pencil, Sparkles, Trash2, Users, X } from 'lucide-react';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
 import ProfileAvatar from '../components/ProfileAvatar';
 import YoutubeVideoCard from '../components/YoutubeVideoCard';
@@ -10,6 +10,7 @@ import { KEYS } from '../lib/music';
 import { getPersonPhoto } from '../lib/avatars';
 import { normalizeYouTubeUrl } from '../lib/youtube';
 import { validateService } from '../lib/validation';
+import { buildServiceShareText, whatsappShareUrl } from '../lib/service-share';
 import type { Assignment, Person, Service, SetlistItem, Song } from '../types';
 import { formatServiceDate, mergeTeamAssignments, previousTeamService, RepertoirePicker, restoreTeamPickerDraft, selectedRepertoireItems, selectedTeamAssignments, ServiceForm, TeamPicker, teamPickerFromAssignments, type RepertoirePickerDraft, type TeamPickerDraft } from './ServicesPage';
 import './services.css';
@@ -76,11 +77,17 @@ export default function ServicePage() {
   const [editingItem, setEditingItem] = useState<SetlistItem | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const disabled = busy || saving;
 
   if (!service) return <><Link to="/cultos" className="service-back"><ArrowLeft size={17} /> Voltar aos cultos</Link><EmptyState title="Culto não encontrado" description="Este culto pode ter sido removido. Consulte a lista de cultos." action={<Link to="/cultos" className="button button-primary">Ver cultos</Link>} /></>;
 
   const currentService = service;
+  const shareText = buildServiceShareText(service, data, `${window.location.origin}/cultos/${service.id}`);
+  async function copyShareText() {
+    try { await navigator.clipboard.writeText(shareText); setCopied(true); setTimeout(() => setCopied(false), 2500); }
+    catch { setActionError('Não foi possível copiar. Use o botão do WhatsApp.'); }
+  }
   async function save(next: Service, close = false) {
     if (lock.current || busy) return false;
     const validationError = validateService(next, data);
@@ -124,7 +131,7 @@ export default function ServicePage() {
   }
   return <>
     <Link to="/cultos" className="service-back"><ArrowLeft size={17} /> Voltar aos cultos</Link>
-    <PageHeader eyebrow="DETALHES DO ENCONTRO" title={service.type} description={formatServiceDate(service.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} action={canPlan && <div className="service-header-actions"><button className="button button-secondary" onClick={() => open('edit')} disabled={disabled}><Pencil size={16} /> Editar culto</button><button className="icon-button service-delete" aria-label="Excluir culto" title="Excluir culto" onClick={() => open('delete')} disabled={disabled}><Trash2 size={18} /></button></div>} />
+    <PageHeader eyebrow="DETALHES DO ENCONTRO" title={service.type} description={formatServiceDate(service.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} action={<div className="service-header-actions"><a className="button button-secondary service-share" href={whatsappShareUrl(shareText)} target="_blank" rel="noopener noreferrer" aria-label="Enviar escala e repertório no WhatsApp"><MessageCircle size={16} /> WhatsApp</a><button type="button" className="icon-button" aria-label={copied ? 'Texto copiado' : 'Copiar texto da escala e do repertório'} title="Copiar texto" onClick={() => void copyShareText()}>{copied ? <Check size={17} /> : <Copy size={17} />}</button>{canPlan && <><button className="button button-secondary" onClick={() => open('edit')} disabled={disabled}><Pencil size={16} /> Editar culto</button><button className="icon-button service-delete" aria-label="Excluir culto" title="Excluir culto" onClick={() => open('delete')} disabled={disabled}><Trash2 size={18} /></button></>}</div>} />
     <FormError error={actionError && !dialog && !editingItem ? actionError : null} /><FormError error={error} />
     <div className="card service-overview"><div className="service-overview-facts">{service.isEvent && <span className="service-event-indicator"><Sparkles size={17} /> Evento</span>}<span><CalendarDays size={19} /> {formatServiceDate(service.date, { day: '2-digit', month: '2-digit', year: 'numeric' })}</span><span><Clock3 size={19} /> {service.time}</span><span><Users size={19} /> {service.assignments.length} pessoas na escala</span><span><Music2 size={19} /> {service.repertoire.length} músicas</span></div>{service.notes && <div className="service-observations"><span className="eyebrow">OBSERVAÇÕES DO CULTO</span><p>{service.notes}</p></div>}</div>
     <div className="service-columns">
