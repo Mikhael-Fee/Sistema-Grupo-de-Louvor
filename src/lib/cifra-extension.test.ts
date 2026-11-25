@@ -224,6 +224,28 @@ describe('extensão Candeia: leitor puro do DOM da cifra', () => {
     };
     expect(readerForTests().readDocument(document, sourceUrl, sourceUrl)?.text).toBe('G\nLuz em paz');
   });
+  it('do DOM do Cifra Club ao app: acordes em <b> com 9-, º, add9, Intro: e sinais ganham colchetes', () => {
+    const text = (value: string) => fixtureNode(null, [], value);
+    const b = (value: string) => fixtureNode('b', [text(value)]);
+    const pre = fixtureNode('pre', [
+      text('Intro: '), b('F'), text('  '), b('C(add9)'), text('  -  '), b('Bº'), text('\n\n'),
+      b('E7(9-)'), text('    '), b('A'), text('\nAté que Ele venha\n'),
+      b('Cm(7M)'), text('  '), b('F#m7(5-)'), text('  →  '), b('A7(9+)'), text('\nvem Senhor'),
+    ]);
+    const document = {
+      defaultView: null, title: 'Luz - Equipe - Cifra Club',
+      querySelectorAll(selector: string) { return selector === 'pre' ? [pre] : []; },
+      querySelector(selector: string) { return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Equipe' } : null; },
+    };
+    const result = readerForTests().readDocument(document, sourceUrl, sourceUrl);
+    expect(parseCifraClubText(result!.text).content).toBe([
+      'Intro: [F]  [C(add9)]  -  [Bº]',
+      '',
+      '[E7(9-)]Até que El[A]e venha',
+      '[Cm(7M)]  [F#m7(5-)]  →  [A7(9+)]',
+      'vem Senhor',
+    ].join('\n'));
+  });
 });
 
 describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação e ciclo de abas próprias', engine => {
