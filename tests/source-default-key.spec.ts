@@ -3,8 +3,15 @@ import { loginAs } from './fixtures';
 import type { SongSearchResult } from '../src/lib/song-search';
 
 test.use({ trace: 'off', screenshot: 'off' });
-const makeSource = (value: Partial<SongSearchResult>): SongSearchResult => ({ id: 'source', title: 'Canção da fonte', artist: 'Equipe da fonte',
-  source: 'Cifra Club', sourceUrl: 'https://www.cifraclub.com.br/equipe/cancao/', kind: 'chords', ...value });
+const makeSource = (value: Partial<SongSearchResult>): SongSearchResult => ({
+  id: 'source',
+  title: 'Canção da fonte',
+  artist: 'Equipe da fonte',
+  source: 'Cifra Club',
+  sourceUrl: 'https://www.cifraclub.com.br/equipe/cancao/',
+  kind: 'chords',
+  ...value,
+});
 
 async function mockSource(page: Page, source: SongSearchResult, previewGate?: Promise<void>, onPreview?: () => void) {
   await page.route('https://lrclib.net/**', route => route.fulfill({ contentType: 'application/json', body: '[]' }));
@@ -30,9 +37,12 @@ async function openEditor(page: Page, source: SongSearchResult) {
 
 test('Cifra Club preenche tom escrito G a partir de Bb/capo3 e limpa tabs de intro e solo', async ({ page }) => {
   const mock = await loginAs(page);
-  const source = makeSource({ soundingKey: 'Bb', capo: 3,
+  const source = makeSource({
+    soundingKey: 'Bb',
+    capo: 3,
     content: '[Tab Intro]\ne│––0––2––3––│\nB│––1––3––0––│\n[Intro][G][C][D]\n[Tab Solo]\ne|--0h2--3p2--|\n[G]Uma voz nos [D]guia',
-    keyUnknownReason: 'A fonte informa capotraste, mas não o tom das posições.' });
+    keyUnknownReason: 'A fonte informa capotraste, mas não o tom das posições.',
+  });
   await mockSource(page, source);
   const dialog = await openEditor(page, source);
   await expect(dialog.getByLabel('Prévia do conteúdo para importar', { exact: true })).toBeVisible();
@@ -60,7 +70,11 @@ test('sem tom na fonte sugere D para G A D Bm C e informa possível empréstimo 
   await dialog.getByRole('button', { name: 'Importar cifra e letra', exact: true }).click();
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(dialog).toBeHidden();
-  expect(mock.data.songs.find(song => song.title === source.title)).toMatchObject({ originalKey: 'D', churchKey: 'D', content: source.content });
+  expect(mock.data.songs.find(song => song.title === source.title)).toMatchObject({
+    originalKey: 'D',
+    churchKey: 'D',
+    content: source.content,
+  });
 });
 
 test('poucos acordes exigem confirmar o tom provável antes de importar', async ({ page }) => {
@@ -86,9 +100,14 @@ test('poucos acordes exigem confirmar o tom provável antes de importar', async 
 test('escolher C durante uma consulta é preservado após resposta e reabertura do rascunho', async ({ page }) => {
   const mock = await loginAs(page);
   const source = makeSource({ originalKey: 'E', content: '[E]Verso da [B]fonte' });
-  let release!: () => void; let entered!: () => void;
-  const gate = new Promise<void>(resolve => { release = resolve; });
-  const started = new Promise<void>(resolve => { entered = resolve; });
+  let release!: () => void;
+  let entered!: () => void;
+  const gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  const started = new Promise<void>(resolve => {
+    entered = resolve;
+  });
   await mockSource(page, source, gate, entered);
   const dialog = await openEditor(page, source);
   await started;

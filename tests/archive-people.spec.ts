@@ -1,9 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import { setupMockMinistry, type MockMinistry } from './fixtures';
 
-const personCard = (page: Page, name: string) => page.locator('.people-person').filter({ has: page.getByRole('heading', { name, exact: true }) });
+const personCard = (page: Page, name: string) =>
+  page.locator('.people-person').filter({ has: page.getByRole('heading', { name, exact: true }) });
 const teamRow = (page: Page, name: string) => page.locator('.service-team-list li').filter({ has: page.getByText(name, { exact: true }) });
-const changes = (mock: MockMinistry) => mock.calls.filter(call => call.path.startsWith('/rest/v1/') && !['GET', 'OPTIONS'].includes(call.method));
+const changes = (mock: MockMinistry) =>
+  mock.calls.filter(call => call.path.startsWith('/rest/v1/') && !['GET', 'OPTIONS'].includes(call.method));
 
 async function seedPhoto(page: Page, mock: MockMinistry, ownerId: string, number: number) {
   const origin = await page.evaluate(async () => {
@@ -36,7 +38,9 @@ test('admin retira e reativa pessoa escalada sem apagar histórico, fotos ou con
   const photoPathsBefore = [...mock.storage.objects.keys()];
   await mock.login();
   await page.goto('/pessoas');
-  await personCard(page, person.name).getByRole('button', { name: `Retirar ${person.name} da equipe`, exact: true }).click();
+  await personCard(page, person.name)
+    .getByRole('button', { name: `Retirar ${person.name} da equipe`, exact: true })
+    .click();
   let dialog = page.getByRole('dialog', { name: 'Retirar da equipe', exact: true });
   await expect(dialog).toContainText(person.name);
   await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
@@ -44,12 +48,17 @@ test('admin retira e reativa pessoa escalada sem apagar histórico, fotos ou con
   expect(changes(mock)).toHaveLength(0);
   expect(mock.data.people.find(current => current.id === person.id)?.active).not.toBe(false);
 
-  await personCard(page, person.name).getByRole('button', { name: `Retirar ${person.name} da equipe`, exact: true }).click();
+  await personCard(page, person.name)
+    .getByRole('button', { name: `Retirar ${person.name} da equipe`, exact: true })
+    .click();
   dialog = page.getByRole('dialog', { name: 'Retirar da equipe', exact: true });
   await dialog.getByRole('button', { name: 'Retirar da equipe', exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(personCard(page, person.name)).toHaveCount(0);
-  expect(mock.data.people.find(current => current.id === person.id)).toEqual({ ...peopleBefore.find(current => current.id === person.id), active: false });
+  expect(mock.data.people.find(current => current.id === person.id)).toEqual({
+    ...peopleBefore.find(current => current.id === person.id),
+    active: false,
+  });
   expect(mock.data.people).toHaveLength(peopleBefore.length);
   expect(mock.data.services).toEqual(servicesBefore);
   expect(mock.profiles).toEqual(profilesBefore);
@@ -75,11 +84,16 @@ test('admin retira e reativa pessoa escalada sem apagar histórico, fotos ou con
   await status.selectOption('archived');
   await expect(personCard(page, person.name)).toBeVisible();
   await expect(personCard(page, person.name).locator('img')).toHaveAttribute('src', person.photoUrl);
-  await personCard(page, person.name).getByRole('button', { name: `Reativar ${person.name}`, exact: true }).click();
+  await personCard(page, person.name)
+    .getByRole('button', { name: `Reativar ${person.name}`, exact: true })
+    .click();
   await expect(personCard(page, person.name)).toHaveCount(0);
   await status.selectOption('active');
   await expect(personCard(page, person.name)).toBeVisible();
-  expect(mock.data.people.find(current => current.id === person.id)).toEqual({ ...peopleBefore.find(current => current.id === person.id), active: true });
+  expect(mock.data.people.find(current => current.id === person.id)).toEqual({
+    ...peopleBefore.find(current => current.id === person.id),
+    active: true,
+  });
   expect(mock.data.services).toEqual(servicesBefore);
   expect(mock.profiles).toEqual(profilesBefore);
   expect([...mock.storage.objects.keys()]).toEqual(photoPathsBefore);

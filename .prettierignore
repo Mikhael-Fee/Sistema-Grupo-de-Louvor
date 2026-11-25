@@ -1,0 +1,17 @@
+dist
+coverage
+node_modules
+test-results
+playwright-report
+public/downloads
+# The signed Firefox add-on must keep its exact source.
+browser-extension
+# CSS stays compact: scripts/theme-colors.mjs rewrites it and generates src/theme.css.
+*.css
+*.md
+*.html
+*.json
+*.sql
+# Database tests read these helpers' SQL by pattern; keep their layout.
+scripts/configure-*.mjs
+scripts/verify-supabase.mjs

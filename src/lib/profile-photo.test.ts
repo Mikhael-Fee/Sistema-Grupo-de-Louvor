@@ -14,21 +14,47 @@ function png(width: number, height: number): File {
 
 function jpeg(width: number, height: number): File {
   // SOI, APP0 and a progressive SOF segment, without pixel payload (decoder is mocked).
-  const bytes = new Uint8Array([255, 216, 255, 224, 0, 4, 0, 0, 255, 194, 0, 11, 8,
-    height >>> 8, height & 255, width >>> 8, width & 255, 1, 1, 0x11, 0, 255, 217]);
+  const bytes = new Uint8Array([
+    255,
+    216,
+    255,
+    224,
+    0,
+    4,
+    0,
+    0,
+    255,
+    194,
+    0,
+    11,
+    8,
+    height >>> 8,
+    height & 255,
+    width >>> 8,
+    width & 255,
+    1,
+    1,
+    0x11,
+    0,
+    255,
+    217,
+  ]);
   return new File([bytes], 'foto.jpg', { type: 'image/jpeg' });
 }
 
 function webp(width: number, height: number, kind: 'VP8X' | 'VP8L' | 'VP8 '): File {
   const length = kind === 'VP8L' ? 5 : 10;
-  const bytes = new Uint8Array(20 + length + length % 2);
+  const bytes = new Uint8Array(20 + length + (length % 2));
   const view = new DataView(bytes.buffer);
   bytes.set(new TextEncoder().encode('RIFF'));
   view.setUint32(4, bytes.length - 8, true);
   bytes.set(new TextEncoder().encode('WEBP' + kind), 8);
   view.setUint32(16, length, true);
   if (kind === 'VP8X') {
-    for (let i = 0; i < 3; i++) { bytes[24 + i] = (width - 1) >>> (8 * i); bytes[27 + i] = (height - 1) >>> (8 * i); }
+    for (let i = 0; i < 3; i++) {
+      bytes[24 + i] = (width - 1) >>> (8 * i);
+      bytes[27 + i] = (height - 1) >>> (8 * i);
+    }
   } else if (kind === 'VP8L') {
     bytes[20] = 0x2f;
     view.setUint32(21, ((height - 1) << 14) | (width - 1), true);
@@ -55,7 +81,10 @@ function mockCanvas(width = 1600, height = 900, outputSizes = [10_000], type = '
   return { decode, bitmap, drawImage, canvas, toBlob };
 }
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe('foto pequena de perfil', () => {
   it('aceita somente os três tipos de foto e rejeita arquivos vazios ou acima de 10 MB', async () => {
@@ -65,7 +94,9 @@ describe('foto pequena de perfil', () => {
       await expect(preprocessProfilePhoto(new File(['fake'], 'foto', { type }))).rejects.toThrow(/JPG, PNG ou WebP/);
     }
     await expect(preprocessProfilePhoto(new File([], 'vazio.png', { type: 'image/png' }))).rejects.toThrow(/válida/);
-    await expect(preprocessProfilePhoto(new File([new Uint8Array(MAX_PROFILE_PHOTO_INPUT_BYTES + 1)], 'grande.png', { type: 'image/png' }))).rejects.toThrow(/10 MB/);
+    await expect(
+      preprocessProfilePhoto(new File([new Uint8Array(MAX_PROFILE_PHOTO_INPUT_BYTES + 1)], 'grande.png', { type: 'image/png' })),
+    ).rejects.toThrow(/10 MB/);
     expect(decode).not.toHaveBeenCalled();
   });
 
@@ -76,11 +107,14 @@ describe('foto pequena de perfil', () => {
     expect(decode).not.toHaveBeenCalled();
   });
 
-  it.each([png(20_001, 1), png(8000, 6000), jpeg(20_001, 1), webp(8000, 6000, 'VP8X'), webp(8000, 6000, 'VP8L'), webp(8000, 6000, 'VP8 ')])('barra dimensões excessivas antes de alocar a imagem %#', async file => {
-    const { decode } = mockCanvas();
-    await expect(preprocessProfilePhoto(file)).rejects.toThrow(/dimensões muito grandes/);
-    expect(decode).not.toHaveBeenCalled();
-  });
+  it.each([png(20_001, 1), png(8000, 6000), jpeg(20_001, 1), webp(8000, 6000, 'VP8X'), webp(8000, 6000, 'VP8L'), webp(8000, 6000, 'VP8 ')])(
+    'barra dimensões excessivas antes de alocar a imagem %#',
+    async file => {
+      const { decode } = mockCanvas();
+      await expect(preprocessProfilePhoto(file)).rejects.toThrow(/dimensões muito grandes/);
+      expect(decode).not.toHaveBeenCalled();
+    },
+  );
 
   it('verifica dimensões dos frames WebP além do tamanho declarado do canvas', async () => {
     const header = new Uint8Array(await webp(1, 1, 'VP8X').arrayBuffer());
@@ -91,24 +125,32 @@ describe('foto pequena de perfil', () => {
     bytes.set(new TextEncoder().encode('ANMF'), header.length);
     view.setUint32(header.length + 4, 16, true);
     // A tiny declared canvas cannot conceal a 48-megapixel animation frame.
-    for (let i = 0; i < 3; i++) { bytes[header.length + 14 + i] = 7999 >>> (8 * i); bytes[header.length + 17 + i] = 5999 >>> (8 * i); }
+    for (let i = 0; i < 3; i++) {
+      bytes[header.length + 14 + i] = 7999 >>> (8 * i);
+      bytes[header.length + 17 + i] = 5999 >>> (8 * i);
+    }
     const { decode } = mockCanvas();
-    await expect(preprocessProfilePhoto(new File([bytes], 'animacao.webp', { type: 'image/webp' }))).rejects.toThrow(/dimensões muito grandes/);
+    await expect(preprocessProfilePhoto(new File([bytes], 'animacao.webp', { type: 'image/webp' }))).rejects.toThrow(
+      /dimensões muito grandes/,
+    );
     expect(decode).not.toHaveBeenCalled();
   });
 
-  it.each([png(1600, 900), jpeg(1600, 900), webp(1600, 900, 'VP8X'), webp(1600, 900, 'VP8L'), webp(1600, 900, 'VP8 ')])('gera recorte central quadrado e fecha os recursos %#', async file => {
-    const { decode, bitmap, drawImage, canvas, toBlob } = mockCanvas();
-    const blob = await preprocessProfilePhoto(file);
-    expect(decode).toHaveBeenCalledWith(file, { imageOrientation: 'from-image' });
-    expect(drawImage).toHaveBeenCalledWith(bitmap, 350, 0, 900, 900, 0, 0, 512, 512);
-    expect(toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/webp', 0.85);
-    expect(blob.type).toBe('image/webp');
-    expect(blob.size).toBe(10_000);
-    expect(bitmap.close).toHaveBeenCalledOnce();
-    expect(canvas.width).toBe(0);
-    expect(canvas.height).toBe(0);
-  });
+  it.each([png(1600, 900), jpeg(1600, 900), webp(1600, 900, 'VP8X'), webp(1600, 900, 'VP8L'), webp(1600, 900, 'VP8 ')])(
+    'gera recorte central quadrado e fecha os recursos %#',
+    async file => {
+      const { decode, bitmap, drawImage, canvas, toBlob } = mockCanvas();
+      const blob = await preprocessProfilePhoto(file);
+      expect(decode).toHaveBeenCalledWith(file, { imageOrientation: 'from-image' });
+      expect(drawImage).toHaveBeenCalledWith(bitmap, 350, 0, 900, 900, 0, 0, 512, 512);
+      expect(toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/webp', 0.85);
+      expect(blob.type).toBe('image/webp');
+      expect(blob.size).toBe(10_000);
+      expect(bitmap.close).toHaveBeenCalledOnce();
+      expect(canvas.width).toBe(0);
+      expect(canvas.height).toBe(0);
+    },
+  );
 
   it('não amplia fotos pequenas e considera dimensões orientadas do decoder', async () => {
     const { bitmap, drawImage } = mockCanvas(120, 80);
@@ -157,10 +199,20 @@ describe('foto pequena de perfil', () => {
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
       sources: string[] = [];
-      set src(value: string) { this.sources.push(value); if (value) queueMicrotask(() => this.onload?.()); }
+      set src(value: string) {
+        this.sources.push(value);
+        if (value) queueMicrotask(() => this.onload?.());
+      }
     }
     const image = new FakeImage();
-    vi.stubGlobal('Image', class { constructor() { return image; } });
+    vi.stubGlobal(
+      'Image',
+      class {
+        constructor() {
+          return image;
+        }
+      },
+    );
     await preprocessProfilePhoto(png(1600, 900));
     expect(create).toHaveBeenCalledOnce();
     expect(revoke).toHaveBeenCalledExactlyOnceWith('blob:foto-local');
@@ -177,10 +229,19 @@ describe('foto pequena de perfil', () => {
     class BadImage {
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
-      set src(value: string) { if (value) queueMicrotask(() => this.onerror?.()); }
+      set src(value: string) {
+        if (value) queueMicrotask(() => this.onerror?.());
+      }
     }
     const image = new BadImage();
-    vi.stubGlobal('Image', class { constructor() { return image; } });
+    vi.stubGlobal(
+      'Image',
+      class {
+        constructor() {
+          return image;
+        }
+      },
+    );
     await expect(preprocessProfilePhoto(png(100, 100))).rejects.toThrow(/válida/);
     expect(revoke).toHaveBeenCalledExactlyOnceWith('blob:foto-corrompida');
     expect(image.onload).toBeNull();

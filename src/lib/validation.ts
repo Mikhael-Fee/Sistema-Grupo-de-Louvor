@@ -24,15 +24,18 @@ export function validateSong(song: Song): string | null {
   if (!song.artist.trim()) return 'Informe o artista ou compositor.';
   if (!KEYS.includes(song.originalKey) || !KEYS.includes(song.churchKey)) return 'Selecione tons válidos para a música.';
   if (!song.content.trim()) return 'Informe a letra ou cifra da música.';
-  if (song.youtubeUrl.trim() && !isSafeYoutubeUrl(song.youtubeUrl.trim())) return 'Informe uma URL HTTPS de vídeo do YouTube ou deixe o campo vazio.';
+  if (song.youtubeUrl.trim() && !isSafeYoutubeUrl(song.youtubeUrl.trim()))
+    return 'Informe uma URL HTTPS de vídeo do YouTube ou deixe o campo vazio.';
   if (new Set(song.tagIds).size !== song.tagIds.length) return 'Uma etiqueta não pode aparecer duas vezes na música.';
   return null;
 }
 
 export function validatePerson(person: Person): string | null {
   if (!person.name.trim()) return 'Informe o nome da pessoa.';
-  if (person.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(person.email.trim())) return 'Informe um e-mail válido ou deixe o campo vazio.';
-  if (!person.functions.length || person.functions.some((item) => !FUNCTIONS.includes(item))) return 'Selecione pelo menos uma função válida.';
+  if (person.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(person.email.trim()))
+    return 'Informe um e-mail válido ou deixe o campo vazio.';
+  if (!person.functions.length || person.functions.some(item => !FUNCTIONS.includes(item)))
+    return 'Selecione pelo menos uma função válida.';
   if (new Set(person.functions).size !== person.functions.length) return 'Selecione cada função apenas uma vez.';
   return null;
 }
@@ -57,19 +60,21 @@ export function validateService(service: Service, data: MinistryData): string | 
   if (service.isEvent !== undefined && typeof service.isEvent !== 'boolean') return 'Indique se o culto é um evento.';
   const assignments = new Set<string>();
   for (const assignment of service.assignments) {
-    const person = data.people.find((item) => item.id === assignment.personId);
+    const person = data.people.find(item => item.id === assignment.personId);
     if (!person) return 'Uma pessoa da escala não foi encontrada. Atualize a equipe.';
-    if (!FUNCTIONS.includes(assignment.function) || !person.functions.includes(assignment.function)) return `A função escolhida não está cadastrada para ${person.name}.`;
+    if (!FUNCTIONS.includes(assignment.function) || !person.functions.includes(assignment.function))
+      return `A função escolhida não está cadastrada para ${person.name}.`;
     const signature = `${assignment.personId}:${assignment.function}`;
     if (assignments.has(signature)) return 'A mesma pessoa e função não podem aparecer duas vezes na escala.';
     assignments.add(signature);
   }
   const songs = new Set<string>();
   for (const item of service.repertoire) {
-    if (!data.songs.some((song) => song.id === item.songId)) return 'Uma música do repertório não foi encontrada. Atualize a biblioteca.';
+    if (!data.songs.some(song => song.id === item.songId)) return 'Uma música do repertório não foi encontrada. Atualize a biblioteca.';
     if (!KEYS.includes(item.key)) return 'Selecione um tom válido para cada música do repertório.';
     const video = item.youtubeUrl?.trim() || '';
-    if (video && (video.length > 2000 || !isSafeYoutubeUrl(video))) return 'Informe uma URL HTTPS de vídeo do YouTube para o repertório ou deixe o campo vazio.';
+    if (video && (video.length > 2000 || !isSafeYoutubeUrl(video)))
+      return 'Informe uma URL HTTPS de vídeo do YouTube para o repertório ou deixe o campo vazio.';
     if (songs.has(item.songId)) return 'Uma música não pode aparecer duas vezes no mesmo repertório.';
     songs.add(item.songId);
   }

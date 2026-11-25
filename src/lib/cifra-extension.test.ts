@@ -33,20 +33,51 @@ function workerForTests(engine: ExtensionEngine) {
   const removed: number[] = [];
   const timers = new Map<number, { callback: () => void; delay: number }>();
   const extensionApi = {
-      runtime: { onMessage: { addListener(value: Listener) { listener = value; } } },
-      tabs: {
-        async create(properties: Record<string, unknown>) { created.push(properties); return { id: nextTab++ }; },
-        async update(id: number, properties: Record<string, unknown>) { updated.push({ id, properties }); return { id, ...properties }; },
-        async remove(id: number) { removed.push(id); removedListener(id); },
-        onRemoved: { addListener(value: (id: number) => void) { removedListener = value; } },
+    runtime: {
+      onMessage: {
+        addListener(value: Listener) {
+          listener = value;
+        },
       },
-    };
+    },
+    tabs: {
+      async create(properties: Record<string, unknown>) {
+        created.push(properties);
+        return { id: nextTab++ };
+      },
+      async update(id: number, properties: Record<string, unknown>) {
+        updated.push({ id, properties });
+        return { id, ...properties };
+      },
+      async remove(id: number) {
+        removed.push(id);
+        removedListener(id);
+      },
+      onRemoved: {
+        addListener(value: (id: number) => void) {
+          removedListener = value;
+        },
+      },
+    },
+  };
   const context = createContext({
     URL,
-    setTimeout(callback: () => void, delay: number) { const id = ++nextTimer; timers.set(id, { callback, delay }); return id; },
-    clearTimeout(id: number) { timers.delete(id); },
+    setTimeout(callback: () => void, delay: number) {
+      const id = ++nextTimer;
+      timers.set(id, { callback, delay });
+      return id;
+    },
+    clearTimeout(id: number) {
+      timers.delete(id);
+    },
     [engine === 'firefox' ? 'browser' : 'chrome']: extensionApi,
-    ...(engine === 'chrome' ? { importScripts() { runInContext(readerSource, context); } } : {}),
+    ...(engine === 'chrome'
+      ? {
+          importScripts() {
+            runInContext(readerSource, context);
+          },
+        }
+      : {}),
   });
   if (engine === 'firefox') runInContext(firefoxReaderSource, context);
   runInContext(engine === 'firefox' ? firefoxWorkerSource : workerSource, context);
@@ -60,19 +91,39 @@ function workerForTests(engine: ExtensionEngine) {
   return { dispatch, sender, sourceSender, created, updated, removed, timers, context, close: (id: number) => removedListener(id) };
 }
 
-async function flush() { await new Promise<void>(resolve => setImmediate(resolve)); }
+async function flush() {
+  await new Promise<void>(resolve => setImmediate(resolve));
+}
 
-async function contentReplyFor(type: 'ping' | 'read' | 'resume', workerResponse: unknown, engine: ExtensionEngine, overrides: Record<string, unknown> = {}) {
+async function contentReplyFor(
+  type: 'ping' | 'read' | 'resume',
+  workerResponse: unknown,
+  engine: ExtensionEngine,
+  overrides: Record<string, unknown> = {},
+) {
   let receive: (event: unknown) => void = () => {};
   const replies: unknown[] = [];
   const browserWindow = {
     top: null as unknown,
-    addEventListener(_type: string, listener: (event: unknown) => void) { receive = listener; },
-    postMessage(message: unknown) { replies.push(message); },
+    addEventListener(_type: string, listener: (event: unknown) => void) {
+      receive = listener;
+    },
+    postMessage(message: unknown) {
+      replies.push(message);
+    },
   };
   browserWindow.top = browserWindow;
-  const context = createContext({ window: browserWindow, location: { origin },
-    [engine === 'firefox' ? 'browser' : 'chrome']: { runtime: { async sendMessage() { return workerResponse; } } } });
+  const context = createContext({
+    window: browserWindow,
+    location: { origin },
+    [engine === 'firefox' ? 'browser' : 'chrome']: {
+      runtime: {
+        async sendMessage() {
+          return workerResponse;
+        },
+      },
+    },
+  });
   runInContext(engine === 'firefox' ? firefoxContentSource : contentSource, context);
   receive({ source: browserWindow, origin, data: { channel, version: 1, type, requestId, sourceUrl, ...overrides } });
   await flush();
@@ -80,17 +131,29 @@ async function contentReplyFor(type: 'ping' | 'read' | 'resume', workerResponse:
 }
 
 type FixtureNode = {
-  nodeType: number; nodeValue?: string; tagName?: string; childNodes: FixtureNode[];
-  textContent: string; isConnected: boolean; hidden: boolean;
-  getAttribute: (name: string) => string | null; closest: () => null;
+  nodeType: number;
+  nodeValue?: string;
+  tagName?: string;
+  childNodes: FixtureNode[];
+  textContent: string;
+  isConnected: boolean;
+  hidden: boolean;
+  getAttribute: (name: string) => string | null;
+  closest: () => null;
   querySelectorAll: (selector: string) => FixtureNode[];
 };
 
 function fixtureNode(tag: string | null, children: FixtureNode[] = [], value = '', attributes: Record<string, string> = {}): FixtureNode {
   const node: FixtureNode = {
-    nodeType: tag ? 1 : 3, nodeValue: tag ? undefined : value, tagName: tag?.toUpperCase(),
-    childNodes: children, isConnected: true, hidden: false,
-    get textContent() { return tag ? node.childNodes.map(child => child.textContent).join('') : value; },
+    nodeType: tag ? 1 : 3,
+    nodeValue: tag ? undefined : value,
+    tagName: tag?.toUpperCase(),
+    childNodes: children,
+    isConnected: true,
+    hidden: false,
+    get textContent() {
+      return tag ? node.childNodes.map(child => child.textContent).join('') : value;
+    },
     getAttribute: name => attributes[name] ?? null,
     closest: () => null,
     querySelectorAll: selector => {
@@ -113,9 +176,19 @@ function readerForTests() {
   const context = createContext({ URL });
   runInContext(readerSource, context);
   return context.CandeiaCifraReader as {
-    readDocument: (document: unknown, selected: string, current: string) => null | {
-      sourceUrl: string; title: string; artist: string; text: string; displayedKey?: string;
-      soundingKey?: string; capo?: number; keyUnknownReason?: string;
+    readDocument: (
+      document: unknown,
+      selected: string,
+      current: string,
+    ) => null | {
+      sourceUrl: string;
+      title: string;
+      artist: string;
+      text: string;
+      displayedKey?: string;
+      soundingKey?: string;
+      capo?: number;
+      keyUnknownReason?: string;
     };
   };
 }
@@ -127,35 +200,63 @@ describe('extensão Candeia: leitor puro do DOM da cifra', () => {
   it('usa os metadados da música quando o primeiro h2 é Menu principal', () => {
     const pre = fixtureNode('pre', [fixtureNode('b', [fixtureNode(null, [], 'G')]), fixtureNode(null, [], '\nLuz e paz')]);
     const document = {
-      defaultView: null, title: 'Cifra',
-      querySelectorAll(selector: string) { return selector === 'pre' ? [pre] : []; },
+      defaultView: null,
+      title: 'Cifra',
+      querySelectorAll(selector: string) {
+        return selector === 'pre' ? [pre] : [];
+      },
       querySelector(selector: string) {
         if (selector === 'h1') return { textContent: 'Canção - Movimento' };
         if (selector === 'h2') return { textContent: 'Menu principal' };
-        if (selector === 'meta[property="og:title"]') return { getAttribute: () => 'Canção - Movimento - Ministério - Equipe - Cifra Club' };
+        if (selector === 'meta[property="og:title"]')
+          return { getAttribute: () => 'Canção - Movimento - Ministério - Equipe - Cifra Club' };
         return null;
       },
     };
-    expect(readerForTests().readDocument(document, sourceUrl, sourceUrl)).toMatchObject({ title: 'Canção - Movimento', artist: 'Ministério - Equipe' });
+    expect(readerForTests().readDocument(document, sourceUrl, sourceUrl)).toMatchObject({
+      title: 'Canção - Movimento',
+      artist: 'Ministério - Equipe',
+    });
   });
   it('sem artista confiável entrega vazio para usar o artista da busca, nunca o menu', () => {
     const pre = fixtureNode('pre', [fixtureNode('b', [fixtureNode(null, [], 'G')]), fixtureNode(null, [], '\nLuz')]);
     const document = {
-      defaultView: null, title: 'Cifra',
-      querySelectorAll(selector: string) { return selector === 'pre' ? [pre] : []; },
-      querySelector(selector: string) { return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Menu principal' } : null; },
+      defaultView: null,
+      title: 'Cifra',
+      querySelectorAll(selector: string) {
+        return selector === 'pre' ? [pre] : [];
+      },
+      querySelector(selector: string) {
+        return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Menu principal' } : null;
+      },
     };
     expect(readerForTests().readDocument(document, sourceUrl, sourceUrl)).toMatchObject({ title: 'Luz', artist: '' });
   });
   it('reconhece cifra só com acordes F7M e Am7M, conserva BR e usa o tom exibido', () => {
     const text = (value: string) => fixtureNode(null, [], value);
-    const pre = fixtureNode('pre', [fixtureNode('b', [text('F7M')]), text('    '), fixtureNode('strong', [text('Am7M')]),
-      fixtureNode('br'), text('Luz para nós'), fixtureNode('script', [text('ignorar código')])], '', { 'data-original-key': 'C' });
+    const pre = fixtureNode(
+      'pre',
+      [
+        fixtureNode('b', [text('F7M')]),
+        text('    '),
+        fixtureNode('strong', [text('Am7M')]),
+        fixtureNode('br'),
+        text('Luz para nós'),
+        fixtureNode('script', [text('ignorar código')]),
+      ],
+      '',
+      { 'data-original-key': 'C' },
+    );
     const current = fixtureNode('span', [text('Tom: F')]);
     const document = {
-      defaultView: null, title: 'Luz - Equipe - Cifra Club',
-      querySelectorAll(selector: string) { return selector === 'pre' ? [pre] : [current]; },
-      querySelector(selector: string) { return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Equipe' } : null; },
+      defaultView: null,
+      title: 'Luz - Equipe - Cifra Club',
+      querySelectorAll(selector: string) {
+        return selector === 'pre' ? [pre] : [current];
+      },
+      querySelector(selector: string) {
+        return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Equipe' } : null;
+      },
     };
     const result = readerForTests().readDocument(document, sourceUrl, sourceUrl);
     expect(result).toEqual({ sourceUrl, title: 'Luz', artist: 'Equipe', text: 'F7M    Am7M\nLuz para nós', displayedKey: 'F' });
@@ -169,9 +270,14 @@ describe('extensão Candeia: leitor puro do DOM da cifra', () => {
     const text = (value: string) => fixtureNode(null, [], value);
     const pre = fixtureNode('pre', [fixtureNode('b', [text('C/E')]), text('\nLuz e paz')], '', { 'data-original-key': 'F' });
     const document = {
-      defaultView: null, title: 'Luz - Equipe - Cifra Club',
-      querySelectorAll(selector: string) { return selector === 'pre' ? [pre] : []; },
-      querySelector(selector: string) { return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Equipe' } : null; },
+      defaultView: null,
+      title: 'Luz - Equipe - Cifra Club',
+      querySelectorAll(selector: string) {
+        return selector === 'pre' ? [pre] : [];
+      },
+      querySelector(selector: string) {
+        return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Equipe' } : null;
+      },
     };
     const reader = readerForTests();
     expect(reader.readDocument(document, sourceUrl, sourceUrl)?.displayedKey).toBeUndefined();
@@ -185,9 +291,14 @@ describe('extensão Candeia: leitor puro do DOM da cifra', () => {
     const current = fixtureNode('span', [text('Tom: Bb (forma dos acordes no tom de G)')]);
     const capo = fixtureNode('span', [text('Capotraste na 3ª casa')]);
     const document = {
-      defaultView: null, title: 'Luz - Equipe - Cifra Club',
-      querySelectorAll(selector: string) { return selector === 'pre' ? [pre] : selector.includes('#cifra_capo') ? [capo] : [current]; },
-      querySelector(selector: string) { return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Equipe' } : null; },
+      defaultView: null,
+      title: 'Luz - Equipe - Cifra Club',
+      querySelectorAll(selector: string) {
+        return selector === 'pre' ? [pre] : selector.includes('#cifra_capo') ? [capo] : [current];
+      },
+      querySelector(selector: string) {
+        return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Equipe' } : null;
+      },
     };
     const reader = readerForTests();
     expect(reader.readDocument(document, sourceUrl, sourceUrl)).toMatchObject({ displayedKey: 'G', soundingKey: 'Bb', capo: 3 });
@@ -201,11 +312,19 @@ describe('extensão Candeia: leitor puro do DOM da cifra', () => {
   it('prefere forma explícita, depois data-current-key, nunca data-original-key', () => {
     const text = (value: string) => fixtureNode(null, [], value);
     const pre = fixtureNode('pre', [fixtureNode('b', [text('G')]), text('\nLuz')]);
-    const current = fixtureNode('span', [text('Tom: Bb (forma dos acordes no tom de G)')], '', { 'data-current-key': 'Bb', 'data-original-key': 'F' });
+    const current = fixtureNode('span', [text('Tom: Bb (forma dos acordes no tom de G)')], '', {
+      'data-current-key': 'Bb',
+      'data-original-key': 'F',
+    });
     const document = {
-      defaultView: null, title: 'Luz - Equipe - Cifra Club',
-      querySelectorAll(selector: string) { return selector === 'pre' ? [pre] : selector.includes('#cifra_capo') ? [] : [current]; },
-      querySelector(selector: string) { return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Equipe' } : null; },
+      defaultView: null,
+      title: 'Luz - Equipe - Cifra Club',
+      querySelectorAll(selector: string) {
+        return selector === 'pre' ? [pre] : selector.includes('#cifra_capo') ? [] : [current];
+      },
+      querySelector(selector: string) {
+        return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Equipe' } : null;
+      },
     };
     expect(readerForTests().readDocument(document, sourceUrl, sourceUrl)?.displayedKey).toBe('G');
     current.childNodes = [text('Tom: F')];
@@ -214,13 +333,21 @@ describe('extensão Candeia: leitor puro do DOM da cifra', () => {
 
   it('exclui blocos de tablatura do DOM e preserva os acordes e a letra visíveis', () => {
     const text = (value: string) => fixtureNode(null, [], value);
-    const pre = fixtureNode('pre', [fixtureNode('span', [text('E|--0--3---|\nB|--1--0---|')], '', { class: 'tablatura' }),
-      fixtureNode('b', [text('G')]), text('\nLuz em paz')]);
+    const pre = fixtureNode('pre', [
+      fixtureNode('span', [text('E|--0--3---|\nB|--1--0---|')], '', { class: 'tablatura' }),
+      fixtureNode('b', [text('G')]),
+      text('\nLuz em paz'),
+    ]);
     const current = fixtureNode('span', [text('Tom: G')]);
     const document = {
-      defaultView: null, title: 'Luz - Equipe - Cifra Club',
-      querySelectorAll(selector: string) { return selector === 'pre' ? [pre] : [current]; },
-      querySelector(selector: string) { return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Equipe' } : null; },
+      defaultView: null,
+      title: 'Luz - Equipe - Cifra Club',
+      querySelectorAll(selector: string) {
+        return selector === 'pre' ? [pre] : [current];
+      },
+      querySelector(selector: string) {
+        return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Equipe' } : null;
+      },
     };
     expect(readerForTests().readDocument(document, sourceUrl, sourceUrl)?.text).toBe('G\nLuz em paz');
   });
@@ -228,23 +355,38 @@ describe('extensão Candeia: leitor puro do DOM da cifra', () => {
     const text = (value: string) => fixtureNode(null, [], value);
     const b = (value: string) => fixtureNode('b', [text(value)]);
     const pre = fixtureNode('pre', [
-      text('Intro: '), b('F'), text('  '), b('C(add9)'), text('  -  '), b('Bº'), text('\n\n'),
-      b('E7(9-)'), text('    '), b('A'), text('\nAté que Ele venha\n'),
-      b('Cm(7M)'), text('  '), b('F#m7(5-)'), text('  →  '), b('A7(9+)'), text('\nvem Senhor'),
+      text('Intro: '),
+      b('F'),
+      text('  '),
+      b('C(add9)'),
+      text('  -  '),
+      b('Bº'),
+      text('\n\n'),
+      b('E7(9-)'),
+      text('    '),
+      b('A'),
+      text('\nAté que Ele venha\n'),
+      b('Cm(7M)'),
+      text('  '),
+      b('F#m7(5-)'),
+      text('  →  '),
+      b('A7(9+)'),
+      text('\nvem Senhor'),
     ]);
     const document = {
-      defaultView: null, title: 'Luz - Equipe - Cifra Club',
-      querySelectorAll(selector: string) { return selector === 'pre' ? [pre] : []; },
-      querySelector(selector: string) { return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Equipe' } : null; },
+      defaultView: null,
+      title: 'Luz - Equipe - Cifra Club',
+      querySelectorAll(selector: string) {
+        return selector === 'pre' ? [pre] : [];
+      },
+      querySelector(selector: string) {
+        return selector === 'h1' ? { textContent: 'Luz' } : selector === 'h2' ? { textContent: 'Equipe' } : null;
+      },
     };
     const result = readerForTests().readDocument(document, sourceUrl, sourceUrl);
-    expect(parseCifraClubText(result!.text).content).toBe([
-      'Intro: [F]  [C(add9)]  -  [Bº]',
-      '',
-      '[E7(9-)]Até que El[A]e venha',
-      '[Cm(7M)]  [F#m7(5-)]  →  [A7(9+)]',
-      'vem Senhor',
-    ].join('\n'));
+    expect(parseCifraClubText(result!.text).content).toBe(
+      ['Intro: [F]  [C(add9)]  -  [Bº]', '', '[E7(9-)]Até que El[A]e venha', '[Cm(7M)]  [F#m7(5-)]  →  [A7(9+)]', 'vem Senhor'].join('\n'),
+    );
   });
 });
 
@@ -258,13 +400,19 @@ describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação
     expect(manifest.permissions).toBeUndefined();
     expect(manifest.host_permissions).toBeUndefined();
     expect(manifest.content_scripts.flatMap((entry: { matches: string[] }) => entry.matches).sort()).toEqual([
-      'https://cifraclub.com.br/*', 'https://louvor-grupo-fxebsy.netlify.app/*', 'https://www.cifraclub.com.br/*',
+      'https://cifraclub.com.br/*',
+      'https://louvor-grupo-fxebsy.netlify.app/*',
+      'https://www.cifraclub.com.br/*',
     ]);
     expect(manifest.content_scripts.every((entry: { all_frames: boolean }) => entry.all_frames === false)).toBe(true);
     if (engine === 'firefox') {
       expect(manifest.background).toEqual({ scripts: ['reader.js', 'background.js'] });
       expect(manifest.browser_specific_settings).toEqual({
-        gecko: { id: 'cifraclub-firefox@candeia.app', strict_min_version: '140.0', data_collection_permissions: { required: ['websiteContent', 'browsingActivity'] } },
+        gecko: {
+          id: 'cifraclub-firefox@candeia.app',
+          strict_min_version: '140.0',
+          data_collection_permissions: { required: ['websiteContent', 'browsingActivity'] },
+        },
         gecko_android: { strict_min_version: '142.0' },
       });
       expect(manifest.minimum_chrome_version).toBeUndefined();
@@ -277,10 +425,18 @@ describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação
   it('rejeita remetentes externos, iframes e links que não são músicas HTTPS canônicas', () => {
     const worker = fakeWorker();
     for (const url of ['https://louvor-grupo-fxebsy.netlify.app.evil.test/musicas', 'http://louvor-grupo-fxebsy.netlify.app/musicas']) {
-      expect(worker.dispatch('read', { sourceUrl }, { ...worker.sender, url }).replies).toEqual([{ error: 'Esta solicitação não veio de uma aba autorizada do Candeia.' }]);
+      expect(worker.dispatch('read', { sourceUrl }, { ...worker.sender, url }).replies).toEqual([
+        { error: 'Esta solicitação não veio de uma aba autorizada do Candeia.' },
+      ]);
     }
     expect(worker.dispatch('read', { sourceUrl }, { ...worker.sender, frameId: 1 }).replies).toHaveLength(1);
-    for (const url of ['https://www.cifraclub.com.br/login/', 'https://www.cifraclub.com.br.evil.test/equipe/luz/', 'http://www.cifraclub.com.br/equipe/luz/', 'https://user@www.cifraclub.com.br/equipe/luz/', 'https://www.cifraclub.com.br:8443/equipe/luz/']) {
+    for (const url of [
+      'https://www.cifraclub.com.br/login/',
+      'https://www.cifraclub.com.br.evil.test/equipe/luz/',
+      'http://www.cifraclub.com.br/equipe/luz/',
+      'https://user@www.cifraclub.com.br/equipe/luz/',
+      'https://www.cifraclub.com.br:8443/equipe/luz/',
+    ]) {
       expect(worker.dispatch('read', { sourceUrl: url }).replies).toEqual([{ error: 'Escolha o link HTTPS de uma música no Cifra Club.' }]);
     }
     expect(worker.created).toHaveLength(0);
@@ -289,8 +445,12 @@ describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação
   it('o ping confirma o worker ativo somente para uma aba autorizada sem abrir cifras', () => {
     const worker = fakeWorker();
     expect(worker.dispatch('ping').replies).toEqual([{ ok: true, ...importerMetadata }]);
-    expect(worker.dispatch('ping', {}, { ...worker.sender, frameId: 1 }).replies).toEqual([{ error: 'Esta solicitação não veio de uma aba autorizada do Candeia.' }]);
-    expect(worker.dispatch('ping', { requestId: 'invalid' }).replies).toEqual([{ error: 'Esta solicitação não veio de uma aba autorizada do Candeia.' }]);
+    expect(worker.dispatch('ping', {}, { ...worker.sender, frameId: 1 }).replies).toEqual([
+      { error: 'Esta solicitação não veio de uma aba autorizada do Candeia.' },
+    ]);
+    expect(worker.dispatch('ping', { requestId: 'invalid' }).replies).toEqual([
+      { error: 'Esta solicitação não veio de uma aba autorizada do Candeia.' },
+    ]);
     expect(worker.created).toHaveLength(0);
   });
 
@@ -298,9 +458,7 @@ describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação
     expect(await contentReply('ping', { ok: true, ...importerMetadata })).toEqual([
       { channel, version: 1, type: 'ready', requestId, ...importerMetadata },
     ]);
-    expect(await contentReply('ping', { ok: true })).toEqual([
-      { channel, version: 1, type: 'ready', requestId },
-    ]);
+    expect(await contentReply('ping', { ok: true })).toEqual([{ channel, version: 1, type: 'ready', requestId }]);
     expect(await contentReply('ping', { ok: false, ...importerMetadata })).toEqual([]);
     const result = { sourceUrl, title: 'Luz', artist: 'Equipe', text: 'G\nLuz', displayedKey: 'G' };
     expect(await contentReply('read', { result, ...importerMetadata })).toEqual([
@@ -315,7 +473,9 @@ describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação
     await flush();
     expect(worker.created).toEqual([{ url: 'about:blank', active: true }]);
     expect(worker.updated[0]).toEqual({ id: 500, properties: { url: sourceUrl, active: true } });
-    expect(worker.dispatch('reader-ready', { sourceUrl }, { ...worker.sourceSender, tab: { id: 99 } }).replies).toEqual([{ error: 'Esta aba não pertence a uma consulta ativa.' }]);
+    expect(worker.dispatch('reader-ready', { sourceUrl }, { ...worker.sourceSender, tab: { id: 99 } }).replies).toEqual([
+      { error: 'Esta aba não pertence a uma consulta ativa.' },
+    ]);
     expect(worker.dispatch('reader-ready', { sourceUrl }, worker.sourceSender).replies).toEqual([{ requestId, sourceUrl }]);
     const result = { sourceUrl, title: 'Luz', artist: 'Equipe', text: 'F     C/E\nLuz para nós', displayedKey: 'F' };
     worker.dispatch('reader-result', { sourceUrl, result }, worker.sourceSender);
@@ -330,10 +490,16 @@ describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação
     const worker = fakeWorker();
     const read = worker.dispatch('read', { sourceUrl });
     await flush();
-    expect(worker.dispatch('read', { sourceUrl, requestId: alternateId }).replies).toEqual([{ error: 'Uma cifra já está sendo consultada nesta aba. Aguarde ou cancele a consulta.' }]);
+    expect(worker.dispatch('read', { sourceUrl, requestId: alternateId }).replies).toEqual([
+      { error: 'Uma cifra já está sendo consultada nesta aba. Aguarde ou cancele a consulta.' },
+    ]);
     expect(worker.created).toHaveLength(1);
-    expect(worker.dispatch('reader-result', { sourceUrl, requestId: alternateId }, worker.sourceSender).replies).toEqual([{ error: 'A consulta já não está ativa.' }]);
-    expect(worker.dispatch('reader-result', { sourceUrl: 'https://www.cifraclub.com.br/equipe/outra/' }, worker.sourceSender).replies).toEqual([{ error: 'Esta aba não pertence a uma consulta ativa.' }]);
+    expect(worker.dispatch('reader-result', { sourceUrl, requestId: alternateId }, worker.sourceSender).replies).toEqual([
+      { error: 'A consulta já não está ativa.' },
+    ]);
+    expect(
+      worker.dispatch('reader-result', { sourceUrl: 'https://www.cifraclub.com.br/equipe/outra/' }, worker.sourceSender).replies,
+    ).toEqual([{ error: 'Esta aba não pertence a uma consulta ativa.' }]);
     expect(read.replies).toHaveLength(0);
     expect(worker.removed).toHaveLength(0);
     worker.dispatch('cancel');
@@ -345,9 +511,15 @@ describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação
     const worker = fakeWorker();
     const read = worker.dispatch('read', { sourceUrl });
     await flush();
-    worker.dispatch('reader-result', { sourceUrl, result: { sourceUrl, title: 'Luz', artist: 'Equipe', text: 'a'.repeat(100_001) } }, worker.sourceSender);
+    worker.dispatch(
+      'reader-result',
+      { sourceUrl, result: { sourceUrl, title: 'Luz', artist: 'Equipe', text: 'a'.repeat(100_001) } },
+      worker.sourceSender,
+    );
     await flush();
-    expect(read.replies).toEqual([{ error: 'A cifra recebida não tem um conteúdo reconhecido. Nenhum rascunho foi alterado.', ...importerMetadata }]);
+    expect(read.replies).toEqual([
+      { error: 'A cifra recebida não tem um conteúdo reconhecido. Nenhum rascunho foi alterado.', ...importerMetadata },
+    ]);
     expect(worker.removed).toEqual([500]);
   });
 
@@ -361,9 +533,15 @@ describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação
     expect(read.replies).toEqual([{ result, ...importerMetadata }]);
     const invalid = worker.dispatch('read', { sourceUrl, requestId: alternateId });
     await flush();
-    worker.dispatch('reader-result', { sourceUrl, requestId: alternateId, result: { ...result, capo: 13 } }, { ...worker.sourceSender, tab: { id: 501 } });
+    worker.dispatch(
+      'reader-result',
+      { sourceUrl, requestId: alternateId, result: { ...result, capo: 13 } },
+      { ...worker.sourceSender, tab: { id: 501 } },
+    );
     await flush();
-    expect(invalid.replies).toEqual([{ error: 'A cifra recebida não tem um conteúdo reconhecido. Nenhum rascunho foi alterado.', ...importerMetadata }]);
+    expect(invalid.replies).toEqual([
+      { error: 'A cifra recebida não tem um conteúdo reconhecido. Nenhum rascunho foi alterado.', ...importerMetadata },
+    ]);
   });
 
   it('cancelamento encerra a leitura, fecha a própria aba e não aceita respostas antigas', async () => {
@@ -376,7 +554,9 @@ describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação
     await flush();
     expect(read.replies).toEqual([{ error: 'Consulta cancelada.', ...importerMetadata }]);
     expect(worker.removed).toEqual([500]);
-    expect(worker.dispatch('reader-ready', { sourceUrl }, worker.sourceSender).replies).toEqual([{ error: 'Esta aba não pertence a uma consulta ativa.' }]);
+    expect(worker.dispatch('reader-ready', { sourceUrl }, worker.sourceSender).replies).toEqual([
+      { error: 'Esta aba não pertence a uma consulta ativa.' },
+    ]);
     worker.dispatch('cancel');
     await flush();
     expect(worker.removed).toEqual([500]);
@@ -390,7 +570,9 @@ describe.each(['chrome', 'firefox'] as const)('extensão Candeia %s: validação
     expect(timer.delay).toBe(25_000);
     timer.callback();
     await flush();
-    expect(read.replies).toEqual([{ error: 'A cifra não apareceu em até 25 segundos. Confira se essa versão abre normalmente no seu navegador.', ...importerMetadata }]);
+    expect(read.replies).toEqual([
+      { error: 'A cifra não apareceu em até 25 segundos. Confira se essa versão abre normalmente no seu navegador.', ...importerMetadata },
+    ]);
     expect(worker.removed).toEqual([500]);
     expect(worker.dispatch('read', { sourceUrl, requestId: alternateId }).async).toBe(true);
     await flush();
@@ -434,28 +616,40 @@ describe('extensão Firefox: ida e volta na própria aba instalada', () => {
     expect(worker.created).toEqual([]);
     expect(worker.updated).toEqual([{ id: 7, properties: { url: sourceUrl } }]);
     expect(worker.dispatch('reader-ready', { sourceUrl }, sourceSender).replies).toEqual([{ requestId, sourceUrl }]);
-    expect(worker.dispatch('reader-ready', { sourceUrl }, { ...sourceSender, tab: { id: 99 } }).replies).toEqual([{ error: 'Esta aba não pertence a uma consulta ativa.' }]);
+    expect(worker.dispatch('reader-ready', { sourceUrl }, { ...sourceSender, tab: { id: 99 } }).replies).toEqual([
+      { error: 'Esta aba não pertence a uma consulta ativa.' },
+    ]);
     worker.dispatch('reader-result', { sourceUrl, result }, sourceSender);
     await flush();
-    expect(worker.updated).toEqual([{ id: 7, properties: { url: sourceUrl } }, { id: 7, properties: { url: returnUrl } }]);
+    expect(worker.updated).toEqual([
+      { id: 7, properties: { url: sourceUrl } },
+      { id: 7, properties: { url: returnUrl } },
+    ]);
     expect(worker.created).toEqual([]);
     expect(worker.removed).toEqual([]);
     const resumed = worker.dispatch('resume', {}, { ...worker.sender, url: returnUrl });
     expect(resumed.replies).toEqual([{ result, ...firefoxImporterMetadata }]);
-    expect(worker.dispatch('resume').replies).toEqual([{ error: 'Não há uma cifra pendente para esta solicitação. Faça a busca novamente.', ...firefoxImporterMetadata }]);
+    expect(worker.dispatch('resume').replies).toEqual([
+      { error: 'Não há uma cifra pendente para esta solicitação. Faça a busca novamente.', ...firefoxImporterMetadata },
+    ]);
     expect(worker.timers.size).toBe(0);
   });
 
   it('recusa destino, parâmetros extras, fragmentos e nonce de retorno diferentes antes de navegar', () => {
     const worker = workerForTests('firefox');
     for (const address of [
-      `${origin}/musicas?candeia_import=${alternateId}`, `${origin}/perfil?candeia_import=${requestId}`,
-      `${origin}/musicas?candeia_import=${requestId}&token=extra`, `${returnUrl}#fragment`,
+      `${origin}/musicas?candeia_import=${alternateId}`,
+      `${origin}/perfil?candeia_import=${requestId}`,
+      `${origin}/musicas?candeia_import=${requestId}&token=extra`,
+      `${returnUrl}#fragment`,
       `http://louvor-grupo-fxebsy.netlify.app/musicas?candeia_import=${requestId}`,
       `https://louvor-grupo-fxebsy.netlify.app.evil.test/musicas?candeia_import=${requestId}`,
       `https://user@louvor-grupo-fxebsy.netlify.app/musicas?candeia_import=${requestId}`,
       `${origin}:443/musicas?candeia_import=${requestId}`,
-    ]) expect(worker.dispatch('read', { ...sameTab, returnUrl: address }).replies).toEqual([{ error: 'O endereço de retorno da importação não é válido.' }]);
+    ])
+      expect(worker.dispatch('read', { ...sameTab, returnUrl: address }).replies).toEqual([
+        { error: 'O endereço de retorno da importação não é válido.' },
+      ]);
     expect(worker.dispatch('read', { ...sameTab, mode: 'other' }).replies).toHaveLength(1);
     expect(worker.dispatch('read', { ...sameTab, mode: undefined }).replies).toHaveLength(1);
     expect(worker.created).toEqual([]);
@@ -468,10 +662,18 @@ describe('extensão Firefox: ida e volta na própria aba instalada', () => {
     worker.dispatch('read', sameTab);
     worker.dispatch('reader-result', { sourceUrl, result }, sourceSender);
     await flush();
-    expect(worker.dispatch('resume', { requestId: alternateId }).replies).toEqual([{ error: 'Não há uma cifra pendente para esta solicitação. Faça a busca novamente.', ...firefoxImporterMetadata }]);
+    expect(worker.dispatch('resume', { requestId: alternateId }).replies).toEqual([
+      { error: 'Não há uma cifra pendente para esta solicitação. Faça a busca novamente.', ...firefoxImporterMetadata },
+    ]);
     expect(worker.dispatch('resume', {}, { ...worker.sender, tab: { id: 8 } }).replies).toHaveLength(1);
-    for (const sender of [{ ...worker.sender, frameId: 1 }, { ...worker.sender, url: 'https://evil.test/musicas' }, { ...worker.sender, url: 'http://louvor-grupo-fxebsy.netlify.app/musicas' }]) {
-      expect(worker.dispatch('resume', {}, sender).replies).toEqual([{ error: 'Esta solicitação não veio de uma aba autorizada do Candeia.' }]);
+    for (const sender of [
+      { ...worker.sender, frameId: 1 },
+      { ...worker.sender, url: 'https://evil.test/musicas' },
+      { ...worker.sender, url: 'http://louvor-grupo-fxebsy.netlify.app/musicas' },
+    ]) {
+      expect(worker.dispatch('resume', {}, sender).replies).toEqual([
+        { error: 'Esta solicitação não veio de uma aba autorizada do Candeia.' },
+      ]);
     }
     expect(worker.dispatch('resume').replies).toEqual([{ result, ...firefoxImporterMetadata }]);
   });
@@ -487,13 +689,20 @@ describe('extensão Firefox: ida e volta na própria aba instalada', () => {
     expect(worker.created).toEqual([]);
     expect([...worker.timers.values()].map(timer => timer.delay)).toEqual([120_000]);
     const resumed = worker.dispatch('resume').replies;
-    expect(resumed).toEqual([{ error: 'A cifra não apareceu em até 25 segundos. Confira se essa versão abre normalmente no seu navegador.', ...firefoxImporterMetadata }]);
+    expect(resumed).toEqual([
+      {
+        error: 'A cifra não apareceu em até 25 segundos. Confira se essa versão abre normalmente no seu navegador.',
+        ...firefoxImporterMetadata,
+      },
+    ]);
     expect(worker.timers.size).toBe(0);
     worker.dispatch('read', sameTab);
     worker.dispatch('reader-result', { sourceUrl, result }, sourceSender);
     await flush();
     [...worker.timers.values()].find(timer => timer.delay === 120_000)!.callback();
-    expect(worker.dispatch('resume').replies).toEqual([{ error: 'Não há uma cifra pendente para esta solicitação. Faça a busca novamente.', ...firefoxImporterMetadata }]);
+    expect(worker.dispatch('resume').replies).toEqual([
+      { error: 'Não há uma cifra pendente para esta solicitação. Faça a busca novamente.', ...firefoxImporterMetadata },
+    ]);
   });
 
   it('retorna um erro explícito da fonte sem alterar o resultado nem fechar a PWA', async () => {
@@ -501,7 +710,9 @@ describe('extensão Firefox: ida e volta na própria aba instalada', () => {
     worker.dispatch('read', sameTab);
     worker.dispatch('reader-result', { sourceUrl, error: 'O Cifra Club bloqueou a página neste navegador.' }, sourceSender);
     await flush();
-    expect(worker.dispatch('resume').replies).toEqual([{ error: 'O Cifra Club bloqueou a página neste navegador.', ...firefoxImporterMetadata }]);
+    expect(worker.dispatch('resume').replies).toEqual([
+      { error: 'O Cifra Club bloqueou a página neste navegador.', ...firefoxImporterMetadata },
+    ]);
     expect(worker.removed).toEqual([]);
   });
 
@@ -510,7 +721,9 @@ describe('extensão Firefox: ida e volta na própria aba instalada', () => {
     worker.dispatch('read', sameTab);
     expect(worker.dispatch('resume', { requestId: alternateId }).replies).toHaveLength(1);
     expect(worker.timers.size).toBe(1);
-    expect(worker.dispatch('resume').replies).toEqual([{ error: 'A consulta foi interrompida ao voltar ao Candeia. Tente importar novamente.', ...firefoxImporterMetadata }]);
+    expect(worker.dispatch('resume').replies).toEqual([
+      { error: 'A consulta foi interrompida ao voltar ao Candeia. Tente importar novamente.', ...firefoxImporterMetadata },
+    ]);
     expect(worker.timers.size).toBe(0);
     worker.dispatch('reader-result', { sourceUrl, result }, sourceSender);
     await flush();
@@ -543,10 +756,14 @@ describe('extensão Firefox: ida e volta na própria aba instalada', () => {
       worker.dispatch('reader-result', { sourceUrl, result }, { ...sourceSender, tab: { id } });
     }
     await flush();
-    expect(worker.dispatch('read', sameTab, { ...worker.sender, tab: { id: 11 } }).replies).toEqual([{ error: 'Há muitas consultas abertas. Aguarde uma delas terminar.' }]);
+    expect(worker.dispatch('read', sameTab, { ...worker.sender, tab: { id: 11 } }).replies).toEqual([
+      { error: 'Há muitas consultas abertas. Aguarde uma delas terminar.' },
+    ]);
     expect(worker.dispatch('read', sameTab).replies).toEqual([{ error: 'Conclua a importação anterior antes de consultar outra cifra.' }]);
     worker.dispatch('resume');
-    expect(worker.dispatch('read', sameTab, { ...worker.sender, tab: { id: 11 } }).replies).toEqual([{ navigationStarted: true, ...firefoxImporterMetadata }]);
+    expect(worker.dispatch('read', sameTab, { ...worker.sender, tab: { id: 11 } }).replies).toEqual([
+      { navigationStarted: true, ...firefoxImporterMetadata },
+    ]);
     expect(worker.removed).toEqual([]);
   });
 

@@ -7,22 +7,62 @@ function memoryStore(limit = Infinity) {
   return {
     values,
     getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => { if (value.length > limit) throw new DOMException('cheio', 'QuotaExceededError'); values.set(key, value); },
-    removeItem: (key: string) => { values.delete(key); },
+    setItem: (key: string, value: string) => {
+      if (value.length > limit) throw new DOMException('cheio', 'QuotaExceededError');
+      values.set(key, value);
+    },
+    removeItem: (key: string) => {
+      values.delete(key);
+    },
   };
 }
 const profile: Profile = { id: 'u1', name: 'Mikha', role: 'admin', approved: true };
-const song = (id: string) => ({ id, title: id, artist: '', originalKey: 'C', churchKey: 'C', content: 'x'.repeat(500), youtubeUrl: '', notes: '', tagIds: [] });
-const data: MinistryData = { tags: [], people: [], songs: [song('usada'), song('antiga'), song('livre')], services: [
-  { id: 'next', date: '2026-11-29', time: '18:00', type: 'Ceia', notes: '', assignments: [], repertoire: [{ id: 'r1', songId: 'usada', key: 'C', notes: '' }] },
-  { id: 'old', date: '2026-10-01', time: '18:00', type: 'Culto', notes: '', assignments: [], repertoire: [{ id: 'r2', songId: 'antiga', key: 'C', notes: '' }] },
-] };
+const song = (id: string) => ({
+  id,
+  title: id,
+  artist: '',
+  originalKey: 'C',
+  churchKey: 'C',
+  content: 'x'.repeat(500),
+  youtubeUrl: '',
+  notes: '',
+  tagIds: [],
+});
+const data: MinistryData = {
+  tags: [],
+  people: [],
+  songs: [song('usada'), song('antiga'), song('livre')],
+  services: [
+    {
+      id: 'next',
+      date: '2026-11-29',
+      time: '18:00',
+      type: 'Ceia',
+      notes: '',
+      assignments: [],
+      repertoire: [{ id: 'r1', songId: 'usada', key: 'C', notes: '' }],
+    },
+    {
+      id: 'old',
+      date: '2026-10-01',
+      time: '18:00',
+      type: 'Culto',
+      notes: '',
+      assignments: [],
+      repertoire: [{ id: 'r2', songId: 'antiga', key: 'C', notes: '' }],
+    },
+  ],
+};
 
 describe('cópia para usar sem internet', () => {
   it('guarda e devolve os dados da mesma conta', () => {
     const store = memoryStore();
     saveSnapshot(profile, data, '2026-11-25', new Date('2026-11-25T12:00:00Z'), store);
-    expect(readSnapshot('u1', store)).toMatchObject({ userId: 'u1', savedAt: '2026-11-25T12:00:00.000Z', data: { songs: [{ id: 'usada' }, { id: 'antiga' }, { id: 'livre' }] } });
+    expect(readSnapshot('u1', store)).toMatchObject({
+      userId: 'u1',
+      savedAt: '2026-11-25T12:00:00.000Z',
+      data: { songs: [{ id: 'usada' }, { id: 'antiga' }, { id: 'livre' }] },
+    });
     expect(readSnapshot(undefined, store)?.userId).toBe('u1');
     expect(readSnapshot('outra-conta', store)).toBeNull();
   });

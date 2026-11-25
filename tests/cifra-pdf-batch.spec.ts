@@ -16,18 +16,26 @@ function cifraPdf(title: string, artist: string, key = 'D', chords = 'D        G
     '<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>',
     `<< /Length ${Buffer.byteLength(stream, 'latin1')} >>\nstream\n${stream}\nendstream`,
   ];
-  let length = 9; const offsets: number[] = [];
+  let length = 9;
+  const offsets: number[] = [];
   const chunks = [Buffer.from('%PDF-1.4\n')];
   objects.forEach((object, index) => {
-    offsets.push(length); const chunk = Buffer.from(`${index + 1} 0 obj\n${object}\nendobj\n`, 'latin1');
-    chunks.push(chunk); length += chunk.length;
+    offsets.push(length);
+    const chunk = Buffer.from(`${index + 1} 0 obj\n${object}\nendobj\n`, 'latin1');
+    chunks.push(chunk);
+    length += chunk.length;
   });
-  chunks.push(Buffer.from(`xref\n0 6\n0000000000 65535 f \n${offsets.map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${length}\n%%EOF\n`));
+  chunks.push(
+    Buffer.from(
+      `xref\n0 6\n0000000000 65535 f \n${offsets.map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${length}\n%%EOF\n`,
+    ),
+  );
   return Buffer.concat(chunks);
 }
 
 const file = (name: string, buffer: Buffer) => ({ name, mimeType: 'application/pdf', buffer });
-const savedCalls = (calls: { method: string; path: string }[]) => calls.filter(call => call.method === 'POST' && call.path === '/rest/v1/rpc/save_song');
+const savedCalls = (calls: { method: string; path: string }[]) =>
+  calls.filter(call => call.method === 'POST' && call.path === '/rest/v1/rpc/save_song');
 
 test('lote separado lê PDFs sequencialmente, preserva válidos e desmarca repetidos', async ({ page }) => {
   const mock = await loginAs(page);
@@ -38,13 +46,21 @@ test('lote separado lê PDFs sequencialmente, preserva válidos e desmarca repet
   await expect(dialog.getByRole('heading', { name: 'Importar vários PDFs', exact: true })).toBeVisible();
   await expect(dialog.getByLabel('Arquivo PDF da cifra', { exact: true })).toHaveCount(0);
   let maximumWorkers = 0;
-  page.on('worker', () => { maximumWorkers = Math.max(maximumWorkers, page.workers().length); });
+  page.on('worker', () => {
+    maximumWorkers = Math.max(maximumWorkers, page.workers().length);
+  });
   const pdf = cifraPdf('Cancao em D', 'Equipe da fonte');
-  await dialog.getByLabel('Arquivos PDF das cifras', { exact: true }).setInputFiles([
-    file('cancao-d.pdf', pdf), file('mesma-cancao-renomeada.pdf', pdf),
-    file('cancao-capo.pdf', cifraPdf('Cancao com capo', 'Outra equipe', 'Bb (forma dos acordes no tom de G)', 'G        C        D', ['Capotraste: 3'])),
-    file('arquivo-quebrado.pdf', Buffer.from('Este arquivo nao e um PDF.')),
-  ]);
+  await dialog
+    .getByLabel('Arquivos PDF das cifras', { exact: true })
+    .setInputFiles([
+      file('cancao-d.pdf', pdf),
+      file('mesma-cancao-renomeada.pdf', pdf),
+      file(
+        'cancao-capo.pdf',
+        cifraPdf('Cancao com capo', 'Outra equipe', 'Bb (forma dos acordes no tom de G)', 'G        C        D', ['Capotraste: 3']),
+      ),
+      file('arquivo-quebrado.pdf', Buffer.from('Este arquivo nao e um PDF.')),
+    ]);
   await expect(dialog).toContainText('Leitura concluída');
   await expect(dialog.getByLabel('Tom na igreja de cancao-d.pdf', { exact: true })).toHaveValue('D');
   await expect(dialog.getByLabel('Tom na igreja de cancao-capo.pdf', { exact: true })).toHaveValue('G');
@@ -75,17 +91,23 @@ test('falha parcial após gravar mantém UUID no retry e não repete músicas sa
       // Model an ambiguous response: the server committed, but the client
       // receives a failure. Retrying must use the exact same entity ID.
       mock.data.songs.push(structuredClone(body.p_song));
-      return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ code: 'test_response_lost', message: 'Conexao interrompida depois da gravacao.' }) });
+      return route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'test_response_lost', message: 'Conexao interrompida depois da gravacao.' }),
+      });
     }
     return route.fallback();
   });
   await page.goto('/musicas');
   await page.getByRole('button', { name: 'Importar PDFs', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Arquivos PDF das cifras', { exact: true }).setInputFiles([
-    file('primeira.pdf', cifraPdf('Primeira cancao', 'Equipe A')),
-    file('segunda.pdf', cifraPdf('Segunda cancao', 'Equipe B', 'E', 'E        A        B')),
-  ]);
+  await dialog
+    .getByLabel('Arquivos PDF das cifras', { exact: true })
+    .setInputFiles([
+      file('primeira.pdf', cifraPdf('Primeira cancao', 'Equipe A')),
+      file('segunda.pdf', cifraPdf('Segunda cancao', 'Equipe B', 'E', 'E        A        B')),
+    ]);
   await expect(dialog).toContainText('Leitura concluída');
   await dialog.getByRole('button', { name: 'Salvar selecionadas (2)', exact: true }).click();
   await expect(dialog).toContainText('1 falha');
@@ -119,15 +141,16 @@ test('revisão em 320px preenche tom provável e recusa seleção acima de 20 PD
   expect(savedCalls(mock.calls)).toHaveLength(0);
 });
 
-for (const role of ['guest', 'musician'] as const) test(`${role} não recebe ação para importar vários PDFs`, async ({ page }) => {
-  const mock = await setupMockMinistry(page, role === 'guest' ? 'admin' : role);
-  if (role === 'musician') await mock.login();
-  await page.goto('/musicas');
-  if (role === 'guest') {
-    await expect(page.getByRole('button', { name: 'Entrar no ministério', exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Biblioteca de músicas', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Entrar sem cadastro', exact: true })).toHaveCount(0);
-  } else await expect(page.getByRole('heading', { name: 'Biblioteca de músicas', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Importar PDFs', exact: true })).toHaveCount(0);
-  expect(savedCalls(mock.calls)).toHaveLength(0);
-});
+for (const role of ['guest', 'musician'] as const)
+  test(`${role} não recebe ação para importar vários PDFs`, async ({ page }) => {
+    const mock = await setupMockMinistry(page, role === 'guest' ? 'admin' : role);
+    if (role === 'musician') await mock.login();
+    await page.goto('/musicas');
+    if (role === 'guest') {
+      await expect(page.getByRole('button', { name: 'Entrar no ministério', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Biblioteca de músicas', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Entrar sem cadastro', exact: true })).toHaveCount(0);
+    } else await expect(page.getByRole('heading', { name: 'Biblioteca de músicas', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Importar PDFs', exact: true })).toHaveCount(0);
+    expect(savedCalls(mock.calls)).toHaveLength(0);
+  });

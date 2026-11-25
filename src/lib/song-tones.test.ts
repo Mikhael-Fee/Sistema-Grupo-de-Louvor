@@ -5,14 +5,30 @@ import { transposeContent } from './music';
 import type { Song } from '../types';
 import type { SongSearchResult } from './song-search';
 
-const source = (value: Partial<SongSearchResult>): SongSearchResult => ({ id: 'source', title: 'Canção', artist: 'Equipe', source: 'Cifra Club', sourceUrl: '', kind: 'chords', content: '[G] [A] [D]', ...value });
+const source = (value: Partial<SongSearchResult>): SongSearchResult => ({
+  id: 'source',
+  title: 'Canção',
+  artist: 'Equipe',
+  source: 'Cifra Club',
+  sourceUrl: '',
+  kind: 'chords',
+  content: '[G] [A] [D]',
+  ...value,
+});
 
 describe('tom padrão da importação, compartilhado pelo PDF e Cifra Club', () => {
   it('usa o tom escrito já informado sem subtrair o capo duas vezes', () => {
-    expect(resolveSourceTonality(source({ originalKey: 'G', soundingKey: 'Bb', capo: 3 }))).toMatchObject({ writtenKey: 'G', churchKey: 'G', estimated: false, requiresKeyConfirmation: false });
+    expect(resolveSourceTonality(source({ originalKey: 'G', soundingKey: 'Bb', capo: 3 }))).toMatchObject({
+      writtenKey: 'G',
+      churchKey: 'G',
+      estimated: false,
+      requiresKeyConfirmation: false,
+    });
   });
   it('subtrai casas do tom sonoro quando somente este tom foi informado', () => {
-    const resolved = resolveSourceTonality(source({ soundingKey: 'Bb', capo: 3, keyUnknownReason: 'A fonte informa capotraste, mas não o tom das posições.' }));
+    const resolved = resolveSourceTonality(
+      source({ soundingKey: 'Bb', capo: 3, keyUnknownReason: 'A fonte informa capotraste, mas não o tom das posições.' }),
+    );
     expect(resolved).toMatchObject({ writtenKey: 'G', churchKey: 'G', source: { originalKey: 'G', keyUnknownReason: undefined } });
     expect(contentInChurchKey(resolved.source.content!, resolved.source.originalKey, resolved.churchKey!)).toBe('[G] [A] [D]');
   });
@@ -22,18 +38,39 @@ describe('tom padrão da importação, compartilhado pelo PDF e Cifra Club', () 
   });
   it('sugere D com possível C emprestado, sem alterar acordes por conta do capo', () => {
     const resolved = resolveSourceTonality(source({ content: '[G] [A] [D] [Bm] [C]', capo: 3 }));
-    expect(resolved).toMatchObject({ writtenKey: 'D', churchKey: 'D', estimated: true, requiresKeyConfirmation: false,
-      source: { originalKey: 'D', keyEstimate: { borrowedChords: ['C'], confidence: 'medium' } } });
+    expect(resolved).toMatchObject({
+      writtenKey: 'D',
+      churchKey: 'D',
+      estimated: true,
+      requiresKeyConfirmation: false,
+      source: { originalKey: 'D', keyEstimate: { borrowedChords: ['C'], confidence: 'medium' } },
+    });
   });
   it('não substitui um tom informado por um palpite dos acordes', () => {
-    expect(resolveSourceTonality(source({ originalKey: 'E' }))).toMatchObject({ churchKey: 'E', estimated: false, source: { keyEstimate: undefined } });
+    expect(resolveSourceTonality(source({ originalKey: 'E' }))).toMatchObject({
+      churchKey: 'E',
+      estimated: false,
+      source: { keyEstimate: undefined },
+    });
   });
   it('mantém confirmação quando há tonalidades relativas ambíguas', () => {
-    expect(resolveSourceTonality(source({ content: '[C] [G] [Am] [F]' }))).toMatchObject({ estimated: true, requiresKeyConfirmation: true, source: { originalKey: undefined } });
+    expect(resolveSourceTonality(source({ content: '[C] [G] [Am] [F]' }))).toMatchObject({
+      estimated: true,
+      requiresKeyConfirmation: true,
+      source: { originalKey: undefined },
+    });
   });
   it('conflito explícito exige confirmação e letra pura não inventa tom', () => {
-    expect(resolveSourceTonality(source({ originalKey: 'G', soundingKey: 'Bb', capo: 3, keyUnknownReason: 'A fonte informa posições de capotraste diferentes.' })).requiresKeyConfirmation).toBe(true);
-    expect(resolveSourceTonality(source({ kind: 'lyrics', content: 'Um verso apenas' }))).toMatchObject({ churchKey: null, estimated: false, requiresKeyConfirmation: false });
+    expect(
+      resolveSourceTonality(
+        source({ originalKey: 'G', soundingKey: 'Bb', capo: 3, keyUnknownReason: 'A fonte informa posições de capotraste diferentes.' }),
+      ).requiresKeyConfirmation,
+    ).toBe(true);
+    expect(resolveSourceTonality(source({ kind: 'lyrics', content: 'Um verso apenas' }))).toMatchObject({
+      churchKey: null,
+      estimated: false,
+      requiresKeyConfirmation: false,
+    });
   });
 });
 
@@ -58,8 +95,17 @@ describe('tom real dos acordes cadastrados', () => {
     expect(contentInChurchKey(parsed.content, 'G', 'Bb')).toBe('[Bb]Nossa luz');
   });
   it('limpa tablatura e mantém seções e texto ao normalizar um registro legado', () => {
-    const song: Song = { id: 'legacy', title: 'Luz', artist: 'Equipe', originalKey: 'G', churchKey: 'Bb',
-      content: '[Intro]\ne|--0--2--3--|\nB|--1--3--0--|\n[G]Nossa [D/F#]luz', notes: '', tagIds: [], youtubeUrl: '' };
+    const song: Song = {
+      id: 'legacy',
+      title: 'Luz',
+      artist: 'Equipe',
+      originalKey: 'G',
+      churchKey: 'Bb',
+      content: '[Intro]\ne|--0--2--3--|\nB|--1--3--0--|\n[G]Nossa [D/F#]luz',
+      notes: '',
+      tagIds: [],
+      youtubeUrl: '',
+    };
     const result = songInChurchKey(song);
     expect(result.content).toBe('[Intro]\n[Bb]Nossa [F/A]luz');
     expect(result.originalKey).toBe('Bb');
@@ -76,8 +122,17 @@ describe('tom real dos acordes cadastrados', () => {
 
 describe('tom provável menor', () => {
   it('usa a relativa maior como base: Gm provável vira Bb, não G', () => {
-    const content = '[Intro] [A#] [F]  [Cm]  [Gm]  [A#]\n[A#]O que se pode fazer pra trazer a pres[F]ença de novo?\n[Cm]Será que ainda existe quem tenha fome e quem[Gm] tenha sede?\n[Eb]Se Deus só precisa de um disposto,[F] eu me disponho\n[Cm]Arrependido, em favor de toda [Gm]nação\nAté que Ele [Gm]venha\nAté que Ele [Dm]venha';
-    const tonality = resolveSourceTonality({ id: 'x', title: 'Até Que Ele Venha', artist: '', source: 'Cifra Club', sourceUrl: '', kind: 'chords', content });
+    const content =
+      '[Intro] [A#] [F]  [Cm]  [Gm]  [A#]\n[A#]O que se pode fazer pra trazer a pres[F]ença de novo?\n[Cm]Será que ainda existe quem tenha fome e quem[Gm] tenha sede?\n[Eb]Se Deus só precisa de um disposto,[F] eu me disponho\n[Cm]Arrependido, em favor de toda [Gm]nação\nAté que Ele [Gm]venha\nAté que Ele [Dm]venha';
+    const tonality = resolveSourceTonality({
+      id: 'x',
+      title: 'Até Que Ele Venha',
+      artist: '',
+      source: 'Cifra Club',
+      sourceUrl: '',
+      kind: 'chords',
+      content,
+    });
     if (tonality.source.keyEstimate?.mode === 'minor') expect(tonality.source.keyEstimate.key).toBe('G');
     expect(tonality.writtenKey).toBe('Bb');
   });

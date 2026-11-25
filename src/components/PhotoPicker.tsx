@@ -6,9 +6,24 @@ import './avatar.css';
 
 export type PhotoChange = Blob | null | undefined;
 
-export default function PhotoPicker({ name, currentPhotoUrl, fallbackPhotoUrl, hasOwnPhoto = Boolean(currentPhotoUrl), value, onChange, onBusyChange, disabled = false }: {
-  name: string; currentPhotoUrl?: string; fallbackPhotoUrl?: string; hasOwnPhoto?: boolean; value: PhotoChange; onChange: (value: PhotoChange) => void;
-  onBusyChange?: (busy: boolean) => void; disabled?: boolean;
+export default function PhotoPicker({
+  name,
+  currentPhotoUrl,
+  fallbackPhotoUrl,
+  hasOwnPhoto = Boolean(currentPhotoUrl),
+  value,
+  onChange,
+  onBusyChange,
+  disabled = false,
+}: {
+  name: string;
+  currentPhotoUrl?: string;
+  fallbackPhotoUrl?: string;
+  hasOwnPhoto?: boolean;
+  value: PhotoChange;
+  onChange: (value: PhotoChange) => void;
+  onBusyChange?: (busy: boolean) => void;
+  disabled?: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const request = useRef(0);
@@ -19,10 +34,16 @@ export default function PhotoPicker({ name, currentPhotoUrl, fallbackPhotoUrl, h
   const hintId = useId();
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; request.current++; };
+    return () => {
+      mounted.current = false;
+      request.current++;
+    };
   }, []);
   useEffect(() => {
-    if (!(value instanceof Blob)) { setPreview(undefined); return; }
+    if (!(value instanceof Blob)) {
+      setPreview(undefined);
+      return;
+    }
     const url = URL.createObjectURL(value);
     setPreview(url);
     return () => URL.revokeObjectURL(url);
@@ -33,32 +54,93 @@ export default function PhotoPicker({ name, currentPhotoUrl, fallbackPhotoUrl, h
     event.target.value = '';
     if (!file || disabled || processing) return;
     const current = ++request.current;
-    setProcessing(true); setError(null); onBusyChange?.(true);
+    setProcessing(true);
+    setError(null);
+    onBusyChange?.(true);
     try {
       const photo = await preprocessProfilePhoto(file);
       if (mounted.current && current === request.current) onChange(photo);
     } catch (cause) {
-      if (mounted.current && current === request.current) setError(cause instanceof Error ? cause.message : 'Não foi possível abrir esta foto. Escolha outra imagem.');
+      if (mounted.current && current === request.current)
+        setError(cause instanceof Error ? cause.message : 'Não foi possível abrir esta foto. Escolha outra imagem.');
     } finally {
-      if (mounted.current && current === request.current) { setProcessing(false); onBusyChange?.(false); }
+      if (mounted.current && current === request.current) {
+        setProcessing(false);
+        onBusyChange?.(false);
+      }
     }
   }
 
   const effectivePhoto = value === null ? fallbackPhotoUrl : value instanceof Blob ? preview : currentPhotoUrl;
   const blocked = disabled || processing;
-  return <div className="photo-picker" aria-busy={processing || undefined}>
-    <div className="photo-picker-row">
-      <ProfileAvatar name={name} photoUrl={effectivePhoto} size={80} />
-      <div className="photo-picker-copy"><strong>Foto</strong><p id={hintId}>Escolha uma foto JPG, PNG ou WebP, até 10 MB. O enquadramento fica centralizado.</p>
-        <div className="photo-picker-actions">
-          <input ref={input} className="photo-picker-input" type="file" accept={PHOTO_INPUT_ACCEPT} aria-label="Escolher foto" aria-describedby={hintId} tabIndex={-1} disabled={blocked} onChange={event => void choose(event)} />
-          <button type="button" className="button button-secondary" disabled={blocked} onClick={() => input.current?.click()}>{processing ? <LoaderCircle size={16} className="spin" /> : <Camera size={16} />}{processing ? 'Preparando foto…' : effectivePhoto ? 'Trocar foto' : 'Escolher foto'}</button>
-          {(value instanceof Blob || hasOwnPhoto && value !== null) && <button type="button" className="button button-secondary" disabled={blocked} onClick={() => { setError(null); onChange(null); }}><X size={15} />Remover foto</button>}
-          {value !== undefined && <button type="button" className="photo-picker-undo" disabled={blocked} onClick={() => { setError(null); onChange(undefined); }}><Undo2 size={14} />Desfazer alteração</button>}
+  return (
+    <div className="photo-picker" aria-busy={processing || undefined}>
+      <div className="photo-picker-row">
+        <ProfileAvatar name={name} photoUrl={effectivePhoto} size={80} />
+        <div className="photo-picker-copy">
+          <strong>Foto</strong>
+          <p id={hintId}>Escolha uma foto JPG, PNG ou WebP, até 10 MB. O enquadramento fica centralizado.</p>
+          <div className="photo-picker-actions">
+            <input
+              ref={input}
+              className="photo-picker-input"
+              type="file"
+              accept={PHOTO_INPUT_ACCEPT}
+              aria-label="Escolher foto"
+              aria-describedby={hintId}
+              tabIndex={-1}
+              disabled={blocked}
+              onChange={event => void choose(event)}
+            />
+            <button type="button" className="button button-secondary" disabled={blocked} onClick={() => input.current?.click()}>
+              {processing ? <LoaderCircle size={16} className="spin" /> : <Camera size={16} />}
+              {processing ? 'Preparando foto…' : effectivePhoto ? 'Trocar foto' : 'Escolher foto'}
+            </button>
+            {(value instanceof Blob || (hasOwnPhoto && value !== null)) && (
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={blocked}
+                onClick={() => {
+                  setError(null);
+                  onChange(null);
+                }}
+              >
+                <X size={15} />
+                Remover foto
+              </button>
+            )}
+            {value !== undefined && (
+              <button
+                type="button"
+                className="photo-picker-undo"
+                disabled={blocked}
+                onClick={() => {
+                  setError(null);
+                  onChange(undefined);
+                }}
+              >
+                <Undo2 size={14} />
+                Desfazer alteração
+              </button>
+            )}
+          </div>
         </div>
       </div>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      {value !== undefined && !processing && (
+        <p className="photo-picker-status" role="status">
+          {value === null
+            ? fallbackPhotoUrl
+              ? 'A foto própria será removida ao salvar. A foto vinculada continuará aparecendo.'
+              : 'A foto será removida ao salvar.'
+            : 'Foto pronta. Salve para confirmar a alteração.'}
+        </p>
+      )}
     </div>
-    {error && <p className="form-error" role="alert">{error}</p>}
-    {value !== undefined && !processing && <p className="photo-picker-status" role="status">{value === null ? fallbackPhotoUrl ? 'A foto própria será removida ao salvar. A foto vinculada continuará aparecendo.' : 'A foto será removida ao salvar.' : 'Foto pronta. Salve para confirmar a alteração.'}</p>}
-  </div>;
+  );
 }

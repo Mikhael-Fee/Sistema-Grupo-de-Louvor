@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cifraClubSearchUrl, cifraClubUrlFromNotes, isSafeCifraClubUrl, mapLyricsResults, notesWithCifraClubSource, previewSongSource, searchSongSources, searchUnifiedSongSources, sourceKey } from './song-search';
+import {
+  cifraClubSearchUrl,
+  cifraClubUrlFromNotes,
+  isSafeCifraClubUrl,
+  mapLyricsResults,
+  notesWithCifraClubSource,
+  previewSongSource,
+  searchSongSources,
+  searchUnifiedSongSources,
+  sourceKey,
+} from './song-search';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -10,7 +20,14 @@ describe('busca de fontes de músicas', () => {
     expect(query.pathname).toBe('/');
     expect(query.searchParams.get('q')).toBe('Canção & paz Equipe / local');
     expect(isSafeCifraClubUrl('https://www.cifraclub.com.br/equipe/cancao/')).toBe(true);
-    for (const unsafe of ['http://www.cifraclub.com.br/equipe/cancao/', 'https://www.cifraclub.com.br.evil.test/equipe/cancao/', 'https://user@www.cifraclub.com.br/equipe/cancao/', 'javascript:alert(1)', 'https://www.cifraclub.com.br/login/']) expect(isSafeCifraClubUrl(unsafe)).toBe(false);
+    for (const unsafe of [
+      'http://www.cifraclub.com.br/equipe/cancao/',
+      'https://www.cifraclub.com.br.evil.test/equipe/cancao/',
+      'https://user@www.cifraclub.com.br/equipe/cancao/',
+      'javascript:alert(1)',
+      'https://www.cifraclub.com.br/login/',
+    ])
+      expect(isSafeCifraClubUrl(unsafe)).toBe(false);
   });
 
   it('guarda a referência informada sem apagar observações nem duplicar a fonte', () => {
@@ -32,8 +49,18 @@ describe('busca de fontes de músicas', () => {
     expect(sourceKey('desconhecido')).toBeNull();
   });
   it('remove timestamps, ignora instrumentais e deduplica letras sem inventar acordes', () => {
-    const track = { id: 1, trackName: 'Canção original', artistName: 'Equipe local', syncedLyrics: '[00:01.20]Uma linha\n[00:02.00]Outra linha' };
-    const songs = mapLyricsResults([track, { ...track, id: 2 }, { ...track, id: 3, instrumental: true }, { id: 4, trackName: 'Sem letra', artistName: 'Equipe local' }]);
+    const track = {
+      id: 1,
+      trackName: 'Canção original',
+      artistName: 'Equipe local',
+      syncedLyrics: '[00:01.20]Uma linha\n[00:02.00]Outra linha',
+    };
+    const songs = mapLyricsResults([
+      track,
+      { ...track, id: 2 },
+      { ...track, id: 3, instrumental: true },
+      { id: 4, trackName: 'Sem letra', artistName: 'Equipe local' },
+    ]);
     expect(songs).toHaveLength(1);
     expect(songs[0].content).toBe('Uma linha\nOutra linha');
     expect(songs[0].originalKey).toBeUndefined();
@@ -54,14 +81,32 @@ describe('busca de fontes de músicas', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 404 })));
     await expect(searchSongSources('Canção', '', 'chords')).rejects.toThrow('função de consulta publicada');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'Fonte indisponível.' }), { status: 502 })));
-    await expect(previewSongSource({ id: '1', title: 'Canção', artist: '', kind: 'chords', source: 'Worship Together', sourceUrl: 'https://www.worshiptogether.com/pt/cancoes/cancao/' })).rejects.toThrow('Fonte indisponível.');
+    await expect(
+      previewSongSource({
+        id: '1',
+        title: 'Canção',
+        artist: '',
+        kind: 'chords',
+        source: 'Worship Together',
+        sourceUrl: 'https://www.worshiptogether.com/pt/cancoes/cancao/',
+      }),
+    ).rejects.toThrow('Fonte indisponível.');
   });
 
   it('faz uma única busca com cifras do Cifra Club antes das letras do LRCLIB', async () => {
-    const cifra = { id: 'cifra', title: 'Canção', artist: 'Equipe', source: 'Cifra Club', sourceUrl: 'https://www.cifraclub.com.br/equipe/cancao/', kind: 'chords' };
-    const fetcher = vi.fn(async (url: string) => url.startsWith('/.netlify/')
-      ? new Response(JSON.stringify({ results: [cifra] }), { status: 200 })
-      : new Response(JSON.stringify([{ id: 1, trackName: 'Canção', artistName: 'Equipe', plainLyrics: 'Nossa luz' }]), { status: 200 }));
+    const cifra = {
+      id: 'cifra',
+      title: 'Canção',
+      artist: 'Equipe',
+      source: 'Cifra Club',
+      sourceUrl: 'https://www.cifraclub.com.br/equipe/cancao/',
+      kind: 'chords',
+    };
+    const fetcher = vi.fn(async (url: string) =>
+      url.startsWith('/.netlify/')
+        ? new Response(JSON.stringify({ results: [cifra] }), { status: 200 })
+        : new Response(JSON.stringify([{ id: 1, trackName: 'Canção', artistName: 'Equipe', plainLyrics: 'Nossa luz' }]), { status: 200 }),
+    );
     vi.stubGlobal('fetch', fetcher);
     const result = await searchUnifiedSongSources('Canção', 'Equipe');
     expect(result.results.map(song => song.source)).toEqual(['Cifra Club', 'LRCLIB']);
@@ -71,9 +116,14 @@ describe('busca de fontes de músicas', () => {
   });
 
   it('mantém o LRCLIB acessível e apresenta o erro específico se o Cifra Club falhar', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.startsWith('/.netlify/')
-      ? new Response(JSON.stringify({ error: 'O Cifra Club bloqueou a consulta automática.' }), { status: 502 })
-      : new Response(JSON.stringify([{ id: 1, trackName: 'Canção', artistName: 'Equipe', plainLyrics: 'Nossa luz' }]), { status: 200 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url.startsWith('/.netlify/')
+          ? new Response(JSON.stringify({ error: 'O Cifra Club bloqueou a consulta automática.' }), { status: 502 })
+          : new Response(JSON.stringify([{ id: 1, trackName: 'Canção', artistName: 'Equipe', plainLyrics: 'Nossa luz' }]), { status: 200 }),
+      ),
+    );
     const result = await searchUnifiedSongSources('Canção', 'Equipe');
     expect(result.results).toHaveLength(1);
     expect(result.results[0].source).toBe('LRCLIB');
@@ -82,7 +132,10 @@ describe('busca de fontes de músicas', () => {
 
   it('cancelar a busca não transforma cancelamento em aviso de indisponibilidade', async () => {
     const controller = new AbortController();
-    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url, options) => Promise.reject(options.signal.reason)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((_url, options) => Promise.reject(options.signal.reason)),
+    );
     controller.abort();
     await expect(searchUnifiedSongSources('Canção', 'Equipe', controller.signal)).rejects.toHaveProperty('name', 'AbortError');
   });

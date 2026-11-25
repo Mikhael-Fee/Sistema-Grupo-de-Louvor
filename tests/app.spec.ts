@@ -18,8 +18,7 @@ async function createSong(page: Page, title = 'Canção de teste') {
 }
 
 async function navigate(page: Page, name: 'Cultos' | 'Biblioteca') {
-  await page.getByRole('navigation', { name: 'Navegação principal', exact: true })
-    .getByRole('link', { name, exact: true }).click();
+  await page.getByRole('navigation', { name: 'Navegação principal', exact: true }).getByRole('link', { name, exact: true }).click();
 }
 
 async function clickBackdrop(page: Page) {
@@ -52,7 +51,10 @@ test('cadastra uma música, valida o vídeo, transpõe sem alterar o cadastro e 
   await expect(page.locator('.song-chord').filter({ hasText: /^B\/D#$/ })).toHaveCount(1);
   await page.getByRole('button', { name: 'Somente letra', exact: true }).click();
   await expect(page.locator('.song-lyrics-only')).toHaveText('Tua luz nos guia\nSeguimos em paz');
-  await expect(page.getByRole('link', { name: 'Assistir Canção de teste no YouTube', exact: true })).toHaveAttribute('href', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  await expect(page.getByRole('link', { name: 'Assistir Canção de teste no YouTube', exact: true })).toHaveAttribute(
+    'href',
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  );
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Canção de teste', exact: true })).toBeVisible();
   await expect(page.getByLabel('Tom da visualização')).toHaveValue('D');
@@ -344,7 +346,11 @@ test('monta escala de três pessoas em lote antes de salvar o novo culto', async
   await dialog.getByLabel('Data', { exact: true }).fill('2099-11-20');
   await dialog.getByLabel('Observações').fill('Culto com escala em lote');
   await dialog.getByRole('button', { name: 'Selecionar equipe', exact: true }).click();
-  for (const [name, role] of [['Ana Clara', 'Teclado'], ['Mikhael', 'Violão'], ['Lucas', 'Baixo']]) {
+  for (const [name, role] of [
+    ['Ana Clara', 'Teclado'],
+    ['Mikhael', 'Violão'],
+    ['Lucas', 'Baixo'],
+  ]) {
     await dialog.getByRole('checkbox', { name: `Selecionar ${name}`, exact: true }).check();
     await dialog.getByRole('combobox', { name: `Função de ${name}`, exact: true }).selectOption(role);
   }
@@ -354,7 +360,11 @@ test('monta escala de três pessoas em lote antes de salvar o novo culto', async
   await page.getByRole('article').filter({ hasText: 'Culto com escala em lote' }).getByRole('link', { name: 'Ver culto' }).click();
   const assignments = page.locator('.service-team-list > li');
   await expect(assignments).toHaveCount(3);
-  for (const [name, role] of [['Ana Clara', 'Teclado'], ['Mikhael', 'Violão'], ['Lucas', 'Baixo']]) {
+  for (const [name, role] of [
+    ['Ana Clara', 'Teclado'],
+    ['Mikhael', 'Violão'],
+    ['Lucas', 'Baixo'],
+  ]) {
     await expect(assignments.filter({ hasText: name })).toContainText(role);
   }
   await page.reload();
@@ -365,7 +375,7 @@ test('preserva a seleção ativa ao remover do resumo e reutilizar a última esc
   await loginAs(page);
   async function prepareService(date: string, note: string, team: [string, string][]) {
     await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+    await page.getByRole('button', { name: 'Cards', exact: true }).click();
     await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Data', { exact: true }).fill(date);
@@ -379,7 +389,10 @@ test('preserva a seleção ativa ao remover do resumo e reutilizar a última esc
     await expect(dialog).toBeHidden();
   }
   await prepareService('2099-11-23', 'Última escala para reutilizar', [['Lucas', 'Baixo']]);
-  await prepareService('2099-11-24', 'Escala com seleção ativa', [['Ana Clara', 'Voz'], ['Mikhael', 'Violão']]);
+  await prepareService('2099-11-24', 'Escala com seleção ativa', [
+    ['Ana Clara', 'Voz'],
+    ['Mikhael', 'Violão'],
+  ]);
   await page.getByRole('article').filter({ hasText: 'Escala com seleção ativa' }).getByRole('link', { name: 'Ver culto' }).click();
   await page.getByRole('button', { name: 'Editar culto', exact: true }).click();
   const dialog = page.getByRole('dialog');
@@ -410,7 +423,12 @@ test('preserva a seleção ativa ao remover do resumo e reutilizar a última esc
   await page.reload();
   const saved = page.locator('.service-team-list > li');
   await expect(saved).toHaveCount(4);
-  for (const [name, role] of [['Ana Clara', 'Teclado'], ['Gabriel', 'Violão'], ['Davi', 'Percussão'], ['Lucas', 'Baixo']]) {
+  for (const [name, role] of [
+    ['Ana Clara', 'Teclado'],
+    ['Gabriel', 'Violão'],
+    ['Davi', 'Percussão'],
+    ['Lucas', 'Baixo'],
+  ]) {
     await expect(saved.filter({ hasText: name })).toContainText(role);
   }
   await expect(saved.filter({ hasText: 'Mikhael' })).toHaveCount(0);
@@ -429,7 +447,11 @@ test('edita a equipe inteira em lote, troca funções e remove pessoas sem dupli
   await page.getByRole('article').filter({ hasText: 'Escala em lote no detalhe' }).getByRole('link', { name: 'Ver culto' }).click();
   await page.getByRole('button', { name: 'Selecionar equipe', exact: true }).click();
   dialog = page.getByRole('dialog');
-  for (const [name, role] of [['Ana Clara', 'Teclado'], ['Mikhael', 'Violão'], ['Lucas', 'Baixo']]) {
+  for (const [name, role] of [
+    ['Ana Clara', 'Teclado'],
+    ['Mikhael', 'Violão'],
+    ['Lucas', 'Baixo'],
+  ]) {
     await dialog.getByRole('checkbox', { name: `Selecionar ${name}`, exact: true }).check();
     await dialog.getByRole('combobox', { name: `Função de ${name}`, exact: true }).selectOption(role);
   }
@@ -437,7 +459,11 @@ test('edita a equipe inteira em lote, troca funções e remove pessoas sem dupli
   await expect(dialog).toBeHidden();
   const assignments = page.locator('.service-team-list > li');
   await expect(assignments).toHaveCount(3);
-  for (const [name, role] of [['Ana Clara', 'Teclado'], ['Mikhael', 'Violão'], ['Lucas', 'Baixo']]) {
+  for (const [name, role] of [
+    ['Ana Clara', 'Teclado'],
+    ['Mikhael', 'Violão'],
+    ['Lucas', 'Baixo'],
+  ]) {
     await expect(assignments.filter({ hasText: name })).toContainText(role);
   }
   await expect(page.getByRole('button', { name: 'Adicionar pessoa à escala', exact: true })).toHaveCount(0);
@@ -486,7 +512,11 @@ test('preserva funções múltiplas e rascunho no editor único de equipe, e per
   await expect(assignments.filter({ hasText: 'Ana Clara' }).filter({ hasText: 'Teclado' })).toHaveCount(1);
   await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
   dialog = page.getByRole('dialog');
-  await dialog.locator('.service-batch-person').filter({ hasText: 'Ana Clara' }).getByText('2 funções selecionadas', { exact: true }).click();
+  await dialog
+    .locator('.service-batch-person')
+    .filter({ hasText: 'Ana Clara' })
+    .getByText('2 funções selecionadas', { exact: true })
+    .click();
   await expect(dialog.getByRole('checkbox', { name: 'Também Ana Clara em Teclado', exact: true })).toBeChecked();
   await dialog.getByRole('checkbox', { name: 'Também Ana Clara em Teclado', exact: true }).uncheck();
   await dialog.getByRole('button', { name: 'Fechar', exact: true }).click();
@@ -500,7 +530,11 @@ test('preserva funções múltiplas e rascunho no editor único de equipe, e per
   await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
   dialog = page.getByRole('dialog');
-  await dialog.locator('.service-batch-person').filter({ hasText: 'Ana Clara' }).getByText('2 funções selecionadas', { exact: true }).click();
+  await dialog
+    .locator('.service-batch-person')
+    .filter({ hasText: 'Ana Clara' })
+    .getByText('2 funções selecionadas', { exact: true })
+    .click();
   await expect(dialog.getByRole('checkbox', { name: 'Também Ana Clara em Teclado', exact: true })).toBeChecked();
   await dialog.getByRole('button', { name: 'Salvar equipe', exact: true }).click();
   await expect(dialog).toBeHidden();
@@ -528,8 +562,10 @@ test('mostra a marca Candeia no login e no cabeçalho mobile com menu fechado', 
   await expect(page.getByLabel('Simular perfil')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Abrir menu', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  await page.getByRole('navigation', { name: 'Navegação no celular', exact: true })
-    .getByRole('link', { name: 'Cultos', exact: true }).click();
+  await page
+    .getByRole('navigation', { name: 'Navegação no celular', exact: true })
+    .getByRole('link', { name: 'Cultos', exact: true })
+    .click();
   await expect(headerBrand).toBeInViewport({ ratio: 1 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
@@ -568,24 +604,56 @@ test('músico aprovado consulta culto, equipe e cifra com transposição tempor�
 });
 
 interface SourceFixture {
-  id: string; title: string; artist: string; source: 'Cifra Club' | 'LRCLIB';
-  kind: 'chords' | 'lyrics'; sourceUrl: string; content?: string; originalKey?: string;
-  capo?: number; soundingKey?: string; keyUnknownReason?: string;
+  id: string;
+  title: string;
+  artist: string;
+  source: 'Cifra Club' | 'LRCLIB';
+  kind: 'chords' | 'lyrics';
+  sourceUrl: string;
+  content?: string;
+  originalKey?: string;
+  capo?: number;
+  soundingKey?: string;
+  keyUnknownReason?: string;
 }
 
-async function mockUnifiedSources(page: Page, options: { chords?: SourceFixture[]; lyrics?: { id: number; trackName: string; artistName: string; plainLyrics: string; instrumental?: boolean }[]; chordError?: string; lyricError?: boolean; previewError?: string } = {}) {
-  await page.route('https://lrclib.net/api/search**', route => route.fulfill({
-    status: options.lyricError ? 503 : 200, contentType: 'application/json',
-    body: JSON.stringify(options.lyricError ? { error: 'Fonte de letras indisponível.' } : options.lyrics || []),
-  }));
+async function mockUnifiedSources(
+  page: Page,
+  options: {
+    chords?: SourceFixture[];
+    lyrics?: { id: number; trackName: string; artistName: string; plainLyrics: string; instrumental?: boolean }[];
+    chordError?: string;
+    lyricError?: boolean;
+    previewError?: string;
+  } = {},
+) {
+  await page.route('https://lrclib.net/api/search**', route =>
+    route.fulfill({
+      status: options.lyricError ? 503 : 200,
+      contentType: 'application/json',
+      body: JSON.stringify(options.lyricError ? { error: 'Fonte de letras indisponível.' } : options.lyrics || []),
+    }),
+  );
   await page.route('**/.netlify/functions/song-search**', route => {
     const params = new URL(route.request().url()).searchParams;
     if (params.has('url')) {
       const song = options.chords?.find(item => item.sourceUrl === params.get('url'));
-      return route.fulfill({ status: options.previewError ? 502 : song ? 200 : 400, contentType: 'application/json', body: JSON.stringify(options.previewError ? { error: options.previewError } : song ? { song } : { error: 'Prévia não simulada.' }) });
+      return route.fulfill({
+        status: options.previewError ? 502 : song ? 200 : 400,
+        contentType: 'application/json',
+        body: JSON.stringify(options.previewError ? { error: options.previewError } : song ? { song } : { error: 'Prévia não simulada.' }),
+      });
     }
     expect(params.get('source')).toBe('cifraclub');
-    return route.fulfill({ status: options.chordError ? 502 : 200, contentType: 'application/json', body: JSON.stringify(options.chordError ? { error: options.chordError } : { results: (options.chords || []).map(({ content: _content, ...result }) => result) }) });
+    return route.fulfill({
+      status: options.chordError ? 502 : 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        options.chordError
+          ? { error: options.chordError }
+          : { results: (options.chords || []).map(({ content: _content, ...result }) => result) },
+      ),
+    });
   });
 }
 
@@ -630,12 +698,25 @@ test('pesquisa única prioriza versões do Cifra Club, importa cifra e deriva a 
   const fixture = await loginAs(page);
   const sourceSong: SourceFixture = {
     id: 'https://www.cifraclub.com.br/equipe-de-teste/luz-da-equipe/',
-    title: 'Luz da equipe de teste', artist: 'Equipe da fonte', source: 'Cifra Club', kind: 'chords',
+    title: 'Luz da equipe de teste',
+    artist: 'Equipe da fonte',
+    source: 'Cifra Club',
+    kind: 'chords',
     sourceUrl: 'https://www.cifraclub.com.br/equipe-de-teste/luz-da-equipe/',
-    originalKey: 'D', content: '[D]Uma luz nos [A/C#]guia\n[Bm7]Seguimos [G]em paz',
+    originalKey: 'D',
+    content: '[D]Uma luz nos [A/C#]guia\n[Bm7]Seguimos [G]em paz',
   };
   await mockUnifiedSources(page, {
-    chords: [sourceSong, { ...sourceSong, id: 'https://www.cifraclub.com.br/outra-equipe/luz-da-equipe/', artist: 'Outra equipe', title: 'Luz da equipe (acústica)', sourceUrl: 'https://www.cifraclub.com.br/outra-equipe/luz-da-equipe/' }],
+    chords: [
+      sourceSong,
+      {
+        ...sourceSong,
+        id: 'https://www.cifraclub.com.br/outra-equipe/luz-da-equipe/',
+        artist: 'Outra equipe',
+        title: 'Luz da equipe (acústica)',
+        sourceUrl: 'https://www.cifraclub.com.br/outra-equipe/luz-da-equipe/',
+      },
+    ],
     lyrics: [{ id: 12345, trackName: 'Luz da equipe', artistName: 'Equipe de teste', plainLyrics: 'Uma letra secundária original' }],
   });
   await page.goto('/musicas');
@@ -650,7 +731,10 @@ test('pesquisa única prioriza versões do Cifra Club, importa cifra e deriva a 
   await expect(source.locator('.songs-source-results > li')).toHaveCount(3);
   await expect(source.locator('.songs-source-results > li').first()).toContainText('Cifra Club');
   await expect(source.locator('.songs-source-results > li').last()).toContainText('LRCLIB');
-  await expect(source.getByRole('link', { name: `Abrir ${sourceSong.title} na fonte`, exact: true })).toHaveAttribute('href', sourceSong.sourceUrl);
+  await expect(source.getByRole('link', { name: `Abrir ${sourceSong.title} na fonte`, exact: true })).toHaveAttribute(
+    'href',
+    sourceSong.sourceUrl,
+  );
   await source.getByRole('button', { name: 'Ver prévia de Luz da equipe (acústica)', exact: true }).click();
   await expect(source.getByLabel('Prévia do conteúdo para importar', { exact: true })).toHaveText(sourceSong.content!);
   await expect(source).toContainText('Outra equipe');
@@ -670,7 +754,11 @@ test('pesquisa única prioriza versões do Cifra Club, importa cifra e deriva a 
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(dialog).toBeHidden();
   await page.reload();
-  await page.getByRole('article').filter({ hasText: sourceSong.title }).getByRole('link', { name: `${sourceSong.title} ${sourceSong.artist}`, exact: true }).click();
+  await page
+    .getByRole('article')
+    .filter({ hasText: sourceSong.title })
+    .getByRole('link', { name: `${sourceSong.title} ${sourceSong.artist}`, exact: true })
+    .click();
   await expect(page.getByLabel('Tom da visualização')).toHaveValue('E');
   await expect(page.locator('.song-chord').filter({ hasText: /^B\/D#$/ })).toHaveCount(1);
   await expect(page.getByRole('link', { name: 'Abrir Cifra Club', exact: true })).toHaveAttribute('href', sourceSong.sourceUrl);
@@ -679,21 +767,33 @@ test('pesquisa única prioriza versões do Cifra Club, importa cifra e deriva a 
   await expect(page.locator('.song-chord')).toHaveCount(0);
   await page.getByRole('button', { name: 'Editar música', exact: true }).click();
   const restored = page.getByRole('dialog');
-  await expect(restored.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('[E]Uma luz nos [B/D#]guia\n[C#m7]Seguimos [A]em paz');
+  await expect(restored.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(
+    '[E]Uma luz nos [B/D#]guia\n[C#m7]Seguimos [A]em paz',
+  );
   await expect(restored.getByRole('combobox', { name: 'Tom original', exact: true })).toHaveCount(0);
   await expect(restored.getByRole('combobox', { name: 'Tom na igreja', exact: true })).toHaveValue('E');
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
-  expect(fixture.data.songs.find(song => song.title === sourceSong.title)).toMatchObject({ originalKey: 'E', churchKey: 'E', content: '[E]Uma luz nos [B/D#]guia\n[C#m7]Seguimos [A]em paz' });
+  expect(fixture.data.songs.find(song => song.title === sourceSong.title)).toMatchObject({
+    originalKey: 'E',
+    churchKey: 'E',
+    content: '[E]Uma luz nos [B/D#]guia\n[C#m7]Seguimos [A]em paz',
+  });
 });
 
 for (const importBeforeSave of [true, false]) {
-  test(`dados da fonte completam artista vazio e salvam ${importBeforeSave ? 'após importar' : 'diretamente da prévia'} sem redigitar campos`, async ({ page }) => {
+  test(`dados da fonte completam artista vazio e salvam ${importBeforeSave ? 'após importar' : 'diretamente da prévia'} sem redigitar campos`, async ({
+    page,
+  }) => {
     const fixture = await loginAs(page);
     const sourceSong: SourceFixture = {
       id: 'https://www.cifraclub.com.br/equipe/metadata-completa/',
-      title: 'Luz da fonte encontrada', artist: 'Artista retornado na busca', source: 'Cifra Club', kind: 'chords',
+      title: 'Luz da fonte encontrada',
+      artist: 'Artista retornado na busca',
+      source: 'Cifra Club',
+      kind: 'chords',
       sourceUrl: 'https://www.cifraclub.com.br/equipe/metadata-completa/',
-      originalKey: 'D', content: '[D]Uma luz nos [A/C#]guia',
+      originalKey: 'D',
+      content: '[D]Uma luz nos [A/C#]guia',
     };
     await mockUnifiedSources(page, { chords: [sourceSong] });
     await page.goto('/musicas');
@@ -717,11 +817,18 @@ for (const importBeforeSave of [true, false]) {
     await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
     await expect(dialog).toBeHidden();
     expect(fixture.data.songs.find(song => song.title === sourceSong.title)).toMatchObject({
-      artist: sourceSong.artist, originalKey: 'E', churchKey: 'E', content: '[E]Uma luz nos [B/D#]guia',
+      artist: sourceSong.artist,
+      originalKey: 'E',
+      churchKey: 'E',
+      content: '[E]Uma luz nos [B/D#]guia',
     });
     expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
     await page.reload();
-    await page.getByRole('article').filter({ hasText: sourceSong.title }).getByRole('link', { name: `${sourceSong.title} ${sourceSong.artist}`, exact: true }).click();
+    await page
+      .getByRole('article')
+      .filter({ hasText: sourceSong.title })
+      .getByRole('link', { name: `${sourceSong.title} ${sourceSong.artist}`, exact: true })
+      .click();
     await expect(page.getByLabel('Tom da visualização')).toHaveValue('E');
     await expect(page.locator('.song-chord')).toHaveText(['E', 'B/D#']);
   });
@@ -731,9 +838,13 @@ test('salvar com dados da fonte ativos preserva a cifra já preenchida sem subst
   const fixture = await loginAs(page);
   const sourceSong: SourceFixture = {
     id: 'https://www.cifraclub.com.br/equipe/outro-arranjo/',
-    title: 'Canção com arranjo da equipe', artist: 'Equipe retornada na busca', source: 'Cifra Club', kind: 'chords',
+    title: 'Canção com arranjo da equipe',
+    artist: 'Equipe retornada na busca',
+    source: 'Cifra Club',
+    kind: 'chords',
     sourceUrl: 'https://www.cifraclub.com.br/equipe/outro-arranjo/',
-    originalKey: 'G', content: '[G]Outro arranjo ainda não aprovado',
+    originalKey: 'G',
+    content: '[G]Outro arranjo ainda não aprovado',
   };
   await mockUnifiedSources(page, { chords: [sourceSong] });
   const dialog = await createSong(page, 'Arranjo em preparação');
@@ -745,7 +856,10 @@ test('salvar com dados da fonte ativos preserva a cifra já preenchida sem subst
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(dialog).toBeHidden();
   expect(fixture.data.songs.find(song => song.title === sourceSong.title)).toMatchObject({
-    artist: sourceSong.artist, originalKey: 'D', churchKey: 'D', content: MANUAL_CHURCH_CONTENT,
+    artist: sourceSong.artist,
+    originalKey: 'D',
+    churchKey: 'D',
+    content: MANUAL_CHURCH_CONTENT,
   });
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
 });
@@ -754,9 +868,14 @@ test('importa acordes em G com capotraste 3 para Bb e visualiza em C sem somar o
   const fixture = await loginAs(page);
   const sourceSong: SourceFixture = {
     id: 'https://www.cifraclub.com.br/equipe/luz-com-capo/',
-    title: 'Luz com capotraste', artist: 'Equipe de teste', source: 'Cifra Club', kind: 'chords',
+    title: 'Luz com capotraste',
+    artist: 'Equipe de teste',
+    source: 'Cifra Club',
+    kind: 'chords',
     sourceUrl: 'https://www.cifraclub.com.br/equipe/luz-com-capo/',
-    originalKey: 'G', capo: 3, soundingKey: 'Bb',
+    originalKey: 'G',
+    capo: 3,
+    soundingKey: 'Bb',
     content: '[G]Tua luz nos [D/F#]guia\n[Em7]Seguimos em [C]paz',
   };
   const churchContent = '[Bb]Tua luz nos [F/A]guia\n[Gm7]Seguimos em [Eb]paz';
@@ -777,9 +896,17 @@ test('importa acordes em G com capotraste 3 para Bb e visualiza em C sem somar o
   await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(churchContent);
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(dialog).toBeHidden();
-  expect(fixture.data.songs.find(song => song.title === sourceSong.title)).toMatchObject({ originalKey: 'Bb', churchKey: 'Bb', content: churchContent });
+  expect(fixture.data.songs.find(song => song.title === sourceSong.title)).toMatchObject({
+    originalKey: 'Bb',
+    churchKey: 'Bb',
+    content: churchContent,
+  });
   await page.reload();
-  await page.getByRole('article').filter({ hasText: sourceSong.title }).getByRole('link', { name: `${sourceSong.title} ${sourceSong.artist}`, exact: true }).click();
+  await page
+    .getByRole('article')
+    .filter({ hasText: sourceSong.title })
+    .getByRole('link', { name: `${sourceSong.title} ${sourceSong.artist}`, exact: true })
+    .click();
   await expect(page.getByLabel('Tom da visualização')).toHaveValue('Bb');
   await expect(page.locator('.song-chord')).toHaveText(['Bb', 'F/A', 'Gm7', 'Eb']);
   await page.getByLabel('Tom da visualização').selectOption('C');
@@ -793,9 +920,13 @@ test('uma cifra sem tom confiável exige confirmação dos acordes antes de impo
   const fixture = await loginAs(page);
   const sourceSong: SourceFixture = {
     id: 'https://www.cifraclub.com.br/equipe/tom-nao-informado/',
-    title: 'Canção sem tom confirmado', artist: 'Equipe de teste', source: 'Cifra Club', kind: 'chords',
+    title: 'Canção sem tom confirmado',
+    artist: 'Equipe de teste',
+    source: 'Cifra Club',
+    kind: 'chords',
     sourceUrl: 'https://www.cifraclub.com.br/equipe/tom-nao-informado/',
-    content: '[G]Uma voz nos [D]guia', capo: 3,
+    content: '[G]Uma voz nos [D]guia',
+    capo: 3,
     keyUnknownReason: 'O capotraste foi informado, mas o tom dos acordes não foi identificado com segurança.',
   };
   await mockUnifiedSources(page, { chords: [sourceSong] });
@@ -819,7 +950,11 @@ test('uma cifra sem tom confiável exige confirmação dos acordes antes de impo
   await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue('[Bb]Uma voz nos [F]guia');
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(dialog).toBeHidden();
-  expect(fixture.data.songs.find(song => song.title === sourceSong.title)).toMatchObject({ originalKey: 'Bb', churchKey: 'Bb', content: '[Bb]Uma voz nos [F]guia' });
+  expect(fixture.data.songs.find(song => song.title === sourceSong.title)).toMatchObject({
+    originalKey: 'Bb',
+    churchKey: 'Bb',
+    content: '[Bb]Uma voz nos [F]guia',
+  });
 });
 
 test('trocar o tom na igreja altera os acordes do formulário e preserva a base correta ao salvar', async ({ page }) => {
@@ -834,9 +969,17 @@ test('trocar o tom na igreja altera os acordes do formulário e preserva a base 
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(0);
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(dialog).toBeHidden();
-  expect(fixture.data.songs.find(song => song.title === 'Canção com tom ajustado')).toMatchObject({ originalKey: 'C', churchKey: 'C', content: '[C]Tua luz nos [G/B]guia\n[Am7]Seguimos em [F]paz' });
+  expect(fixture.data.songs.find(song => song.title === 'Canção com tom ajustado')).toMatchObject({
+    originalKey: 'C',
+    churchKey: 'C',
+    content: '[C]Tua luz nos [G/B]guia\n[Am7]Seguimos em [F]paz',
+  });
   await page.reload();
-  await page.getByRole('article').filter({ hasText: 'Canção com tom ajustado' }).getByRole('link', { name: 'Canção com tom ajustado Equipe de teste', exact: true }).click();
+  await page
+    .getByRole('article')
+    .filter({ hasText: 'Canção com tom ajustado' })
+    .getByRole('link', { name: 'Canção com tom ajustado Equipe de teste', exact: true })
+    .click();
   await expect(page.getByLabel('Tom da visualização')).toHaveValue('C');
   await expect(page.locator('.song-chord')).toHaveText(['C', 'G/B', 'Am7', 'F']);
   await page.getByLabel('Tom da visualização').selectOption('Bb');
@@ -862,7 +1005,11 @@ test('normaliza cadastro legado e permite corrigir acordes em G que estavam iden
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(0);
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(dialog).toBeHidden();
-  expect(fixture.data.songs.find(song => song.id === legacy.id)).toMatchObject({ originalKey: 'Bb', churchKey: 'Bb', content: churchContent });
+  expect(fixture.data.songs.find(song => song.id === legacy.id)).toMatchObject({
+    originalKey: 'Bb',
+    churchKey: 'Bb',
+    content: churchContent,
+  });
   await page.getByRole('button', { name: 'Editar Legada identificada errado', exact: true }).click();
   dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(originalContent);
@@ -877,7 +1024,11 @@ test('normaliza cadastro legado e permite corrigir acordes em G que estavam iden
   await page.reload();
   const restored = fixture.data.songs.find(song => song.id === mislabeled.id);
   expect(restored).toMatchObject({ originalKey: 'Bb', churchKey: 'Bb', content: churchContent });
-  await page.getByRole('article').filter({ hasText: 'Legada identificada errado' }).getByRole('link', { name: 'Legada identificada errado Composição de demonstração', exact: true }).click();
+  await page
+    .getByRole('article')
+    .filter({ hasText: 'Legada identificada errado' })
+    .getByRole('link', { name: 'Legada identificada errado Composição de demonstração', exact: true })
+    .click();
   await expect(page.locator('.song-chord')).toHaveText(['Bb', 'F/A', 'Gm7', 'Eb']);
   await page.getByLabel('Tom da visualização').selectOption('C');
   await expect(page.locator('.song-chord')).toHaveText(['C', 'G/B', 'Am7', 'F']);
@@ -898,7 +1049,21 @@ test('busca sem resultados ou com fontes indisponíveis mantém campos e permite
   await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
   await expect(source).toContainText(/indisponível|Não foi possível/);
   await expect(content).toHaveValue(original);
-  await mockUnifiedSources(page, { chords: [{ id: 'https://www.cifraclub.com.br/equipe/teste/', title: 'Resultado recuperado', artist: 'Equipe', source: 'Cifra Club', kind: 'chords', sourceUrl: 'https://www.cifraclub.com.br/equipe/teste/', originalKey: 'C', content: '[C]Uma letra de teste' }], previewError: 'Prévia indisponível.' });
+  await mockUnifiedSources(page, {
+    chords: [
+      {
+        id: 'https://www.cifraclub.com.br/equipe/teste/',
+        title: 'Resultado recuperado',
+        artist: 'Equipe',
+        source: 'Cifra Club',
+        kind: 'chords',
+        sourceUrl: 'https://www.cifraclub.com.br/equipe/teste/',
+        originalKey: 'C',
+        content: '[C]Uma letra de teste',
+      },
+    ],
+    previewError: 'Prévia indisponível.',
+  });
   await dialog.getByRole('button', { name: 'Pesquisar cifra e letra', exact: true }).click();
   await source.getByRole('button', { name: 'Ver prévia de Resultado recuperado', exact: true }).click();
   await expect(source.getByRole('alert')).toContainText('Prévia indisponível.');
@@ -911,17 +1076,38 @@ test('fechar uma busca cancela a resposta antiga e uma nova busca mantém soment
   let releaseOld!: () => void;
   let reportStarted!: () => void;
   let reportFinished!: () => void;
-  const oldGate = new Promise<void>(resolve => { releaseOld = resolve; });
-  const oldStarted = new Promise<void>(resolve => { reportStarted = resolve; });
-  const oldFinished = new Promise<void>(resolve => { reportFinished = resolve; });
+  const oldGate = new Promise<void>(resolve => {
+    releaseOld = resolve;
+  });
+  const oldStarted = new Promise<void>(resolve => {
+    reportStarted = resolve;
+  });
+  const oldFinished = new Promise<void>(resolve => {
+    reportFinished = resolve;
+  });
   await page.route('**/.netlify/functions/song-search**', async route => {
     const title = new URL(route.request().url()).searchParams.get('title');
     const old = title === 'Busca antiga';
-    if (old) { reportStarted(); await oldGate; }
-    const result = { id: old ? 'https://www.cifraclub.com.br/equipe/antiga/' : 'https://www.cifraclub.com.br/equipe/nova/', title: old ? 'Resposta antiga' : 'Resposta nova', artist: 'Equipe', source: 'Cifra Club', kind: 'chords', sourceUrl: old ? 'https://www.cifraclub.com.br/equipe/antiga/' : 'https://www.cifraclub.com.br/equipe/nova/' };
-    try { await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [result] }) }); }
-    catch (cause) { if (!old) throw cause; } // The first fetch was intentionally aborted.
-    finally { if (old) reportFinished(); }
+    if (old) {
+      reportStarted();
+      await oldGate;
+    }
+    const result = {
+      id: old ? 'https://www.cifraclub.com.br/equipe/antiga/' : 'https://www.cifraclub.com.br/equipe/nova/',
+      title: old ? 'Resposta antiga' : 'Resposta nova',
+      artist: 'Equipe',
+      source: 'Cifra Club',
+      kind: 'chords',
+      sourceUrl: old ? 'https://www.cifraclub.com.br/equipe/antiga/' : 'https://www.cifraclub.com.br/equipe/nova/',
+    };
+    try {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [result] }) });
+    } catch (cause) {
+      if (!old) throw cause;
+    } finally {
+      // The first fetch was intentionally aborted.
+      if (old) reportFinished();
+    }
   });
   const dialog = await createSong(page, 'Busca antiga');
   const source = dialog.getByRole('region', { name: 'Busca online de letra e cifra', exact: true });
@@ -937,7 +1123,9 @@ test('fechar uma busca cancela a resposta antiga e uma nova busca mantém soment
     await expect(source.getByRole('button', { name: 'Ver prévia de Resposta antiga', exact: true })).toHaveCount(0);
     await expect(source.getByRole('button', { name: 'Ver prévia de Resposta nova', exact: true })).toBeVisible();
     await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(MANUAL_CHURCH_CONTENT);
-  } finally { releaseOld(); }
+  } finally {
+    releaseOld();
+  }
 });
 
 test('renovação da sessão e retorno de outra aba preservam o editor aberto', async ({ page }) => {
@@ -961,7 +1149,9 @@ test('renovação da sessão e retorno de outra aba preservam o editor aberto', 
     await expect(dialog).toBeVisible();
     await expect(dialog.getByLabel('Título', { exact: true })).toHaveValue('Canção preservada ao voltar');
     await expect(dialog.getByRole('textbox', { name: /^Letra e cifra/ })).toHaveValue(MANUAL_CHURCH_CONTENT);
-  } finally { await otherTab.close(); }
+  } finally {
+    await otherTab.close();
+  }
 });
 
 test('colar texto no campo único limpa tablatura, converte o tom e preserva os acordes depois de salvar', async ({ page }) => {
@@ -989,8 +1179,11 @@ test('colar texto no campo único limpa tablatura, converte o tom e preserva os 
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(dialog).toBeHidden();
   await page.reload();
-  await page.getByRole('article').filter({ hasText: 'Luz da equipe de teste' })
-    .getByRole('link', { name: 'Luz da equipe de teste Equipe de teste', exact: true }).click();
+  await page
+    .getByRole('article')
+    .filter({ hasText: 'Luz da equipe de teste' })
+    .getByRole('link', { name: 'Luz da equipe de teste Equipe de teste', exact: true })
+    .click();
   await expect(page.getByLabel('Tom da visualização')).toHaveValue('E');
   await expect(page.locator('.song-chord').filter({ hasText: /^B\/D#$/ })).toHaveCount(1);
   await expect(page.locator('.song-chord')).toHaveText(['E', 'B/D#', 'C#m7', 'A']);
@@ -1007,8 +1200,11 @@ test('colar texto no campo único limpa tablatura, converte o tom e preserva os 
   await expect(page.getByLabel('E-mail', { exact: true })).toBeVisible();
   await fixture.login('musician');
   await page.goto('/musicas');
-  await page.getByRole('article').filter({ hasText: 'Luz da equipe de teste' })
-    .getByRole('link', { name: 'Luz da equipe de teste Equipe de teste', exact: true }).click();
+  await page
+    .getByRole('article')
+    .filter({ hasText: 'Luz da equipe de teste' })
+    .getByRole('link', { name: 'Luz da equipe de teste Equipe de teste', exact: true })
+    .click();
   await expect(page.getByRole('button', { name: 'Editar música', exact: true })).toHaveCount(0);
   await page.getByLabel('Tom da visualização').selectOption('F');
   await expect(page.locator('.song-chord').filter({ hasText: /^C\/E$/ })).toHaveCount(1);
@@ -1019,7 +1215,9 @@ test('colar texto no campo único limpa tablatura, converte o tom e preserva os 
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
 });
 
-test('cifra colada com capotraste e tom ambíguo mantém a confirmação pendente ao fechar e impede salvar no tom errado', async ({ page }) => {
+test('cifra colada com capotraste e tom ambíguo mantém a confirmação pendente ao fechar e impede salvar no tom errado', async ({
+  page,
+}) => {
   const fixture = await loginAs(page);
   const pastedText = 'Tom: Bb\nCapotraste: 3ª casa\n\nG           D/F#\nUma luz nos guia\nEm7      C\nSeguimos em paz';
   const churchContent = '[Bb]Uma luz nos [F/A]guia\n[Gm7]Seguimos [Eb]em paz';
@@ -1051,7 +1249,9 @@ test('cifra colada com capotraste e tom ambíguo mantém a confirmação pendent
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(dialog).toBeHidden();
   expect(fixture.data.songs.find(song => song.title === 'Cifra colada com capotraste')).toMatchObject({
-    originalKey: 'Bb', churchKey: 'Bb', content: churchContent,
+    originalKey: 'Bb',
+    churchKey: 'Bb',
+    content: churchContent,
   });
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
 });
@@ -1090,7 +1290,9 @@ test('colar um trecho com tom conhecido converte só o trecho e preserva os acor
   await dialog.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(dialog).toBeHidden();
   expect(fixture.data.songs.find(song => song.title === 'Cifra com trecho acrescentado')).toMatchObject({
-    originalKey: 'Bb', churchKey: 'Bb', content: expectedContent,
+    originalKey: 'Bb',
+    churchKey: 'Bb',
+    content: expectedContent,
   });
   expect(fixture.calls.filter(call => call.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
 });

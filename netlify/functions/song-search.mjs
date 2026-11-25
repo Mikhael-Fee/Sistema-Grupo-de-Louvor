@@ -6,220 +6,240 @@ const CIFRA_SEARCH = 'https://solr.sscdn.co/cc/select/';
 const MAX_SOURCE_BYTES = 2_000_000;
 // Public catalog URLs verified from sitemap-pt.xml on 2026-10-06; no song content is bundled.
 const PUBLIC_CATALOG_URLS = [
-  "https://www.worshiptogether.com/pt/cancoes/isso-e-que-e-viver-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/santo-espirito-worship-together/",
-  "https://www.worshiptogether.com/pt/cancoes/louvai-o-nome-anastasis-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/so-a-ti-eu-louvarei-united/",
-  "https://www.worshiptogether.com/pt/cancoes/rei-do-meu-coracao-john-mark-mcmillan/",
-  "https://www.worshiptogether.com/pt/cancoes/acende-um-fogo-united-pursuit/",
-  "https://www.worshiptogether.com/pt/cancoes/cadeias-quebrar/",
-  "https://www.worshiptogether.com/pt/cancoes/bom-bom-pai-chris-tomlin/",
-  "https://www.worshiptogether.com/pt/cancoes/leao-e-o-cordeiro/",
-  "https://www.worshiptogether.com/pt/cancoes/amor-eterno-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/ceus-abertos-como-um-rio/",
-  "https://www.worshiptogether.com/pt/cancoes/transfiguracao-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/noite-feliz-christine-dclario/",
-  "https://www.worshiptogether.com/pt/cancoes/encontrei-meu-lugar-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/feroz-jesus-culture/",
-  "https://www.worshiptogether.com/pt/cancoes/o-teu-amor-e-tao-real-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/pra-sempre-cantarei-hillsong-em-portugues/",
-  "https://www.worshiptogether.com/pt/cancoes/de-graca-em-graca-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/porque-ele-vive-amen/",
-  "https://www.worshiptogether.com/pt/cancoes/quao-lindo-sse-nome-e-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/veja-canta-minhalma-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/teu-grande-amor-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/que-haja-luz-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/assim-como-e-no-ceu-hillsong-em-portugues/",
-  "https://www.worshiptogether.com/pt/cancoes/sim-e-amen-chris-tomlin/",
-  "https://www.worshiptogether.com/pt/cancoes/tu-es-digno-passion/",
-  "https://www.worshiptogether.com/pt/cancoes/eu-vou-construir-pat-barrett/",
-  "https://www.worshiptogether.com/pt/cancoes/glorioso-dia-passion/",
-  "https://www.worshiptogether.com/pt/cancoes/santo-lugar-passion/",
-  "https://www.worshiptogether.com/pt/cancoes/eu-tambem-100-bilhoes-x-united/",
-  "https://www.worshiptogether.com/pt/cancoes/fara-outra-vez-elevation-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/liberdade-jesus-culture/",
-  "https://www.worshiptogether.com/pt/cancoes/estacoes-dunamis/",
-  "https://www.worshiptogether.com/pt/cancoes/quem-dizes-que-eu-sou-worship-together/",
-  "https://www.worshiptogether.com/pt/cancoes/bendizei-ao-senhor-matt-redman/",
-  "https://www.worshiptogether.com/pt/cancoes/vivo-estas-hillsong-young-free/",
-  "https://www.worshiptogether.com/pt/cancoes/perfeita-gracia/",
-  "https://www.worshiptogether.com/pt/cancoes/sim-na-cruz/",
-  "https://www.worshiptogether.com/pt/cancoes/meu-lindo-jesus-tim-highes/",
-  "https://www.worshiptogether.com/pt/cancoes/porque-ele-vive/",
-  "https://www.worshiptogether.com/pt/cancoes/mergulho-nas-aguas/",
-  "https://www.worshiptogether.com/pt/cancoes/eu-te-bendirei-matt-redman/",
-  "https://www.worshiptogether.com/pt/cancoes/vasos-quebrados-sublime-graca-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/teu-reino-aqui/",
-  "https://www.worshiptogether.com/pt/cancoes/vida-achei-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/a-paixao-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/em-paz-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/me-lembrarei-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/teu-toque-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/vinho-novo-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/meu-tudo-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/a-mihna-fe-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/me-entrego-hillsong-young-free/",
-  "https://www.worshiptogether.com/pt/cancoes/teu-coracao-hillsong-em-portugues/",
-  "https://www.worshiptogether.com/pt/cancoes/pra-sempre-chris-tomlin/",
-  "https://www.worshiptogether.com/pt/cancoes/pra-sempre-ao-vivo-kari-jobe/",
-  "https://www.worshiptogether.com/pt/cancoes/grandes-coisas-phil-wickham/",
-  "https://www.worshiptogether.com/pt/cancoes/dia-feliz/",
-  "https://www.worshiptogether.com/pt/cancoes/do-ceu-desceu-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/vim-para-adorar-te/",
-  "https://www.worshiptogether.com/pt/cancoes/existe-alguem-digno-chris-tomlin/",
-  "https://www.worshiptogether.com/pt/cancoes/santo-e-o-senhor-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/hosana-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/profundo-amor-do-pai-por-nos/",
-  "https://www.worshiptogether.com/pt/cancoes/quao-grande-e-o-meu-deus/",
-  "https://www.worshiptogether.com/pt/cancoes/grandioso-es-tu/",
-  "https://www.worshiptogether.com/pt/cancoes/eu-me-rendo-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/so-em-jesus/",
-  "https://www.worshiptogether.com/pt/cancoes/tu-es-tremendo-deus-chris-tomlin/",
-  "https://www.worshiptogether.com/pt/cancoes/boa-graca-united/",
-  "https://www.worshiptogether.com/pt/cancoes/outro-na-fornalha-united/",
-  "https://www.worshiptogether.com/pt/cancoes/nada-mais-cody-carnes/",
-  "https://www.worshiptogether.com/pt/cancoes/me-rendo-a-ti-passion/",
-  "https://www.worshiptogether.com/pt/cancoes/leve-me-a-cruz-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/salvou-meu-coracao-me-abracou-united/",
-  "https://www.worshiptogether.com/pt/cancoes/senhor-preciso-de-ti/",
-  "https://www.worshiptogether.com/pt/cancoes/cordeiro-que-sofreu-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/poder-pra-salvar-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/nao-ha-um-nome-igual-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/oceanos-onde-meus-pes-podem-falhar-hillsong-united/",
-  "https://www.worshiptogether.com/pt/cancoes/o-senhor-tu-es-lindo-keith-green/",
-  "https://www.worshiptogether.com/pt/cancoes/nosso-deus-chris-tomlin/",
-  "https://www.worshiptogether.com/pt/cancoes/pronto-ou-nao-hillsong-em-portugues/",
-  "https://www.worshiptogether.com/pt/cancoes/eu-corro-ao-pai-cody-carnes/",
-  "https://www.worshiptogether.com/pt/cancoes/profundo-amor-hillsong-young-free/",
-  "https://www.worshiptogether.com/pt/cancoes/espirito-vem/",
-  "https://www.worshiptogether.com/pt/cancoes/te-agradeco-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/essencia-da-adoracao-passion/",
-  "https://www.worshiptogether.com/pt/cancoes/isto-eu-creio-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/despertar-hillsong-em-portugues/",
-  "https://www.worshiptogether.com/pt/cancoes/nos-prostamos-passion/",
-  "https://www.worshiptogether.com/pt/cancoes/rei-dos-reis-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/a-quem-temerei-deus-que-e-poderoso-chris-tomlin/",
-  "https://www.worshiptogether.com/pt/cancoes/nunca-me-deixou-passion/",
-  "https://www.worshiptogether.com/pt/cancoes/teu-amor-nao-falha-jesus-culture/",
-  "https://www.worshiptogether.com/pt/cancoes/agua-santa-we-the-kingdom/",
-  "https://www.worshiptogether.com/pt/cancoes/bondade-de-deus-bethel/",
-  "https://www.worshiptogether.com/pt/cancoes/hosanna-casa-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/a-vitoria-posso-ver-worship-together/",
-  "https://www.worshiptogether.com/pt/cancoes/desperta-minh-alma-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/deus-tanto-amou-worship-together/",
-  "https://www.worshiptogether.com/pt/cancoes/nada-e-impossi-vel-para-deus-passion/",
-  "https://www.worshiptogether.com/pt/cancoes/exaltado-es-worship-together/",
-  "https://www.worshiptogether.com/pt/cancoes/minhas-guerras-guardado/",
-  "https://www.worshiptogether.com/pt/cancoes/a-bencao-worship-together/",
-  "https://www.worshiptogether.com/pt/cancoes/avivamento-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/sinais-josh-baldwin/",
-  "https://www.worshiptogether.com/pt/cancoes/como-eu-sou-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/algo-novo-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/tudo-vai-ficar-bem-evan-craft/",
-  "https://www.worshiptogether.com/pt/cancoes/teu-espiritu-kim-walker-smith-ft-gabriela-rocha/",
-  "https://www.worshiptogether.com/pt/cancoes/teu-espirito-your-spirit-kim-walker-smith-ft-gabriela-rocha/",
-  "https://www.worshiptogether.com/pt/cancoes/gratidao-brandon-lake/",
-  "https://www.worshiptogether.com/pt/cancoes/vento-novo-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/eu-teu-amor-josh-baldwin/",
-  "https://www.worshiptogether.com/pt/cancoes/temos-vitoria-the-belonging-co/",
-  "https://www.worshiptogether.com/pt/cancoes/bom-demais-para-nao-crer-cody-carnes/",
-  "https://www.worshiptogether.com/pt/cancoes/jesus-sobre-tudo-esta-the-belonging-co/",
-  "https://www.worshiptogether.com/pt/cancoes/canto-aos-montes-chris-mcclarney/",
-  "https://www.worshiptogether.com/pt/cancoes/meu-jesus-anne-wilson/",
-  "https://www.worshiptogether.com/pt/cancoes/ele-nos-ama-crowder/",
-  "https://www.worshiptogether.com/pt/cancoes/em-seu-nome-lakewood-music/",
-  "https://www.worshiptogether.com/pt/cancoes/cancao-dos-ceus-bethel-music/",
-  "https://www.worshiptogether.com/pt/cancoes/sei-que-faras-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/mil-nomes-sean-curran/",
-  "https://www.worshiptogether.com/pt/cancoes/vem-sobre-nos-upperroom/",
-  "https://www.worshiptogether.com/pt/cancoes/quero-jesus-upperroom/",
-  "https://www.worshiptogether.com/pt/cancoes/vem-espirito-patrick-mayberry/",
-  "https://www.worshiptogether.com/pt/cancoes/sozinho-nunca-andarei-hillsong/",
-  "https://www.worshiptogether.com/pt/cancoes/ha-poder-hillsong-em-portugues/",
-  "https://www.worshiptogether.com/pt/cancoes/nos-rendemos-de-novo-hillsong-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/outro-igual-na-o-ha-upperroom/",
-  "https://www.worshiptogether.com/pt/cancoes/o-tempo-e-teu-kim-walker-smith/",
-  "https://www.worshiptogether.com/pt/cancoes/firme-fundamento-jamais-cody-carnes/",
-  "https://www.worshiptogether.com/pt/cancoes/pelo-que-fez-passion/",
-  "https://www.worshiptogether.com/pt/cancoes/milhares-de-aleluias-brooke-ligertwood/",
-  "https://www.worshiptogether.com/pt/cancoes/melhor-do-que-pensei-bryan-katie-torwalt/",
-  "https://www.worshiptogether.com/pt/cancoes/o-mesmo-deus-elevation-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/em-nome-de-jesus-katy-nichole/",
-  "https://www.worshiptogether.com/pt/cancoes/o-melhor-esta-por-vir-mack-brock-ft-pat-barrett/",
-  "https://www.worshiptogether.com/pt/cancoes/por-jesus-the-belonging-co/",
-  "https://www.worshiptogether.com/pt/cancoes/o-que-vejo-elevation-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/lindo-jesus-passion/",
-  "https://www.worshiptogether.com/pt/cancoes/tudo-esta-mudando-the-belonging-co/",
-  "https://www.worshiptogether.com/pt/cancoes/sempre-yhwh-elevation-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/sempre-chris-tomlin/",
-  "https://www.worshiptogether.com/pt/cancoes/nao-ha-ninguem-elevation-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/cristo-jesus-crucificado-lindy-cofer/",
-  "https://www.worshiptogether.com/pt/cancoes/tens-meu-olhar-taya/",
-  "https://www.worshiptogether.com/pt/cancoes/levar-pra-jesus-anna-golden/",
-  "https://www.worshiptogether.com/pt/cancoes/discernimento-bryan-katie-torwalt/",
-  "https://www.worshiptogether.com/pt/cancoes/toma-o-teu-lugar-gas-street-music/",
-  "https://www.worshiptogether.com/pt/cancoes/como-nos-te-amamos-maverick-city-musica-andre-aquino/",
-  "https://www.worshiptogether.com/pt/cancoes/santo-pra-sempre-chris-tomlin/",
-  "https://www.worshiptogether.com/pt/cancoes/ha-vida-em-ti-jonathan-traylor/",
-  "https://www.worshiptogether.com/pt/cancoes/e-dizemos-amem-lakewood-music/",
-  "https://www.worshiptogether.com/pt/cancoes/bom-esse-e-quem-tu-e-s-cody-carnes/",
-  "https://www.worshiptogether.com/pt/cancoes/eu-sou-livre-the-belonging-co/",
-  "https://www.worshiptogether.com/pt/cancoes/eu-creio-em-ti-senhor-cody-carnes/",
-  "https://www.worshiptogether.com/pt/cancoes/guerreiro-do-ceu-tasha-cobbs-leonard/",
-  "https://www.worshiptogether.com/pt/cancoes/santo-tasha-cobbs-leonard/",
-  "https://www.worshiptogether.com/pt/cancoes/so-em-jesus-housefires/",
-  "https://www.worshiptogether.com/pt/cancoes/a-pomba-the-belonging-co-kari-jobe/",
-  "https://www.worshiptogether.com/pt/cancoes/esta-ressuscitou-hannah-hobbs/",
-  "https://www.worshiptogether.com/pt/cancoes/eu-teria-tanto-pra-contar-housefires/",
-  "https://www.worshiptogether.com/pt/cancoes/sou-grato-housefires/",
-  "https://www.worshiptogether.com/pt/cancoes/eu-olho-pra-ti-housefires/",
-  "https://www.worshiptogether.com/pt/cancoes/eu-provei-passion/",
-  "https://www.worshiptogether.com/pt/cancoes/cancao-do-ceu-ao-vivo-gabriela-rocha-jessica-augusto/",
-  "https://www.worshiptogether.com/pt/cancoes/vem-fluir-passion/",
-  "https://www.worshiptogether.com/pt/cancoes/cordeiro-de-deus-jesus-culture/",
-  "https://www.worshiptogether.com/pt/cancoes/eu-creio-evan-craft/",
-  "https://www.worshiptogether.com/pt/cancoes/quem-mais-e-digno-gabriel-guedes/",
-  "https://www.worshiptogether.com/pt/cancoes/cristo-a-razao-do-nosso-ser-the-belonging-co/",
-  "https://www.worshiptogether.com/pt/cancoes/minhas-coroas-gateway-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/mais-de-ti-the-belonging-co/",
-  "https://www.worshiptogether.com/pt/cancoes/veja-o-que-o-senhor-ja-fez-the-belonging-co/",
-  "https://www.worshiptogether.com/pt/cancoes/bencaos-que-nao-tem-fim-seph-schlueter/",
-  "https://www.worshiptogether.com/pt/cancoes/mais-uma-vez-elevation-worship/",
-  "https://www.worshiptogether.com/pt/cancoes/outro-igual-nao-ha-ao-rei-nos-coroamos-gabriel-guedes/",
-  "https://www.worshiptogether.com/pt/cancoes/poderoso-nome-the-belonging-co/",
-  "https://www.worshiptogether.com/pt/cancoes/presencia-del-senor-jesus-culture-evan-craft/",
-  "https://www.worshiptogether.com/pt/cancoes/abra-o-livro-upperroom/",
-  "https://www.worshiptogether.com/pt/cancoes/te-damos-gloria-ao-vivo-nivea-soares-gabriel-guedes/",
-  "https://www.worshiptogether.com/pt/cancoes/nao-ha-outro-dunamis-music/",
-  "https://www.worshiptogether.com/pt/cancoes/um-novo-dia-get-worship/"
+  'https://www.worshiptogether.com/pt/cancoes/isso-e-que-e-viver-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/santo-espirito-worship-together/',
+  'https://www.worshiptogether.com/pt/cancoes/louvai-o-nome-anastasis-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/so-a-ti-eu-louvarei-united/',
+  'https://www.worshiptogether.com/pt/cancoes/rei-do-meu-coracao-john-mark-mcmillan/',
+  'https://www.worshiptogether.com/pt/cancoes/acende-um-fogo-united-pursuit/',
+  'https://www.worshiptogether.com/pt/cancoes/cadeias-quebrar/',
+  'https://www.worshiptogether.com/pt/cancoes/bom-bom-pai-chris-tomlin/',
+  'https://www.worshiptogether.com/pt/cancoes/leao-e-o-cordeiro/',
+  'https://www.worshiptogether.com/pt/cancoes/amor-eterno-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/ceus-abertos-como-um-rio/',
+  'https://www.worshiptogether.com/pt/cancoes/transfiguracao-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/noite-feliz-christine-dclario/',
+  'https://www.worshiptogether.com/pt/cancoes/encontrei-meu-lugar-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/feroz-jesus-culture/',
+  'https://www.worshiptogether.com/pt/cancoes/o-teu-amor-e-tao-real-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/pra-sempre-cantarei-hillsong-em-portugues/',
+  'https://www.worshiptogether.com/pt/cancoes/de-graca-em-graca-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/porque-ele-vive-amen/',
+  'https://www.worshiptogether.com/pt/cancoes/quao-lindo-sse-nome-e-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/veja-canta-minhalma-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/teu-grande-amor-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/que-haja-luz-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/assim-como-e-no-ceu-hillsong-em-portugues/',
+  'https://www.worshiptogether.com/pt/cancoes/sim-e-amen-chris-tomlin/',
+  'https://www.worshiptogether.com/pt/cancoes/tu-es-digno-passion/',
+  'https://www.worshiptogether.com/pt/cancoes/eu-vou-construir-pat-barrett/',
+  'https://www.worshiptogether.com/pt/cancoes/glorioso-dia-passion/',
+  'https://www.worshiptogether.com/pt/cancoes/santo-lugar-passion/',
+  'https://www.worshiptogether.com/pt/cancoes/eu-tambem-100-bilhoes-x-united/',
+  'https://www.worshiptogether.com/pt/cancoes/fara-outra-vez-elevation-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/liberdade-jesus-culture/',
+  'https://www.worshiptogether.com/pt/cancoes/estacoes-dunamis/',
+  'https://www.worshiptogether.com/pt/cancoes/quem-dizes-que-eu-sou-worship-together/',
+  'https://www.worshiptogether.com/pt/cancoes/bendizei-ao-senhor-matt-redman/',
+  'https://www.worshiptogether.com/pt/cancoes/vivo-estas-hillsong-young-free/',
+  'https://www.worshiptogether.com/pt/cancoes/perfeita-gracia/',
+  'https://www.worshiptogether.com/pt/cancoes/sim-na-cruz/',
+  'https://www.worshiptogether.com/pt/cancoes/meu-lindo-jesus-tim-highes/',
+  'https://www.worshiptogether.com/pt/cancoes/porque-ele-vive/',
+  'https://www.worshiptogether.com/pt/cancoes/mergulho-nas-aguas/',
+  'https://www.worshiptogether.com/pt/cancoes/eu-te-bendirei-matt-redman/',
+  'https://www.worshiptogether.com/pt/cancoes/vasos-quebrados-sublime-graca-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/teu-reino-aqui/',
+  'https://www.worshiptogether.com/pt/cancoes/vida-achei-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/a-paixao-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/em-paz-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/me-lembrarei-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/teu-toque-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/vinho-novo-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/meu-tudo-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/a-mihna-fe-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/me-entrego-hillsong-young-free/',
+  'https://www.worshiptogether.com/pt/cancoes/teu-coracao-hillsong-em-portugues/',
+  'https://www.worshiptogether.com/pt/cancoes/pra-sempre-chris-tomlin/',
+  'https://www.worshiptogether.com/pt/cancoes/pra-sempre-ao-vivo-kari-jobe/',
+  'https://www.worshiptogether.com/pt/cancoes/grandes-coisas-phil-wickham/',
+  'https://www.worshiptogether.com/pt/cancoes/dia-feliz/',
+  'https://www.worshiptogether.com/pt/cancoes/do-ceu-desceu-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/vim-para-adorar-te/',
+  'https://www.worshiptogether.com/pt/cancoes/existe-alguem-digno-chris-tomlin/',
+  'https://www.worshiptogether.com/pt/cancoes/santo-e-o-senhor-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/hosana-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/profundo-amor-do-pai-por-nos/',
+  'https://www.worshiptogether.com/pt/cancoes/quao-grande-e-o-meu-deus/',
+  'https://www.worshiptogether.com/pt/cancoes/grandioso-es-tu/',
+  'https://www.worshiptogether.com/pt/cancoes/eu-me-rendo-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/so-em-jesus/',
+  'https://www.worshiptogether.com/pt/cancoes/tu-es-tremendo-deus-chris-tomlin/',
+  'https://www.worshiptogether.com/pt/cancoes/boa-graca-united/',
+  'https://www.worshiptogether.com/pt/cancoes/outro-na-fornalha-united/',
+  'https://www.worshiptogether.com/pt/cancoes/nada-mais-cody-carnes/',
+  'https://www.worshiptogether.com/pt/cancoes/me-rendo-a-ti-passion/',
+  'https://www.worshiptogether.com/pt/cancoes/leve-me-a-cruz-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/salvou-meu-coracao-me-abracou-united/',
+  'https://www.worshiptogether.com/pt/cancoes/senhor-preciso-de-ti/',
+  'https://www.worshiptogether.com/pt/cancoes/cordeiro-que-sofreu-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/poder-pra-salvar-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/nao-ha-um-nome-igual-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/oceanos-onde-meus-pes-podem-falhar-hillsong-united/',
+  'https://www.worshiptogether.com/pt/cancoes/o-senhor-tu-es-lindo-keith-green/',
+  'https://www.worshiptogether.com/pt/cancoes/nosso-deus-chris-tomlin/',
+  'https://www.worshiptogether.com/pt/cancoes/pronto-ou-nao-hillsong-em-portugues/',
+  'https://www.worshiptogether.com/pt/cancoes/eu-corro-ao-pai-cody-carnes/',
+  'https://www.worshiptogether.com/pt/cancoes/profundo-amor-hillsong-young-free/',
+  'https://www.worshiptogether.com/pt/cancoes/espirito-vem/',
+  'https://www.worshiptogether.com/pt/cancoes/te-agradeco-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/essencia-da-adoracao-passion/',
+  'https://www.worshiptogether.com/pt/cancoes/isto-eu-creio-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/despertar-hillsong-em-portugues/',
+  'https://www.worshiptogether.com/pt/cancoes/nos-prostamos-passion/',
+  'https://www.worshiptogether.com/pt/cancoes/rei-dos-reis-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/a-quem-temerei-deus-que-e-poderoso-chris-tomlin/',
+  'https://www.worshiptogether.com/pt/cancoes/nunca-me-deixou-passion/',
+  'https://www.worshiptogether.com/pt/cancoes/teu-amor-nao-falha-jesus-culture/',
+  'https://www.worshiptogether.com/pt/cancoes/agua-santa-we-the-kingdom/',
+  'https://www.worshiptogether.com/pt/cancoes/bondade-de-deus-bethel/',
+  'https://www.worshiptogether.com/pt/cancoes/hosanna-casa-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/a-vitoria-posso-ver-worship-together/',
+  'https://www.worshiptogether.com/pt/cancoes/desperta-minh-alma-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/deus-tanto-amou-worship-together/',
+  'https://www.worshiptogether.com/pt/cancoes/nada-e-impossi-vel-para-deus-passion/',
+  'https://www.worshiptogether.com/pt/cancoes/exaltado-es-worship-together/',
+  'https://www.worshiptogether.com/pt/cancoes/minhas-guerras-guardado/',
+  'https://www.worshiptogether.com/pt/cancoes/a-bencao-worship-together/',
+  'https://www.worshiptogether.com/pt/cancoes/avivamento-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/sinais-josh-baldwin/',
+  'https://www.worshiptogether.com/pt/cancoes/como-eu-sou-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/algo-novo-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/tudo-vai-ficar-bem-evan-craft/',
+  'https://www.worshiptogether.com/pt/cancoes/teu-espiritu-kim-walker-smith-ft-gabriela-rocha/',
+  'https://www.worshiptogether.com/pt/cancoes/teu-espirito-your-spirit-kim-walker-smith-ft-gabriela-rocha/',
+  'https://www.worshiptogether.com/pt/cancoes/gratidao-brandon-lake/',
+  'https://www.worshiptogether.com/pt/cancoes/vento-novo-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/eu-teu-amor-josh-baldwin/',
+  'https://www.worshiptogether.com/pt/cancoes/temos-vitoria-the-belonging-co/',
+  'https://www.worshiptogether.com/pt/cancoes/bom-demais-para-nao-crer-cody-carnes/',
+  'https://www.worshiptogether.com/pt/cancoes/jesus-sobre-tudo-esta-the-belonging-co/',
+  'https://www.worshiptogether.com/pt/cancoes/canto-aos-montes-chris-mcclarney/',
+  'https://www.worshiptogether.com/pt/cancoes/meu-jesus-anne-wilson/',
+  'https://www.worshiptogether.com/pt/cancoes/ele-nos-ama-crowder/',
+  'https://www.worshiptogether.com/pt/cancoes/em-seu-nome-lakewood-music/',
+  'https://www.worshiptogether.com/pt/cancoes/cancao-dos-ceus-bethel-music/',
+  'https://www.worshiptogether.com/pt/cancoes/sei-que-faras-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/mil-nomes-sean-curran/',
+  'https://www.worshiptogether.com/pt/cancoes/vem-sobre-nos-upperroom/',
+  'https://www.worshiptogether.com/pt/cancoes/quero-jesus-upperroom/',
+  'https://www.worshiptogether.com/pt/cancoes/vem-espirito-patrick-mayberry/',
+  'https://www.worshiptogether.com/pt/cancoes/sozinho-nunca-andarei-hillsong/',
+  'https://www.worshiptogether.com/pt/cancoes/ha-poder-hillsong-em-portugues/',
+  'https://www.worshiptogether.com/pt/cancoes/nos-rendemos-de-novo-hillsong-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/outro-igual-na-o-ha-upperroom/',
+  'https://www.worshiptogether.com/pt/cancoes/o-tempo-e-teu-kim-walker-smith/',
+  'https://www.worshiptogether.com/pt/cancoes/firme-fundamento-jamais-cody-carnes/',
+  'https://www.worshiptogether.com/pt/cancoes/pelo-que-fez-passion/',
+  'https://www.worshiptogether.com/pt/cancoes/milhares-de-aleluias-brooke-ligertwood/',
+  'https://www.worshiptogether.com/pt/cancoes/melhor-do-que-pensei-bryan-katie-torwalt/',
+  'https://www.worshiptogether.com/pt/cancoes/o-mesmo-deus-elevation-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/em-nome-de-jesus-katy-nichole/',
+  'https://www.worshiptogether.com/pt/cancoes/o-melhor-esta-por-vir-mack-brock-ft-pat-barrett/',
+  'https://www.worshiptogether.com/pt/cancoes/por-jesus-the-belonging-co/',
+  'https://www.worshiptogether.com/pt/cancoes/o-que-vejo-elevation-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/lindo-jesus-passion/',
+  'https://www.worshiptogether.com/pt/cancoes/tudo-esta-mudando-the-belonging-co/',
+  'https://www.worshiptogether.com/pt/cancoes/sempre-yhwh-elevation-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/sempre-chris-tomlin/',
+  'https://www.worshiptogether.com/pt/cancoes/nao-ha-ninguem-elevation-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/cristo-jesus-crucificado-lindy-cofer/',
+  'https://www.worshiptogether.com/pt/cancoes/tens-meu-olhar-taya/',
+  'https://www.worshiptogether.com/pt/cancoes/levar-pra-jesus-anna-golden/',
+  'https://www.worshiptogether.com/pt/cancoes/discernimento-bryan-katie-torwalt/',
+  'https://www.worshiptogether.com/pt/cancoes/toma-o-teu-lugar-gas-street-music/',
+  'https://www.worshiptogether.com/pt/cancoes/como-nos-te-amamos-maverick-city-musica-andre-aquino/',
+  'https://www.worshiptogether.com/pt/cancoes/santo-pra-sempre-chris-tomlin/',
+  'https://www.worshiptogether.com/pt/cancoes/ha-vida-em-ti-jonathan-traylor/',
+  'https://www.worshiptogether.com/pt/cancoes/e-dizemos-amem-lakewood-music/',
+  'https://www.worshiptogether.com/pt/cancoes/bom-esse-e-quem-tu-e-s-cody-carnes/',
+  'https://www.worshiptogether.com/pt/cancoes/eu-sou-livre-the-belonging-co/',
+  'https://www.worshiptogether.com/pt/cancoes/eu-creio-em-ti-senhor-cody-carnes/',
+  'https://www.worshiptogether.com/pt/cancoes/guerreiro-do-ceu-tasha-cobbs-leonard/',
+  'https://www.worshiptogether.com/pt/cancoes/santo-tasha-cobbs-leonard/',
+  'https://www.worshiptogether.com/pt/cancoes/so-em-jesus-housefires/',
+  'https://www.worshiptogether.com/pt/cancoes/a-pomba-the-belonging-co-kari-jobe/',
+  'https://www.worshiptogether.com/pt/cancoes/esta-ressuscitou-hannah-hobbs/',
+  'https://www.worshiptogether.com/pt/cancoes/eu-teria-tanto-pra-contar-housefires/',
+  'https://www.worshiptogether.com/pt/cancoes/sou-grato-housefires/',
+  'https://www.worshiptogether.com/pt/cancoes/eu-olho-pra-ti-housefires/',
+  'https://www.worshiptogether.com/pt/cancoes/eu-provei-passion/',
+  'https://www.worshiptogether.com/pt/cancoes/cancao-do-ceu-ao-vivo-gabriela-rocha-jessica-augusto/',
+  'https://www.worshiptogether.com/pt/cancoes/vem-fluir-passion/',
+  'https://www.worshiptogether.com/pt/cancoes/cordeiro-de-deus-jesus-culture/',
+  'https://www.worshiptogether.com/pt/cancoes/eu-creio-evan-craft/',
+  'https://www.worshiptogether.com/pt/cancoes/quem-mais-e-digno-gabriel-guedes/',
+  'https://www.worshiptogether.com/pt/cancoes/cristo-a-razao-do-nosso-ser-the-belonging-co/',
+  'https://www.worshiptogether.com/pt/cancoes/minhas-coroas-gateway-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/mais-de-ti-the-belonging-co/',
+  'https://www.worshiptogether.com/pt/cancoes/veja-o-que-o-senhor-ja-fez-the-belonging-co/',
+  'https://www.worshiptogether.com/pt/cancoes/bencaos-que-nao-tem-fim-seph-schlueter/',
+  'https://www.worshiptogether.com/pt/cancoes/mais-uma-vez-elevation-worship/',
+  'https://www.worshiptogether.com/pt/cancoes/outro-igual-nao-ha-ao-rei-nos-coroamos-gabriel-guedes/',
+  'https://www.worshiptogether.com/pt/cancoes/poderoso-nome-the-belonging-co/',
+  'https://www.worshiptogether.com/pt/cancoes/presencia-del-senor-jesus-culture-evan-craft/',
+  'https://www.worshiptogether.com/pt/cancoes/abra-o-livro-upperroom/',
+  'https://www.worshiptogether.com/pt/cancoes/te-damos-gloria-ao-vivo-nivea-soares-gabriel-guedes/',
+  'https://www.worshiptogether.com/pt/cancoes/nao-ha-outro-dunamis-music/',
+  'https://www.worshiptogether.com/pt/cancoes/um-novo-dia-get-worship/',
 ];
 let catalogCache = { expires: Date.now() + 20 * 60_000, urls: PUBLIC_CATALOG_URLS };
 
 export function normalize(value) {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 }
 
 export function allowedSongUrl(value) {
   try {
     const url = new URL(value);
-    if (url.protocol === 'https:' && ['cifraclub.com.br', 'www.cifraclub.com.br'].includes(url.hostname)
-      && !url.username && !url.password && !url.port && /^\/[a-z0-9][a-z0-9_-]*\/[a-z0-9][a-z0-9_-]*\/?$/i.test(url.pathname)) {
+    if (
+      url.protocol === 'https:' &&
+      ['cifraclub.com.br', 'www.cifraclub.com.br'].includes(url.hostname) &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      /^\/[a-z0-9][a-z0-9_-]*\/[a-z0-9][a-z0-9_-]*\/?$/i.test(url.pathname)
+    ) {
       return `${CIFRA_ORIGIN}${url.pathname.replace(/\/?$/, '/')}`;
     }
     if (url.origin !== SOURCE_ORIGIN || url.username || url.password || url.port) return null;
     if (!/^\/(?:pt\/cancoes|songs)\/[a-z0-9-]+\/?$/.test(url.pathname)) return null;
     return `${SOURCE_ORIGIN}${url.pathname.replace(/\/?$/, '/')}`;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function decode(value) {
-  return value.replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (_, hex, decimal) => {
-    const number = Number.parseInt(hex || decimal, hex ? 16 : 10);
-    return number > 0 && number <= 0x10ffff ? String.fromCodePoint(number) : '';
-  }).replace(/&(amp|lt|gt|quot|apos|nbsp|sharp|flat);/g, (_, entity) => ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', sharp: '#', flat: 'b' })[entity]);
+  return value
+    .replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (_, hex, decimal) => {
+      const number = Number.parseInt(hex || decimal, hex ? 16 : 10);
+      return number > 0 && number <= 0x10ffff ? String.fromCodePoint(number) : '';
+    })
+    .replace(
+      /&(amp|lt|gt|quot|apos|nbsp|sharp|flat);/g,
+      (_, entity) => ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', sharp: '#', flat: 'b' })[entity],
+    );
 }
 
-function text(value) { return decode(value.replace(/<[^>]*>/g, '')); }
+function text(value) {
+  return decode(value.replace(/<[^>]*>/g, ''));
+}
 
 function htmlAttribute(tag, name) {
   const match = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i').exec(tag);
@@ -233,7 +253,10 @@ function metadataLabel(value) {
 
 function cifraClubMetadata(value, heading, artistHeading) {
   if (!/\s+-\s+Cifra Club\s*$/i.test(value)) return null;
-  const label = value.replace(/\s+-\s+Cifra Club\s*$/i, '').replace(/\s+/g, ' ').trim();
+  const label = value
+    .replace(/\s+-\s+Cifra Club\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   // A dedicated song or artist heading disambiguates names containing " - ".
   if (heading && label.toLowerCase().startsWith(`${heading.toLowerCase()} - `)) {
     return { title: heading, artist: metadataLabel(label.slice(heading.length + 3)) };
@@ -258,43 +281,79 @@ function cifraClubPageLabels(html, canonical) {
     for (const anchor of item[2].matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
       try {
         const target = new URL(htmlAttribute(anchor[1], 'href'), canonical);
-        if (target.protocol !== 'https:' || target.username || target.password || target.port
-          || !['www.cifraclub.com.br', 'cifraclub.com.br'].includes(target.hostname)
-          || target.pathname.toLowerCase() !== artistPath.toLowerCase()) continue;
+        if (
+          target.protocol !== 'https:' ||
+          target.username ||
+          target.password ||
+          target.port ||
+          !['www.cifraclub.com.br', 'cifraclub.com.br'].includes(target.hostname) ||
+          target.pathname.toLowerCase() !== artistPath.toLowerCase()
+        )
+          continue;
         linkedArtist = metadataLabel(text(anchor[2]));
         if (linkedArtist) break;
-      } catch { /* Ignore links that do not identify this page's artist. */ }
+      } catch {
+        /* Ignore links that do not identify this page's artist. */
+      }
     }
     if (linkedArtist) break;
   }
   const dedicatedArtist = artistHeadings.find(match => /(?:^|\s)t3(?:\s|$)/.test(htmlAttribute(match[1], 'class')));
   const fallbackArtist = metadataLabel(text(dedicatedArtist?.[2] || ''));
-  const ogTitle = [...html.matchAll(/<meta\b[^>]*>/gi)].map(match => htmlAttribute(match[0], 'property').toLowerCase() === 'og:title'
-    ? htmlAttribute(match[0], 'content') : '').find(Boolean) || '';
+  const ogTitle =
+    [...html.matchAll(/<meta\b[^>]*>/gi)]
+      .map(match => (htmlAttribute(match[0], 'property').toLowerCase() === 'og:title' ? htmlAttribute(match[0], 'content') : ''))
+      .find(Boolean) || '';
   const metadata = cifraClubMetadata(ogTitle, heading, linkedArtist || fallbackArtist);
-  const documentMetadata = cifraClubMetadata(text(/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] || ''), heading, linkedArtist || fallbackArtist);
-  return { title: metadata?.title || heading || documentMetadata?.title || '',
-    artist: metadata?.artist || linkedArtist || documentMetadata?.artist || fallbackArtist || '' };
+  const documentMetadata = cifraClubMetadata(
+    text(/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] || ''),
+    heading,
+    linkedArtist || fallbackArtist,
+  );
+  return {
+    title: metadata?.title || heading || documentMetadata?.title || '',
+    artist: metadata?.artist || linkedArtist || documentMetadata?.artist || fallbackArtist || '',
+  };
 }
 
 /** The public autocomplete returns JSONP. Parse the JSON payload; never evaluate script. */
 export function parseCifraClubSearch(body) {
-  const payload = body.trim().replace(/^suggest_callback\(\s*/, '').replace(/\s*\);?\s*$/, '');
+  const payload = body
+    .trim()
+    .replace(/^suggest_callback\(\s*/, '')
+    .replace(/\s*\);?\s*$/, '');
   let docs;
-  try { docs = JSON.parse(payload)?.response?.docs; }
-  catch { throw new Error('O Cifra Club retornou uma busca inválida.'); }
+  try {
+    docs = JSON.parse(payload)?.response?.docs;
+  } catch {
+    throw new Error('O Cifra Club retornou uma busca inválida.');
+  }
   if (!Array.isArray(docs)) throw new Error('O Cifra Club retornou uma busca inválida.');
   const seen = new Set();
   const results = [];
   for (const item of docs) {
-    if (String(item?.t) !== '2' || item.block || !(Number(item.vci) > 0)
-      || typeof item.txt !== 'string' || typeof item.art !== 'string'
-      || !/^[a-z0-9][a-z0-9_-]*$/i.test(item.dns || '') || !/^[a-z0-9][a-z0-9_-]*$/i.test(item.url || '')) continue;
+    if (
+      String(item?.t) !== '2' ||
+      item.block ||
+      !(Number(item.vci) > 0) ||
+      typeof item.txt !== 'string' ||
+      typeof item.art !== 'string' ||
+      !/^[a-z0-9][a-z0-9_-]*$/i.test(item.dns || '') ||
+      !/^[a-z0-9][a-z0-9_-]*$/i.test(item.url || '')
+    )
+      continue;
     const url = allowedSongUrl(`${CIFRA_ORIGIN}/${item.dns}/${item.url}/`);
     if (!url || seen.has(url)) continue;
     seen.add(url);
     // Return only metadata. The search index also contains lyrics; those are not imported here.
-    results.push({ id: url, title: item.txt.slice(0, 300), artist: item.art.slice(0, 300), source: 'Cifra Club', sourceUrl: url, kind: 'chords' });
+    results.push({
+      id: url,
+      title: item.txt.slice(0, 300),
+      artist: item.art.slice(0, 300),
+      source: 'Cifra Club',
+      sourceUrl: url,
+      kind: 'chords',
+    });
     if (results.length === 12) break;
   }
   return results;
@@ -302,7 +361,27 @@ export function parseCifraClubSearch(body) {
 
 // Consume suffixes once. Repeating a numeric regex inside another repetition
 // makes malformed pasted chords (for example C111…x) block the browser.
-const QUALITIES = ['maj', 'Maj', 'min', 'Min', 'dim', 'Dim', 'aug', 'Aug', 'sus', 'Sus', 'add', 'Add', 'omit', 'no', 'm', 'M', 'Δ', '°', 'ø'];
+const QUALITIES = [
+  'maj',
+  'Maj',
+  'min',
+  'Min',
+  'dim',
+  'Dim',
+  'aug',
+  'Aug',
+  'sus',
+  'Sus',
+  'add',
+  'Add',
+  'omit',
+  'no',
+  'm',
+  'M',
+  'Δ',
+  '°',
+  'ø',
+];
 const PAREN_QUALITIES = ['maj', 'Maj', 'min', 'm', 'M'];
 
 function validSuffix(value) {
@@ -313,7 +392,7 @@ function validSuffix(value) {
     while (cursor < value.length && value[cursor] >= '0' && value[cursor] <= '9') cursor++;
     return cursor > start;
   };
-  const quality = (names) => {
+  const quality = names => {
     const name = names.find(item => value.startsWith(item, cursor));
     if (!name) return false;
     cursor += name.length;
@@ -338,8 +417,10 @@ function validSuffix(value) {
       cursor++;
       if (!digits()) return false;
     } else if (quality(QUALITIES)) digits();
-    else if (token === '+' || token === '-') { cursor++; digits(); }
-    else if (!signedNumber()) return false;
+    else if (token === '+' || token === '-') {
+      cursor++;
+      digits();
+    } else if (!signedNumber()) return false;
   }
   return true;
 }
@@ -376,46 +457,68 @@ export function cleanChordSheet(value) {
   const diagram = line => {
     const tokens = line.trim().split(/\s+/);
     const header = tokens[0].replace(/[:=]$/, '').replace(/^\[([^\]]+)\]$/, '$1');
-    if (chord(header) && (tokens.length === 2 && /^[xX\d]{6}$/.test(tokens[1])
-      || tokens.length === 7 && tokens.slice(1).every(token => /^[xX\d]$/.test(token)))) return true;
+    if (
+      chord(header) &&
+      ((tokens.length === 2 && /^[xX\d]{6}$/.test(tokens[1])) ||
+        (tokens.length === 7 && tokens.slice(1).every(token => /^[xX\d]$/.test(token))))
+    )
+      return true;
     const joined = /^(\[[^\]\r\n]{1,84}\]|[^\s:=]{1,84})[:=]([xX\d]{6})$/.exec(line.trim());
     return Boolean(joined && chord(joined[1].replace(/^\[([^\]]+)\]$/, '$1')));
   };
-  const gridRow = line => /^[|│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪─━+\-\s○●oOxX\d]{5,}$/.test(line.trim())
-    && /[│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪|]/.test(line);
+  const gridRow = line => /^[|│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪─━+\-\s○●oOxX\d]{5,}$/.test(line.trim()) && /[│┃┌┐└┘├┤┬┴┼╭╮╰╯╞╡╪|]/.test(line);
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
     const label = line.replace(/\s+/g, ' ').trim();
-    if (tabRow(line) || diagram(line)
-      || /^(?:afina[çc][aã]o|tuning)\s*:\s*\S.*$/i.test(label)
-      || /^(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(?:\d{1,2}(?:\s*[ªºao])?(?:\s*casa)?|sem|none)\s*[.!]?$/i.test(label)
-      || /^\(?forma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?[A-G](?:[#♯b♭])?(?:m|min|maj)?\)?$/i.test(label)) removed.add(index);
+    if (
+      tabRow(line) ||
+      diagram(line) ||
+      /^(?:afina[çc][aã]o|tuning)\s*:\s*\S.*$/i.test(label) ||
+      /^(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(?:\d{1,2}(?:\s*[ªºao])?(?:\s*casa)?|sem|none)\s*[.!]?$/i.test(label) ||
+      /^\(?forma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?[A-G](?:[#♯b♭])?(?:m|min|maj)?\)?$/i.test(label)
+    )
+      removed.add(index);
     if (!gridRow(line)) continue;
     let end = index + 1;
     while (end < lines.length && gridRow(lines[end])) end++;
     if (end - index >= 3) for (let row = index; row < end; row++) removed.add(row);
     index = end - 1;
   }
-  for (let pass = 0; pass < 3; pass++) for (const index of [...removed]) for (const adjacent of [index - 1, index + 1]) {
-    if (adjacent >= 0 && adjacent < lines.length && /^(?:\[?\s*(?:tablatura|tab(?:lature)?|diagrama(?:s)?(?:\s+dos?\s+acordes)?|dedilhado)\s*\]?\s*:?|(?:[eEaAgGbBdD]\s+){5}[eEaAgGbBdD])$/i.test(lines[adjacent].replace(/\s+/g, ' ').trim())) removed.add(adjacent);
-  }
+  for (let pass = 0; pass < 3; pass++)
+    for (const index of [...removed])
+      for (const adjacent of [index - 1, index + 1]) {
+        if (
+          adjacent >= 0 &&
+          adjacent < lines.length &&
+          /^(?:\[?\s*(?:tablatura|tab(?:lature)?|diagrama(?:s)?(?:\s+dos?\s+acordes)?|dedilhado)\s*\]?\s*:?|(?:[eEaAgGbBdD]\s+){5}[eEaAgGbBdD])$/i.test(
+            lines[adjacent].replace(/\s+/g, ' ').trim(),
+          )
+        )
+          removed.add(adjacent);
+      }
   return lines.filter((_, index) => !removed.has(index)).join('\n');
 }
 
 /** Preserve the alignment of the chords actually present in the public page. */
 export function convertCifraClubRows(value) {
-  if (!value.trim() || value.length > 100_000) throw new Error('Não foi possível reconhecer uma cifra pública dentro do limite de tamanho.');
-  const lines = cleanChordSheet(value.replace(/\u00a0/g, ' ')).split('\n').map(line => {
-    let result = '';
-    for (const character of line) result += character === '\t' ? ' '.repeat(8 - result.length % 8) : character;
-    return result;
-  });
+  if (!value.trim() || value.length > 100_000)
+    throw new Error('Não foi possível reconhecer uma cifra pública dentro do limite de tamanho.');
+  const lines = cleanChordSheet(value.replace(/\u00a0/g, ' '))
+    .split('\n')
+    .map(line => {
+      let result = '';
+      for (const character of line) result += character === '\t' ? ' '.repeat(8 - (result.length % 8)) : character;
+      return result;
+    });
   const output = [];
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
     const row = chordRow(line);
     const next = lines[index + 1];
-    if (!row) { output.push(line); continue; }
+    if (!row) {
+      output.push(line);
+      continue;
+    }
     const align = !row.standalone && next?.trim() && !chordRow(next) && !/\[[^\]\r\n]+\]/.test(next);
     let result = '';
     let cursor = 0;
@@ -447,23 +550,45 @@ export function parseCifraClubPage(html, url) {
   if (!pre) throw new Error('O Cifra Club não forneceu uma cifra pública reconhecida para esta versão.');
   const raw = text(pre[1].replace(/<br\s*\/?\s*>/gi, '\n'));
   const content = convertCifraClubRows(raw);
-  if (!/\[[A-G](?:#|b)?[^\]\r\n]*\]/.test(content)) throw new Error('Não foi possível reconhecer os acordes públicos desta versão no Cifra Club.');
+  if (!/\[[A-G](?:#|b)?[^\]\r\n]*\]/.test(content))
+    throw new Error('Não foi possível reconhecer os acordes públicos desta versão no Cifra Club.');
   const { title, artist } = cifraClubPageLabels(html, canonical);
   if (!title) throw new Error('O Cifra Club retornou uma versão sem título reconhecido.');
-  const keyArea = /<(?:span|div)\b[^>]*(?:id|class)=["'][^"']*\bcifra_tom\b[^"']*["'][^>]*>([\s\S]{0,1200}?)<\/(?:span|div)>/i.exec(html)?.[1] || '';
+  const keyArea =
+    /<(?:span|div)\b[^>]*(?:id|class)=["'][^"']*\bcifra_tom\b[^"']*["'][^>]*>([\s\S]{0,1200}?)<\/(?:span|div)>/i.exec(html)?.[1] || '';
   const keyLabel = text(keyArea).replace(/\s+/g, ' ').trim();
-  const shapeKey = /\bforma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?([A-G](?:[#b♯♭])?(?:m|maj|min)?)(?=\s|$|[)])/i.exec(keyLabel)?.[1];
+  const shapeKey = /\bforma\s+dos?\s+acordes\s+(?:no\s+)?tom\s*(?:de\s+|:\s*)?([A-G](?:[#b♯♭])?(?:m|maj|min)?)(?=\s|$|[)])/i.exec(
+    keyLabel,
+  )?.[1];
   const currentKey = /\bdata-current-key=["']([A-G](?:[#b♯♭])?(?:m|maj|min)?)["']/i.exec(html)?.[1];
   const soundingKey = /^(?:tom\s*:\s*)?([A-G](?:[#b♯♭])?(?:m|maj|min)?)(?=\s|$|[()])/i.exec(keyLabel)?.[1];
-  const capoArea = /<(?:span|div)\b[^>]*(?:id|class)=["'][^"']*\bcifra_capo(?:_info)?\b[^"']*["'][^>]*>([\s\S]{0,600}?)<\/(?:span|div)>/i.exec(html)?.[1] || '';
-  const capoMatch = /\b(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(\d{1,2})(?:\s*[ªºao])?(?:\s*casa)?\b/i.exec(`${keyLabel}\n${text(capoArea)}\n${raw}`.replace(/\s+/g, ' '));
+  const capoArea =
+    /<(?:span|div)\b[^>]*(?:id|class)=["'][^"']*\bcifra_capo(?:_info)?\b[^"']*["'][^>]*>([\s\S]{0,600}?)<\/(?:span|div)>/i.exec(
+      html,
+    )?.[1] || '';
+  const capoMatch = /\b(?:capotraste|capo)\s*(?::|=|na?|em)?\s*(\d{1,2})(?:\s*[ªºao])?(?:\s*casa)?\b/i.exec(
+    `${keyLabel}\n${text(capoArea)}\n${raw}`.replace(/\s+/g, ' '),
+  );
   const capo = capoMatch && Number(capoMatch[1]) <= 12 ? Number(capoMatch[1]) : undefined;
   const originalKey = (shapeKey || currentKey || (!capo ? soundingKey : undefined))?.replace(/♯/g, '#').replace(/♭/g, 'b');
-  return { id: canonical, title: title.slice(0, 300), artist: artist.slice(0, 300), content, ...(originalKey ? { originalKey } : {}),
+  return {
+    id: canonical,
+    title: title.slice(0, 300),
+    artist: artist.slice(0, 300),
+    content,
+    ...(originalKey ? { originalKey } : {}),
     ...(soundingKey && (shapeKey || currentKey || capo) ? { soundingKey: soundingKey.replace(/♯/g, '#').replace(/♭/g, 'b') } : {}),
     ...(capo !== undefined ? { capo } : {}),
-    ...(!originalKey && capo ? { keyUnknownReason: 'A fonte informa capotraste, mas não o tom das posições dos acordes. Confirme o tom dos acordes escritos antes de importar.' } : {}),
-    source: 'Cifra Club', sourceUrl: canonical, kind: 'chords' };
+    ...(!originalKey && capo
+      ? {
+          keyUnknownReason:
+            'A fonte informa capotraste, mas não o tom das posições dos acordes. Confirme o tom dos acordes escritos antes de importar.',
+        }
+      : {}),
+    source: 'Cifra Club',
+    sourceUrl: canonical,
+    kind: 'chords',
+  };
 }
 
 export function parseSongPage(html, url) {
@@ -475,24 +600,44 @@ export function parseSongPage(html, url) {
   const originalKey = /\bdata-original-key="([^"]+)"/i.exec(html)?.[1] || '';
   const chordSection = /<div\b[^>]*id="chordPro"[^>]*>/i.exec(html);
   if (!title || !chordSection) throw new Error('A fonte não forneceu uma cifra pública reconhecida para esta música.');
-  const lines = html.slice(chordSection.index).split(/<div\s+class="chord-pro-line"\s*>/i).slice(1);
-  const content = lines.map(line => {
-    const pairs = [...line.matchAll(/<div\s+class="chord-pro-note"[^>]*>([\s\S]*?)<\/div>\s*<div\s+class="chord-pro-lyric"[^>]*>([\s\S]*?)<\/div>/gi)];
-    return pairs.map(pair => {
-      const chord = text(pair[1]).trim().replace(/♯/g, '#').replace(/♭/g, 'b');
-      const lyric = text(pair[2]).replace(/\r/g, '');
-      // Do not invent or infer any chords: use only the notes present in the public source.
-      return `${chord ? `[${chord}]` : ''}${lyric}`;
-    }).join('');
-  }).filter(line => line.length).join('\n');
+  const lines = html
+    .slice(chordSection.index)
+    .split(/<div\s+class="chord-pro-line"\s*>/i)
+    .slice(1);
+  const content = lines
+    .map(line => {
+      const pairs = [
+        ...line.matchAll(/<div\s+class="chord-pro-note"[^>]*>([\s\S]*?)<\/div>\s*<div\s+class="chord-pro-lyric"[^>]*>([\s\S]*?)<\/div>/gi),
+      ];
+      return pairs
+        .map(pair => {
+          const chord = text(pair[1]).trim().replace(/♯/g, '#').replace(/♭/g, 'b');
+          const lyric = text(pair[2]).replace(/\r/g, '');
+          // Do not invent or infer any chords: use only the notes present in the public source.
+          return `${chord ? `[${chord}]` : ''}${lyric}`;
+        })
+        .join('');
+    })
+    .filter(line => line.length)
+    .join('\n');
   if (!content || content.length > 100_000) throw new Error('Não foi possível reconhecer o conteúdo da cifra pública.');
   return { id: url, title, artist, originalKey, content, source: 'Worship Together', sourceUrl: url, kind: 'chords' };
 }
 
 async function fetchPublic(url, source = 'A fonte') {
-  const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(8_000), headers: { Accept: 'text/html, application/xml;q=0.9', 'User-Agent': 'Candeia/1.0 (+public-song-reference)' } });
-  if (!response.ok) throw new Error(response.status === 403 || response.status === 429 ? `${source} bloqueou a consulta automática neste momento. Você pode abrir o link e usar a importação manual.` : `${source} está indisponível agora (HTTP ${response.status}). Tente novamente mais tarde.`);
-  if (Number(response.headers.get('content-length') || 0) > MAX_SOURCE_BYTES) throw new Error('A resposta da fonte excedeu o tamanho permitido.');
+  const response = await fetch(url, {
+    redirect: 'error',
+    signal: AbortSignal.timeout(8_000),
+    headers: { Accept: 'text/html, application/xml;q=0.9', 'User-Agent': 'Candeia/1.0 (+public-song-reference)' },
+  });
+  if (!response.ok)
+    throw new Error(
+      response.status === 403 || response.status === 429
+        ? `${source} bloqueou a consulta automática neste momento. Você pode abrir o link e usar a importação manual.`
+        : `${source} está indisponível agora (HTTP ${response.status}). Tente novamente mais tarde.`,
+    );
+  if (Number(response.headers.get('content-length') || 0) > MAX_SOURCE_BYTES)
+    throw new Error('A resposta da fonte excedeu o tamanho permitido.');
   const reader = response.body.getReader();
   let total = 0;
   const chunks = [];
@@ -500,7 +645,10 @@ async function fetchPublic(url, source = 'A fonte') {
     const { done, value } = await reader.read();
     if (done) break;
     total += value.byteLength;
-    if (total > MAX_SOURCE_BYTES) { await reader.cancel(); throw new Error('A resposta da fonte excedeu o tamanho permitido.'); }
+    if (total > MAX_SOURCE_BYTES) {
+      await reader.cancel();
+      throw new Error('A resposta da fonte excedeu o tamanho permitido.');
+    }
     chunks.push(value);
   }
   return new TextDecoder().decode(Buffer.concat(chunks));
@@ -521,7 +669,15 @@ async function catalog() {
 }
 
 function json(statusCode, body) {
-  return { statusCode, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': statusCode === 200 ? 'private, max-age=300' : 'no-store', 'X-Content-Type-Options': 'nosniff' }, body: JSON.stringify(body) };
+  return {
+    statusCode,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': statusCode === 200 ? 'private, max-age=300' : 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
+    body: JSON.stringify(body),
+  };
 }
 
 function supabaseConfiguration() {
@@ -529,19 +685,40 @@ function supabaseConfiguration() {
   const key = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
   try {
     const url = new URL(value);
-    if (url.protocol !== 'https:' || !/^[a-z0-9]{20}\.supabase\.co$/.test(url.hostname) || url.port || url.username || url.password || (url.pathname !== '/' && url.pathname !== '') || url.search || url.hash || !key || /[\r\n]/.test(key)) return null;
+    if (
+      url.protocol !== 'https:' ||
+      !/^[a-z0-9]{20}\.supabase\.co$/.test(url.hostname) ||
+      url.port ||
+      url.username ||
+      url.password ||
+      (url.pathname !== '/' && url.pathname !== '') ||
+      url.search ||
+      url.hash ||
+      !key ||
+      /[\r\n]/.test(key)
+    )
+      return null;
     return { origin: url.origin, key };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /** Only approved ministry accounts may use this server to reach the song sources. */
 export async function approvedAccount(token, config) {
-  const options = { headers: { apikey: config.key, Authorization: `Bearer ${token}`, Accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(4_000) };
+  const options = {
+    headers: { apikey: config.key, Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    redirect: 'error',
+    signal: AbortSignal.timeout(4_000),
+  };
   const auth = await fetch(`${config.origin}/auth/v1/user`, options);
   if (!auth.ok) return 401;
   const user = await auth.json().catch(() => null);
   if (typeof user?.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(user.id)) return 401;
-  const profile = await fetch(`${config.origin}/rest/v1/profiles?${new URLSearchParams({ select: 'id,approved', id: `eq.${user.id}`, limit: '1' })}`, { ...options, signal: AbortSignal.timeout(4_000) });
+  const profile = await fetch(
+    `${config.origin}/rest/v1/profiles?${new URLSearchParams({ select: 'id,approved', id: `eq.${user.id}`, limit: '1' })}`,
+    { ...options, signal: AbortSignal.timeout(4_000) },
+  );
   if (!profile.ok) throw new Error('auth-source');
   const rows = await profile.json().catch(() => null);
   return Array.isArray(rows) && rows[0]?.id === user.id && rows[0]?.approved === true ? 200 : 403;
@@ -555,9 +732,16 @@ export async function handler(event) {
   const config = supabaseConfiguration();
   if (!config) return json(503, { error: 'A busca de cifras ainda não está configurada no servidor.' });
   let status;
-  try { status = await approvedAccount(token, config); }
-  catch { return json(503, { error: 'Não foi possível confirmar sua conta. Tente novamente em instantes.' }); }
-  if (status !== 200) return json(status, { error: status === 403 ? 'Seu cadastro precisa estar aprovado para buscar cifras.' : 'Entre novamente na sua conta para buscar cifras.' });
+  try {
+    status = await approvedAccount(token, config);
+  } catch {
+    return json(503, { error: 'Não foi possível confirmar sua conta. Tente novamente em instantes.' });
+  }
+  if (status !== 200)
+    return json(status, {
+      error:
+        status === 403 ? 'Seu cadastro precisa estar aprovado para buscar cifras.' : 'Entre novamente na sua conta para buscar cifras.',
+    });
   return handleSongRequest(event);
 }
 
@@ -582,16 +766,30 @@ export async function handleSongRequest(event) {
       return json(200, { results: parseCifraClubSearch(body) });
     }
     const allTerms = title.split(' ').filter(Boolean);
-    const keywords = allTerms.filter(term => term.length > 2 && !['de', 'do', 'da', 'das', 'dos', 'the', 'and', 'com', 'uma', 'para', 'por'].includes(term));
+    const keywords = allTerms.filter(
+      term => term.length > 2 && !['de', 'do', 'da', 'das', 'dos', 'the', 'and', 'com', 'uma', 'para', 'por'].includes(term),
+    );
     const terms = keywords.length ? keywords : allTerms;
-    const results = (await catalog()).map(url => {
-      const slug = normalize(new URL(url).pathname.split('/').filter(Boolean).at(-1));
-      const matched = terms.filter(term => slug.includes(term)).length;
-      const score = matched / terms.length + (slug.includes(title) ? 1 : 0) + (artist && slug.includes(artist) ? 0.5 : 0);
-      return { url, slug, matched, score };
-    }).filter(item => item.matched >= Math.ceil(terms.length * 0.7)).sort((a, b) => b.score - a.score).slice(0, 5).map(item => ({ id: item.url, title: item.slug, artist: '', source: 'Worship Together', sourceUrl: item.url, kind: 'chords' }));
+    const results = (await catalog())
+      .map(url => {
+        const slug = normalize(new URL(url).pathname.split('/').filter(Boolean).at(-1));
+        const matched = terms.filter(term => slug.includes(term)).length;
+        const score = matched / terms.length + (slug.includes(title) ? 1 : 0) + (artist && slug.includes(artist) ? 0.5 : 0);
+        return { url, slug, matched, score };
+      })
+      .filter(item => item.matched >= Math.ceil(terms.length * 0.7))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map(item => ({ id: item.url, title: item.slug, artist: '', source: 'Worship Together', sourceUrl: item.url, kind: 'chords' }));
     return json(200, { results });
   } catch (cause) {
-    return json(502, { error: cause?.name === 'TimeoutError' || cause?.name === 'AbortError' ? 'A consulta à fonte demorou demais. Tente novamente.' : cause instanceof Error && cause.name !== 'TypeError' ? cause.message : 'Não foi possível consultar a fonte de cifras. Tente novamente mais tarde.' });
+    return json(502, {
+      error:
+        cause?.name === 'TimeoutError' || cause?.name === 'AbortError'
+          ? 'A consulta à fonte demorou demais. Tente novamente.'
+          : cause instanceof Error && cause.name !== 'TypeError'
+            ? cause.message
+            : 'Não foi possível consultar a fonte de cifras. Tente novamente mais tarde.',
+    });
   }
 }

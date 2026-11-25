@@ -15,7 +15,7 @@
 .unavailability-form{display:grid;grid-template-columns:minmax(150px,180px) minmax(0,1fr) auto;gap:10px;align-items:end;margin:12px 0}
 .unavailability-form .button{min-height:44px}
 .unavailability-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-.unavailability-list li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border,var(--c-e6e2dcff));border-radius:12px}
+.unavailability-list li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border,var(--l-e6e2dcff));border-radius:12px}
 .unavailability-list span{display:flex;flex-direction:column;gap:2px}
 .unavailability-list small{color:var(--muted,var(--c-5f6b62ff))}
 @media(max-width:640px){.unavailability-form{grid-template-columns:1fr}}

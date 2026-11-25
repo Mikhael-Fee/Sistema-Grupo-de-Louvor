@@ -5,7 +5,14 @@ import type { MinistryData, Person, Profile } from '../types';
 const PERSON_PHOTO = 'https://project.supabase.co/storage/v1/object/public/avatars/person/photo.webp';
 const ACCOUNT_PHOTO = 'https://project.supabase.co/storage/v1/object/public/avatars/account/photo.webp';
 const person = (photos: Partial<Person> = {}): Person => ({ id: 'person', name: 'Ana', email: '', functions: ['Voz'], ...photos });
-const profile = (photos: Partial<Profile> = {}): Profile => ({ id: 'account', name: 'Ana', role: 'musician', approved: true, personId: 'person', ...photos });
+const profile = (photos: Partial<Profile> = {}): Profile => ({
+  id: 'account',
+  name: 'Ana',
+  role: 'musician',
+  approved: true,
+  personId: 'person',
+  ...photos,
+});
 const data = (people: Person[]): MinistryData => ({ people, songs: [], tags: [], services: [] });
 
 describe('fotos próprias e vinculadas', () => {

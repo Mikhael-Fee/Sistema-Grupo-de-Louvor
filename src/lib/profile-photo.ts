@@ -24,9 +24,13 @@ function matches(bytes: Uint8Array, offset: number, values: readonly number[]): 
 
 function readDimensions(bytes: Uint8Array, type: string): Dimensions {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (type === 'image/png' && bytes.length >= 33
-    && matches(bytes, 0, [137, 80, 78, 71, 13, 10, 26, 10])
-    && view.getUint32(8) === 13 && matches(bytes, 12, [73, 72, 68, 82])) {
+  if (
+    type === 'image/png' &&
+    bytes.length >= 33 &&
+    matches(bytes, 0, [137, 80, 78, 71, 13, 10, 26, 10]) &&
+    view.getUint32(8) === 13 &&
+    matches(bytes, 12, [73, 72, 68, 82])
+  ) {
     return { width: view.getUint32(16), height: view.getUint32(20) };
   }
   if (type === 'image/jpeg' && matches(bytes, 0, [255, 216])) {
@@ -47,8 +51,7 @@ function readDimensions(bytes: Uint8Array, type: string): Dimensions {
       offset += length;
     }
   }
-  if (type === 'image/webp' && bytes.length >= 20
-    && matches(bytes, 0, [82, 73, 70, 70]) && matches(bytes, 8, [87, 69, 66, 80])) {
+  if (type === 'image/webp' && bytes.length >= 20 && matches(bytes, 0, [82, 73, 70, 70]) && matches(bytes, 8, [87, 69, 66, 80])) {
     const end = view.getUint32(4, true) + 8;
     if (end > bytes.length || end < 20) throw new Error(INVALID_PHOTO);
     let dimensions: Dimensions | undefined;
@@ -63,8 +66,7 @@ function readDimensions(bytes: Uint8Array, type: string): Dimensions {
         current = { width: uint24(data + 4) + 1, height: uint24(data + 7) + 1 };
       } else if (matches(bytes, offset, [65, 78, 77, 70]) && length >= 16) {
         current = { width: uint24(data + 6) + 1, height: uint24(data + 9) + 1 };
-      } else if (matches(bytes, offset, [86, 80, 56, 32]) && length >= 10
-        && matches(bytes, data + 3, [157, 1, 42])) {
+      } else if (matches(bytes, offset, [86, 80, 56, 32]) && length >= 10 && matches(bytes, data + 3, [157, 1, 42])) {
         current = { width: view.getUint16(data + 6, true) & 0x3fff, height: view.getUint16(data + 8, true) & 0x3fff };
       } else if (matches(bytes, offset, [86, 80, 56, 76]) && length >= 5 && bytes[data] === 0x2f) {
         const packed = view.getUint32(data + 1, true);
@@ -95,7 +97,14 @@ async function decodePhoto(file: File): Promise<DecodedPhoto> {
       image.onerror = () => reject(new Error(INVALID_PHOTO));
       image.src = url;
     });
-    return { image, width: image.naturalWidth, height: image.naturalHeight, release: () => { image.src = ''; } };
+    return {
+      image,
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      release: () => {
+        image.src = '';
+      },
+    };
   } catch (error) {
     image.src = '';
     throw error;
@@ -108,11 +117,15 @@ async function decodePhoto(file: File): Promise<DecodedPhoto> {
 
 function encodeWebp(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    canvas.toBlob(blob => {
-      if (!blob || blob.type !== 'image/webp') {
-        reject(new Error('Este navegador não conseguiu preparar a foto. Tente novamente em um navegador atualizado.'));
-      } else resolve(blob);
-    }, 'image/webp', quality);
+    canvas.toBlob(
+      blob => {
+        if (!blob || blob.type !== 'image/webp') {
+          reject(new Error('Este navegador não conseguiu preparar a foto. Tente novamente em um navegador atualizado.'));
+        } else resolve(blob);
+      },
+      'image/webp',
+      quality,
+    );
   });
 }
 
@@ -126,13 +139,19 @@ export async function preprocessProfilePhoto(file: File): Promise<Blob> {
     throw new Error('A foto deve ter no máximo 10 MB.');
   }
   let bytes: Uint8Array;
-  try { bytes = new Uint8Array(await file.arrayBuffer()); }
-  catch { throw new Error(INVALID_PHOTO); }
+  try {
+    bytes = new Uint8Array(await file.arrayBuffer());
+  } catch {
+    throw new Error(INVALID_PHOTO);
+  }
   const dimensions = readDimensions(bytes, file.type);
   checkDimensions(dimensions);
   let decoded: DecodedPhoto;
-  try { decoded = await decodePhoto(file); }
-  catch { throw new Error(INVALID_PHOTO); }
+  try {
+    decoded = await decodePhoto(file);
+  } catch {
+    throw new Error(INVALID_PHOTO);
+  }
   let canvas: HTMLCanvasElement | undefined;
   try {
     checkDimensions(decoded);
@@ -147,8 +166,7 @@ export async function preprocessProfilePhoto(file: File): Promise<Blob> {
       canvas.height = target;
       context.imageSmoothingEnabled = true;
       context.imageSmoothingQuality = 'high';
-      context.drawImage(decoded.image, (decoded.width - crop) / 2, (decoded.height - crop) / 2,
-        crop, crop, 0, 0, target, target);
+      context.drawImage(decoded.image, (decoded.width - crop) / 2, (decoded.height - crop) / 2, crop, crop, 0, 0, target, target);
       for (const quality of [0.85, 0.7, 0.55]) {
         const blob = await encodeWebp(canvas, quality);
         if (blob.size > 0 && blob.size <= MAX_OUTPUT_BYTES) return blob;
@@ -157,6 +175,9 @@ export async function preprocessProfilePhoto(file: File): Promise<Blob> {
     throw new Error('Não foi possível reduzir esta foto. Escolha outra imagem e tente novamente.');
   } finally {
     decoded.release();
-    if (canvas) { canvas.width = 0; canvas.height = 0; }
+    if (canvas) {
+      canvas.width = 0;
+      canvas.height = 0;
+    }
   }
 }

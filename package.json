@@ -16,7 +16,9 @@
     "test:db": "node tests/database/check.mjs && node tests/database/public-check.mjs && node tests/database/profile-photos-check.mjs && node tests/database/linked-photos-check.mjs && node tests/database/calendar-videos-check.mjs && node tests/database/archived-people-check.mjs && node tests/database/presence-unavailability-check.mjs && node tests/database/notifications-check.mjs",
     "supabase:check": "node scripts/configure-supabase.mjs",
     "supabase:setup": "node scripts/configure-supabase.mjs --apply",
-    "supabase:verify": "node scripts/verify-supabase.mjs"
+    "supabase:verify": "node scripts/verify-supabase.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.3.0",
@@ -35,6 +37,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "prettier": "3.6.2",
     "typescript": "~5.9.2",
     "vite": "^7.1.0",
     "vite-plugin-pwa": "^1.0.3",

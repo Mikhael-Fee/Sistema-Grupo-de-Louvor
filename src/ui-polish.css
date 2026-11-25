@@ -1,7 +1,7 @@
 /* Visual fixes found in the November 2026 interface review (PC and Android). */
 
 /* Song page: Cifra Club reference row had no layout of its own. */
-body .song-source-link{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--c-e9eddfff);font-size:13px;color:var(--muted,var(--c-79867cff));flex-wrap:wrap}
+body .song-source-link{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--l-e9eddfff);font-size:13px;color:var(--muted,var(--c-79867cff));flex-wrap:wrap}
 body .song-source-link .button{font-size:12px;padding:8px 13px;gap:7px}
 
 /* Dates: capitalise only the first letter ("Novembro de 2026", not "Novembro De 2026"). */
@@ -11,10 +11,10 @@ body .next-date,body .services-calendar-header h2{text-transform:none}
 body .chip{display:inline-flex;align-items:center;gap:6px}
 
 /* Filter selects share one look instead of the browser default. */
-body .services-filters>select,body .people-function-filter select{appearance:none;-webkit-appearance:none;min-height:45px;border:1px solid var(--border,var(--c-dce3ebff));border-radius:9px;padding:0 34px 0 13px;background:var(--surface,var(--c-ffffffff)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23687786' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;color:var(--text,var(--c-172a3eff));font:inherit;font-size:13px;text-overflow:ellipsis}
+body .services-filters>select,body .people-function-filter select{appearance:none;-webkit-appearance:none;min-height:45px;border:1px solid var(--border,var(--l-dce3ebff));border-radius:9px;padding:0 34px 0 13px;background:var(--surface,var(--c-ffffffff)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23687786' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;color:var(--text,var(--c-172a3eff));font:inherit;font-size:13px;text-overflow:ellipsis}
 
 /* Song editor: the PDF picker sat as a box inside the search box, leaving an empty strip. */
-body .songs-source-search>.cifra-pdf-picker{margin:0;border:0;border-bottom:1px solid var(--border,var(--c-e6e2dcff));border-radius:0}
+body .songs-source-search>.cifra-pdf-picker{margin:0;border:0;border-bottom:1px solid var(--border,var(--l-e6e2dcff));border-radius:0}
 
 @media(max-width:700px){
   /* Library: the key filter gets its own row so "Todos os tons" is not cut; tags scroll below it. */

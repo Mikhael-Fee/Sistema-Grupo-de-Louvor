@@ -12,9 +12,9 @@ beforeEach(() => {
 
 describe('song and directory validation', () => {
   it('accepts the original demonstration and blank optional email/video fields', () => {
-    data.songs.forEach((song) => expect(validateSong(song)).toBeNull());
-    data.people.forEach((person) => expect(validatePerson(person)).toBeNull());
-    data.tags.forEach((tag) => expect(validateTag(tag)).toBeNull());
+    data.songs.forEach(song => expect(validateSong(song)).toBeNull());
+    data.people.forEach(person => expect(validatePerson(person)).toBeNull());
+    data.tags.forEach(tag => expect(validateTag(tag)).toBeNull());
   });
 
   it('rejects missing song information and unsupported keys', () => {
@@ -54,17 +54,21 @@ describe('YouTube address validation', () => {
     'https://youtube.com/shorts/AbCdEfG_123',
     'https://www.youtube.com/embed/AbCdEfG_123',
     'https://www.youtube.com/live/AbCdEfG_123',
-  ])('accepts supported video URL %s', (url) => expect(isSafeYoutubeUrl(url)).toBe(true));
+  ])('accepts supported video URL %s', url => expect(isSafeYoutubeUrl(url)).toBe(true));
 
   it.each([
-    'javascript:alert(1)', 'http://youtube.com/watch?v=AbCdEfG_123',
+    'javascript:alert(1)',
+    'http://youtube.com/watch?v=AbCdEfG_123',
     'https://youtube.com.evil.example/watch?v=AbCdEfG_123',
     'https://youtube.com@evil.example/watch?v=AbCdEfG_123',
     'https://someone:password@youtube.com/watch?v=AbCdEfG_123',
-    'https://youtu.be/', 'https://youtube.com/watch?v=short',
-    'https://youtube.com/playlist?list=PLtest', 'https://youtube.com:8443/watch?v=AbCdEfG_123',
-    'https://vimeo.com/123456789', '',
-  ])('rejects unsafe or unsupported URL %s', (url) => {
+    'https://youtu.be/',
+    'https://youtube.com/watch?v=short',
+    'https://youtube.com/playlist?list=PLtest',
+    'https://youtube.com:8443/watch?v=AbCdEfG_123',
+    'https://vimeo.com/123456789',
+    '',
+  ])('rejects unsafe or unsupported URL %s', url => {
     expect(isSafeYoutubeUrl(url)).toBe(false);
     if (url) expect(validateSong({ ...data.songs[0], youtubeUrl: url })).toBeTruthy();
   });
@@ -80,14 +84,19 @@ describe('service planning validation', () => {
   });
 
   it('rejects unsafe repertoire video links and malformed event flags', () => {
-    for (const youtubeUrl of ['javascript:alert(1)', 'https://youtube.com.evil.invalid/watch?v=AbCdEfG_123', 'https://youtube.com/playlist?list=PLtest', `https://youtu.be/AbCdEfG_123?data=${'a'.repeat(2000)}`]) {
+    for (const youtubeUrl of [
+      'javascript:alert(1)',
+      'https://youtube.com.evil.invalid/watch?v=AbCdEfG_123',
+      'https://youtube.com/playlist?list=PLtest',
+      `https://youtu.be/AbCdEfG_123?data=${'a'.repeat(2000)}`,
+    ]) {
       expect(validateService({ ...service, repertoire: [{ ...service.repertoire[0], youtubeUrl }] }, data)).toBeTruthy();
     }
     expect(validateService({ ...service, isEvent: 'true' as unknown as boolean }, data)).toBeTruthy();
   });
 
   it('accepts each seeded service and an empty draft repertoire/scale', () => {
-    data.services.forEach((item) => expect(validateService(item, data)).toBeNull());
+    data.services.forEach(item => expect(validateService(item, data)).toBeNull());
     expect(validateService({ ...service, repertoire: [], assignments: [] }, data)).toBeNull();
   });
 
@@ -121,7 +130,9 @@ describe('service planning validation', () => {
   it('prevents duplicate song and person/function entries without blocking different capabilities', () => {
     const assignment = service.assignments[0];
     expect(validateService({ ...service, assignments: [assignment, { ...assignment, id: 'another' }] }, data)).toBeTruthy();
-    expect(validateService({ ...service, repertoire: [service.repertoire[0], { ...service.repertoire[0], id: 'another' }] }, data)).toBeTruthy();
+    expect(
+      validateService({ ...service, repertoire: [service.repertoire[0], { ...service.repertoire[0], id: 'another' }] }, data),
+    ).toBeTruthy();
     expect(validateService({ ...service, assignments: [assignment, { ...assignment, id: 'another', function: 'Voz' }] }, data)).toBeNull();
   });
 });

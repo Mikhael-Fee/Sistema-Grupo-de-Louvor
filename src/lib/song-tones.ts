@@ -25,22 +25,42 @@ export function resolveSourceTonality(input: SongSearchResult): SourceTonality {
   const sounding = sourceKey(input.soundingKey);
   const capo = Number.isInteger(input.capo) && input.capo! >= 0 && input.capo! <= 12 ? input.capo! : 0;
   const conflict = /conflit|diferentes|contradit/i.test(input.keyUnknownReason || '');
-  if (written && !conflict) return { source: { ...input, originalKey: written, keyEstimate: undefined }, writtenKey: written,
-    churchKey: written, estimated: false, requiresKeyConfirmation: false };
+  if (written && !conflict)
+    return {
+      source: { ...input, originalKey: written, keyEstimate: undefined },
+      writtenKey: written,
+      churchKey: written,
+      estimated: false,
+      requiresKeyConfirmation: false,
+    };
   if (sounding && !conflict) {
     const key = KEYS[(KEYS.indexOf(sounding) - capo + 12) % 12];
-    return { source: { ...input, originalKey: key, keyUnknownReason: undefined, keyEstimate: undefined }, writtenKey: key,
-      churchKey: key, estimated: false, requiresKeyConfirmation: false };
+    return {
+      source: { ...input, originalKey: key, keyUnknownReason: undefined, keyEstimate: undefined },
+      writtenKey: key,
+      churchKey: key,
+      estimated: false,
+      requiresKeyConfirmation: false,
+    };
   }
   const cleaned = cleanChordSheet(input.content || '');
   const chords = input.kind === 'chords' && hasWrittenChords(cleaned);
   const estimate = chords ? estimateSongKey(cleaned) : null;
   const usable = Boolean(estimate && estimate.confidence !== 'low' && !conflict);
   // A probable Gm uses the chords of Bb; the base for transposition is the major key.
-  const estimated = estimate ? estimate.mode === 'minor' ? relativeMajor(estimate.key) : estimate.key : null;
-  return { source: { ...input, originalKey: usable ? estimated! : undefined, keyEstimate: estimate || undefined,
-    keyUnknownReason: usable ? undefined : input.keyUnknownReason }, writtenKey: estimated,
-    churchKey: estimated, estimated: Boolean(estimate), requiresKeyConfirmation: Boolean(chords && !usable) };
+  const estimated = estimate ? (estimate.mode === 'minor' ? relativeMajor(estimate.key) : estimate.key) : null;
+  return {
+    source: {
+      ...input,
+      originalKey: usable ? estimated! : undefined,
+      keyEstimate: estimate || undefined,
+      keyUnknownReason: usable ? undefined : input.keyUnknownReason,
+    },
+    writtenKey: estimated,
+    churchKey: estimated,
+    estimated: Boolean(estimate),
+    requiresKeyConfirmation: Boolean(chords && !usable),
+  };
 }
 
 /** Convert the written chords directly to the target key, without adding a capo twice. */
@@ -56,6 +76,5 @@ export function contentInChurchKey(content: string, writtenKey: string | undefin
 
 /** originalKey remains an internal base key for legacy records and public transposition. */
 export function songInChurchKey(song: Song, churchKey = song.churchKey): Song {
-  return { ...song, churchKey, originalKey: churchKey,
-    content: contentInChurchKey(song.content, song.originalKey, churchKey) };
+  return { ...song, churchKey, originalKey: churchKey, content: contentInChurchKey(song.content, song.originalKey, churchKey) };
 }

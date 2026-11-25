@@ -37,7 +37,11 @@ function equal(actual, expected, description) {
 
 async function denied(sql, parameters = [], code = '42501') {
   let failure;
-  try { await db.query(sql, parameters); } catch (error) { failure = error; }
+  try {
+    await db.query(sql, parameters);
+  } catch (error) {
+    failure = error;
+  }
   assert.ok(failure, `Operation must be rejected: ${sql}`);
   assert.equal(failure.code, code, failure.message);
   checks++;
@@ -52,11 +56,17 @@ try {
     await db.exec(await readFile(new URL(`../../supabase/migrations/${filename}`, import.meta.url), 'utf8'));
   }
   for (const [name, role, approved] of [
-    ['admin', 'admin', true], ['leader', 'leader', true], ['musician', 'musician', true],
-    ['pending', 'musician', false], ['suspendedAdmin', 'admin', false],
+    ['admin', 'admin', true],
+    ['leader', 'leader', true],
+    ['musician', 'musician', true],
+    ['pending', 'musician', false],
+    ['suspendedAdmin', 'admin', false],
   ]) {
-    await db.query('insert into auth.users(id, email, raw_user_meta_data) values ($1, $2, $3)',
-      [ids[name], name === 'admin' ? privateAccount : `${name}@example.invalid`, { name, role: 'admin', approved: true }]);
+    await db.query('insert into auth.users(id, email, raw_user_meta_data) values ($1, $2, $3)', [
+      ids[name],
+      name === 'admin' ? privateAccount : `${name}@example.invalid`,
+      { name, role: 'admin', approved: true },
+    ]);
     await db.query('update public.profiles set role = $1, approved = $2 where id = $3', [role, approved, ids[name]]);
   }
 
@@ -79,18 +89,33 @@ try {
   equal(await publicData(), { songs: [], tags: [], people: [], services: [] }, 'empty public response preserves the application shape');
 
   await as(ids.admin);
-  await db.query('insert into public.people(id, name, email, functions) values ($1, $2, $3, $4)',
-    [ids.person, 'Pessoa da escala', privateContact, ['Voz', 'Violão']]);
+  await db.query('insert into public.people(id, name, email, functions) values ($1, $2, $3, $4)', [
+    ids.person,
+    'Pessoa da escala',
+    privateContact,
+    ['Voz', 'Violão'],
+  ]);
   await db.query('insert into public.tags(id, name, color) values ($1, $2, $3)', [ids.tag, 'Gratidão', '#552288']);
   const songA = {
-    id: ids.songA, title: 'Canção A', artist: 'Equipe', originalKey: 'C', churchKey: 'D',
-    content: '[C]Texto original', youtubeUrl: 'https://youtu.be/AbCdEfG_123', notes: 'Começar suavemente.', tagIds: [ids.tag],
+    id: ids.songA,
+    title: 'Canção A',
+    artist: 'Equipe',
+    originalKey: 'C',
+    churchKey: 'D',
+    content: '[C]Texto original',
+    youtubeUrl: 'https://youtu.be/AbCdEfG_123',
+    notes: 'Começar suavemente.',
+    tagIds: [ids.tag],
   };
   const songB = { ...songA, id: ids.songB, title: 'Canção B', originalKey: 'G', churchKey: 'A', tagIds: [] };
   await db.query('select public.save_song($1)', [songA]);
   await db.query('select public.save_song($1)', [songB]);
   const service = {
-    id: ids.service, date: '2099-01-01', time: '19:00', type: 'Santa Ceia', notes: 'Ensaio às 18h.',
+    id: ids.service,
+    date: '2099-01-01',
+    time: '19:00',
+    type: 'Santa Ceia',
+    notes: 'Ensaio às 18h.',
     assignments: [{ id: ids.assignment, personId: ids.person, function: 'Voz' }],
     repertoire: [
       { id: ids.itemB, songId: ids.songB, key: 'Eb', notes: 'Introdução com violão.' },
@@ -104,7 +129,11 @@ try {
   equal(Object.keys(data).sort(), ['people', 'services', 'songs', 'tags'], 'fixed public top-level whitelist excludes profiles');
   equal(data.songs, [songA, songB], 'lyrics, chords, video, tags, keys and musical notes remain usable');
   equal(data.tags, [{ id: ids.tag, name: 'Gratidão', color: '#552288' }], 'tags use the existing public application shape');
-  equal(data.people, [{ id: ids.person, name: 'Pessoa da escala', email: '', functions: ['Voz', 'Violão'] }], 'contacts are redacted while names/capabilities remain available');
+  equal(
+    data.people,
+    [{ id: ids.person, name: 'Pessoa da escala', email: '', functions: ['Voz', 'Violão'] }],
+    'contacts are redacted while names/capabilities remain available',
+  );
   equal(data.services, [service], 'planning, ordered repertoire, independent keys and assignments match the application shape');
   const serialized = JSON.stringify(data);
   equal(serialized.includes(privateContact), false, 'the private contact cannot appear anywhere in the response');
@@ -120,11 +149,18 @@ try {
 
   await as(ids.pending);
   equal((await publicData()).people[0].email, '', 'an unapproved account may consult only the same public response');
-  equal((await db.query('select count(*)::integer as n from public.songs')).rows[0].n, 0, 'public mode does not weaken private RLS for unapproved accounts');
+  equal(
+    (await db.query('select count(*)::integer as n from public.songs')).rows[0].n,
+    0,
+    'public mode does not weaken private RLS for unapproved accounts',
+  );
   await as(ids.musician);
   equal((await publicData()).people[0].email, '', 'the public RPC also redacts contacts for authenticated callers');
-  equal((await db.query('select email from public.people where id = $1', [ids.person])).rows[0].email,
-    privateContact, 'approved team members retain the existing private data access');
+  equal(
+    (await db.query('select email from public.people where id = $1', [ids.person])).rows[0].email,
+    privateContact,
+    'approved team members retain the existing private data access',
+  );
   await denied('select public.save_public_access(false)');
 
   await as(ids.admin);
@@ -133,7 +169,11 @@ try {
   equal(await publicFlag(), false, 'an administrator can close public consultation');
   await denied('select public.read_public_ministry()');
   await as(ids.admin);
-  equal((await db.query('select count(*)::integer as n from public.songs')).rows[0].n, 2, 'closing public access preserves ministry records');
+  equal(
+    (await db.query('select count(*)::integer as n from public.songs')).rows[0].n,
+    2,
+    'closing public access preserves ministry records',
+  );
   console.log(`${checks} public consultation PostgreSQL checks passed (PGlite, Auth simulated).`);
 } finally {
   await db.close();

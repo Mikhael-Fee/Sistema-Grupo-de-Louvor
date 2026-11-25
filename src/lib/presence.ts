@@ -1,6 +1,10 @@
 import type { Assignment, AssignmentStatus, MinistryData, Unavailability } from '../types';
 
-export const STATUS_LABELS: Record<AssignmentStatus, string> = { pending: 'Aguardando resposta', confirmed: 'Confirmado', declined: 'Não poderá' };
+export const STATUS_LABELS: Record<AssignmentStatus, string> = {
+  pending: 'Aguardando resposta',
+  confirmed: 'Confirmado',
+  declined: 'Não poderá',
+};
 
 /** The date a person marked as unavailable, if any. */
 export function unavailableOn(data: Pick<MinistryData, 'unavailability'>, personId: string, date: string): Unavailability | undefined {
@@ -14,5 +18,7 @@ export function presenceSummary(assignments: Assignment[]): { confirmed: number;
 
 /** Upcoming unavailable dates of one person, soonest first. */
 export function upcomingUnavailability(data: Pick<MinistryData, 'unavailability'>, personId: string, today: string): Unavailability[] {
-  return (data.unavailability ?? []).filter(item => item.personId === personId && item.date >= today).sort((a, b) => a.date.localeCompare(b.date));
+  return (data.unavailability ?? [])
+    .filter(item => item.personId === personId && item.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date));
 }

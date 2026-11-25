@@ -1,6 +1,11 @@
 import type { Service, SetlistItem } from '../types';
 
-export interface SetlistPosition { index: number; total: number; previous?: SetlistItem; next?: SetlistItem }
+export interface SetlistPosition {
+  index: number;
+  total: number;
+  previous?: SetlistItem;
+  next?: SetlistItem;
+}
 
 /** Where a repertoire item sits in its service, for "anterior / próxima" while playing. */
 export function setlistPosition(service: Service | undefined, itemId: string | undefined | null): SetlistPosition | null {

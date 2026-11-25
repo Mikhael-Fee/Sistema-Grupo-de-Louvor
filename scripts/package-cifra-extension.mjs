@@ -16,7 +16,8 @@ for (const name of files) {
   if (/(?:sbp_|nfp_)[A-Za-z0-9]{18,}|service_role/.test(text)) throw new Error('O pacote contém dados privados inesperados.');
 }
 const manifest = JSON.parse(await readFile(`${source}/manifest.json`, 'utf8'));
-if (manifest.manifest_version !== 3 || manifest.name !== 'Candeia — Importar do Cifra Club') throw new Error('Manifest do importador inválido.');
+if (manifest.manifest_version !== 3 || manifest.name !== 'Candeia — Importar do Cifra Club')
+  throw new Error('Manifest do importador inválido.');
 await mkdir(fileURLToPath(new URL('../public/downloads/', import.meta.url)), { recursive: true });
 await rm(destination, { force: true });
 await promisify(execFile)('zip', ['-q', '-X', destination, ...files], { cwd: source });
@@ -24,7 +25,7 @@ await promisify(execFile)('zip', ['-q', '-X', destination, ...files], { cwd: sou
 // The Chrome archive above remains unchanged. Android release Firefox requires
 // an AMO-signed XPI: never offer an unsigned development archive as installable.
 const firefox = await firefoxSources();
-if ((await readFile(`${FIREFOX_SOURCE}/reader.js`, 'utf8')) !== await readFile(`${source}/reader.js`, 'utf8')) {
+if ((await readFile(`${FIREFOX_SOURCE}/reader.js`, 'utf8')) !== (await readFile(`${source}/reader.js`, 'utf8'))) {
   throw new Error('Os leitores DOM Chrome e Firefox precisam permanecer equivalentes.');
 }
 const downloads = fileURLToPath(new URL('../public/downloads/', import.meta.url));
@@ -35,13 +36,20 @@ await promisify(execFile)('zip', ['-q', '-X', unsigned, ...FIREFOX_FILES], { cwd
 const signedFirefox = await signedFirefoxFor(firefox);
 if (signedFirefox) await copyFile(signedFirefox.path, signedDestination);
 else await rm(signedDestination, { force: true });
-await writeFile(`${downloads}/candeia-cifraclub-firefox.json`, JSON.stringify({
-  status: signedFirefox ? 'signed' : 'unsigned',
-  version: firefox.manifest.version,
-  downloadUrl: signedFirefox ? '/downloads/candeia-cifraclub-firefox.xpi' : null,
-  sha256: signedFirefox?.sha256 ?? null,
-  unsignedDownloadUrl: '/downloads/candeia-cifraclub-firefox-unsigned.xpi',
-}, null, 2) + '\n');
+await writeFile(
+  `${downloads}/candeia-cifraclub-firefox.json`,
+  JSON.stringify(
+    {
+      status: signedFirefox ? 'signed' : 'unsigned',
+      version: firefox.manifest.version,
+      downloadUrl: signedFirefox ? '/downloads/candeia-cifraclub-firefox.xpi' : null,
+      sha256: signedFirefox?.sha256 ?? null,
+      unsignedDownloadUrl: '/downloads/candeia-cifraclub-firefox-unsigned.xpi',
+    },
+    null,
+    2,
+  ) + '\n',
+);
 
 // Both mobile alternatives run in a chart the user has already opened.
 // Inline the same bounded reader as the desktop extension: no remote script,
@@ -60,13 +68,23 @@ if (payload.length > 100000) throw new Error('Esta cifra é muito grande para tr
 const transferUrl = 'https://louvor-grupo-fxebsy.netlify.app/importar-cifra#candeia-cifra=' + payload;
 `;
 const report = `alert('Candeia: ' + (error instanceof Error ? error.message : 'Não foi possível ler esta cifra.').slice(0, 300));`;
-const favoriteCode = await transformWithEsbuild(`(() => { try { ${extract}\nlocation.assign(transferUrl); } catch (error) { ${report} } })()`, 'candeia-favorite.js', { minify: true, target: 'es2020', sourcemap: false });
+const favoriteCode = await transformWithEsbuild(
+  `(() => { try { ${extract}\nlocation.assign(transferUrl); } catch (error) { ${report} } })()`,
+  'candeia-favorite.js',
+  { minify: true, target: 'es2020', sourcemap: false },
+);
 const favorite = `javascript:${encodeURIComponent(favoriteCode.code.trim())}`;
 // Shortcuts calls completion exactly once on success. A runtime error stops
 // the following Open URLs action; alert dialogs can time out in this host.
 const shortcutError = `throw new Error(('Candeia: ' + (error instanceof Error ? error.message : 'Não foi possível ler esta cifra.')).slice(0, 300));`;
-const shortcutCode = await transformWithEsbuild(`(() => { try { ${extract}\ncompletion(transferUrl); } catch (error) { ${shortcutError} } })();`, 'candeia-shortcut.js', { minify: true, target: 'es2020', sourcemap: false });
+const shortcutCode = await transformWithEsbuild(
+  `(() => { try { ${extract}\ncompletion(transferUrl); } catch (error) { ${shortcutError} } })();`,
+  'candeia-shortcut.js',
+  { minify: true, target: 'es2020', sourcemap: false },
+);
 const shortcut = shortcutCode.code;
 await writeFile(fileURLToPath(new URL('../public/downloads/candeia-cifra-celular.txt', import.meta.url)), favorite);
 await writeFile(fileURLToPath(new URL('../public/downloads/candeia-cifra-iphone.js', import.meta.url)), shortcut);
-console.log(`Importadores preparados. Firefox: ${signedFirefox ? 'XPI assinado disponível' : 'piloto aguarda assinatura Mozilla; XPI de desenvolvimento não instalável no Android estável'}.`);
+console.log(
+  `Importadores preparados. Firefox: ${signedFirefox ? 'XPI assinado disponível' : 'piloto aguarda assinatura Mozilla; XPI de desenvolvimento não instalável no Android estável'}.`,
+);

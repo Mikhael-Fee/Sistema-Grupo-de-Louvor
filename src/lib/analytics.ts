@@ -1,27 +1,60 @@
 import type { MinistryData, Service } from '../types';
 
 export type AnalyticsPeriod = 'all' | '30' | '90' | 'year' | 'custom';
-export interface AnalyticsRange { start: string; end: string }
-export interface AnalyticsCount { id: string; label: string; count: number; percentage: number }
-export interface AnalyticsSong extends AnalyticsCount { artist: string; lastDate: string }
-export interface AnalyticsPerson extends AnalyticsCount { functions: string[]; lastDate: string }
+export interface AnalyticsRange {
+  start: string;
+  end: string;
+}
+export interface AnalyticsCount {
+  id: string;
+  label: string;
+  count: number;
+  percentage: number;
+}
+export interface AnalyticsSong extends AnalyticsCount {
+  artist: string;
+  lastDate: string;
+}
+export interface AnalyticsPerson extends AnalyticsCount {
+  functions: string[];
+  lastDate: string;
+}
 export interface AnalyticsTimeline {
-  id: string; label: string; services: number; participations: number; songUses: number;
+  id: string;
+  label: string;
+  services: number;
+  participations: number;
+  songUses: number;
 }
 export interface MinistryAnalytics {
-  services: number; participations: number; assignments: number; songUses: number;
-  uniquePeople: number; uniqueSongs: number; averageTeam: number;
-  servicesWithTeam: number; servicesWithSongs: number; futureServices: number;
-  songs: AnalyticsSong[]; people: AnalyticsPerson[]; functions: AnalyticsCount[];
-  themes: AnalyticsCount[]; tags: AnalyticsCount[]; times: AnalyticsCount[];
-  timeline: AnalyticsTimeline[]; timelineLabel: string;
+  services: number;
+  participations: number;
+  assignments: number;
+  songUses: number;
+  uniquePeople: number;
+  uniqueSongs: number;
+  averageTeam: number;
+  servicesWithTeam: number;
+  servicesWithSongs: number;
+  futureServices: number;
+  songs: AnalyticsSong[];
+  people: AnalyticsPerson[];
+  functions: AnalyticsCount[];
+  themes: AnalyticsCount[];
+  tags: AnalyticsCount[];
+  times: AnalyticsCount[];
+  timeline: AnalyticsTimeline[];
+  timelineLabel: string;
   inventory: { songs: number; people: number; tags: number; unusedSongs: number; unscheduledPeople: number };
 }
 
 /** Ministry dates are calendar days in São Paulo, independent of the device timezone. */
 export function ministryToday(now = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).formatToParts(now);
   return ['year', 'month', 'day'].map(type => parts.find(part => part.type === type)?.value).join('-');
 }
@@ -33,12 +66,17 @@ function isCalendarDate(value: string): boolean {
 }
 
 export function analyticsRangeError(range: AnalyticsRange): string | null {
-  if ((range.start && !isCalendarDate(range.start)) || (range.end && !isCalendarDate(range.end))) return 'Informe datas válidas para o período.';
+  if ((range.start && !isCalendarDate(range.start)) || (range.end && !isCalendarDate(range.end)))
+    return 'Informe datas válidas para o período.';
   if (range.start && range.end && range.start > range.end) return 'A data inicial precisa ser anterior ou igual à data final.';
   return null;
 }
 
-export function analyticsDateRange(period: AnalyticsPeriod, today: string, custom: AnalyticsRange = { start: '', end: '' }): AnalyticsRange {
+export function analyticsDateRange(
+  period: AnalyticsPeriod,
+  today: string,
+  custom: AnalyticsRange = { start: '', end: '' },
+): AnalyticsRange {
   if (!isCalendarDate(today)) throw new Error('Informe a data atual do ministério.');
   if (period === 'custom') return { ...custom };
   if (period === 'all') return { start: '', end: '' };
@@ -48,15 +86,17 @@ export function analyticsDateRange(period: AnalyticsPeriod, today: string, custo
   return { start: start.toISOString().slice(0, 10), end: today };
 }
 
-const percentage = (count: number, total: number) => total ? Math.round(count / total * 100) : 0;
+const percentage = (count: number, total: number) => (total ? Math.round((count / total) * 100) : 0);
 const alphabetical = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label, 'pt-BR');
 const ranked = <T extends AnalyticsCount>(rows: T[]): T[] => rows.sort((a, b) => b.count - a.count || alphabetical(a, b));
-const countRows = (counts: Map<string, number>, denominator: number): AnalyticsCount[] => ranked(
-  [...counts].map(([label, count]) => ({ id: label, label, count, percentage: percentage(count, denominator) })),
-);
+const countRows = (counts: Map<string, number>, denominator: number): AnalyticsCount[] =>
+  ranked([...counts].map(([label, count]) => ({ id: label, label, count, percentage: percentage(count, denominator) })));
 const increment = (counts: Map<string, number>, key: string) => counts.set(key, (counts.get(key) || 0) + 1);
 
-function timelineFor(services: Service[], range: AnalyticsRange): { points: AnalyticsTimeline[]; label: string; bucket: (date: string) => string } {
+function timelineFor(
+  services: Service[],
+  range: AnalyticsRange,
+): { points: AnalyticsTimeline[]; label: string; bucket: (date: string) => string } {
   if (!services.length) return { points: [], label: 'Por mês', bucket: () => '' };
   const dates = services.map(service => service.date).sort();
   const start = range.start || dates[0];
@@ -69,8 +109,10 @@ function timelineFor(services: Service[], range: AnalyticsRange): { points: Anal
   if (endMonth - startMonth < 24) {
     const points = Array.from({ length: endMonth - startMonth + 1 }, (_, offset) => {
       const month = startMonth + offset;
-      const id = `${String(Math.floor(month / 12)).padStart(4, '0')}-${String(month % 12 + 1).padStart(2, '0')}`;
-      const label = new Date(`${id}-01T12:00:00Z`).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric', timeZone: 'UTC' }).replace('.', '');
+      const id = `${String(Math.floor(month / 12)).padStart(4, '0')}-${String((month % 12) + 1).padStart(2, '0')}`;
+      const label = new Date(`${id}-01T12:00:00Z`)
+        .toLocaleDateString('pt-BR', { month: 'short', year: 'numeric', timeZone: 'UTC' })
+        .replace('.', '');
       return point(id, label);
     });
     return { points, label: 'Por mês', bucket: date => date.slice(0, 7) };
@@ -81,7 +123,11 @@ function timelineFor(services: Service[], range: AnalyticsRange): { points: Anal
     const year = startYear + offset * step;
     return point(String(year), step === 1 ? String(year) : `${year}–${Math.min(year + step - 1, endYear)}`);
   });
-  return { points, label: step === 1 ? 'Por ano' : `Em intervalos de ${step} anos`, bucket: date => String(startYear + Math.floor((Number(date.slice(0, 4)) - startYear) / step) * step) };
+  return {
+    points,
+    label: step === 1 ? 'Por ano' : `Em intervalos de ${step} anos`,
+    bucket: date => String(startYear + Math.floor((Number(date.slice(0, 4)) - startYear) / step) * step),
+  };
 }
 
 /** Count planned repertoire and scale entries, not attendance or confirmed performances. */
@@ -89,8 +135,8 @@ export function buildMinistryAnalytics(data: MinistryData, range: AnalyticsRange
   const invalid = analyticsRangeError(range);
   if (invalid) throw new Error(invalid);
   if (!isCalendarDate(today)) throw new Error('Informe a data atual do ministério.');
-  const services = [...new Map(data.services.map(service => [service.id, service])).values()].filter(service =>
-    isCalendarDate(service.date) && (!range.start || service.date >= range.start) && (!range.end || service.date <= range.end),
+  const services = [...new Map(data.services.map(service => [service.id, service])).values()].filter(
+    service => isCalendarDate(service.date) && (!range.start || service.date >= range.start) && (!range.end || service.date <= range.end),
   );
   const songs = new Map(data.songs.map(song => [song.id, song]));
   const people = new Map(data.people.map(person => [person.id, person]));
@@ -145,22 +191,66 @@ export function buildMinistryAnalytics(data: MinistryData, range: AnalyticsRange
     if (team.size) servicesWithTeam++;
     if (repertoire.size) servicesWithSongs++;
     const point = timelinePoints.get(timeline.bucket(service.date));
-    if (point) { point.services++; point.participations += team.size; point.songUses += repertoire.size; }
+    if (point) {
+      point.services++;
+      point.participations += team.size;
+      point.songUses += repertoire.size;
+    }
   }
-  const tagRows = [...tagCounts].map(([id, count]) => ({ id, label: tags.get(id)?.name || 'Etiqueta indisponível', count, percentage: percentage(count, songUses) }));
-  if (uncategorizedUses) tagRows.push({ id: 'without-tags', label: 'Sem etiqueta disponível', count: uncategorizedUses, percentage: percentage(uncategorizedUses, songUses) });
+  const tagRows = [...tagCounts].map(([id, count]) => ({
+    id,
+    label: tags.get(id)?.name || 'Etiqueta indisponível',
+    count,
+    percentage: percentage(count, songUses),
+  }));
+  if (uncategorizedUses)
+    tagRows.push({
+      id: 'without-tags',
+      label: 'Sem etiqueta disponível',
+      count: uncategorizedUses,
+      percentage: percentage(uncategorizedUses, songUses),
+    });
   return {
-    services: services.length, participations, assignments, songUses,
-    uniquePeople: personCounts.size, uniqueSongs: songCounts.size,
+    services: services.length,
+    participations,
+    assignments,
+    songUses,
+    uniquePeople: personCounts.size,
+    uniqueSongs: songCounts.size,
     averageTeam: services.length ? participations / services.length : 0,
-    servicesWithTeam, servicesWithSongs, futureServices: services.filter(service => service.date > today).length,
-    songs: ranked([...songCounts].map(([id, count]) => ({ id, label: songs.get(id)?.title || 'Música indisponível', artist: songs.get(id)?.artist || '', count, percentage: percentage(count, services.length), lastDate: songDates.get(id) || '' }))),
-    people: ranked([...personCounts].map(([id, count]) => ({ id, label: people.get(id)?.name || 'Pessoa indisponível', functions: [...(personFunctions.get(id) || [])].sort((a, b) => a.localeCompare(b, 'pt-BR')), count, percentage: percentage(count, services.length), lastDate: personDates.get(id) || '' }))),
-    functions: countRows(functionCounts, assignments), themes: countRows(themeCounts, services.length),
-    tags: ranked(tagRows), times: countRows(timeCounts, services.length),
-    timeline: timeline.points, timelineLabel: timeline.label,
+    servicesWithTeam,
+    servicesWithSongs,
+    futureServices: services.filter(service => service.date > today).length,
+    songs: ranked(
+      [...songCounts].map(([id, count]) => ({
+        id,
+        label: songs.get(id)?.title || 'Música indisponível',
+        artist: songs.get(id)?.artist || '',
+        count,
+        percentage: percentage(count, services.length),
+        lastDate: songDates.get(id) || '',
+      })),
+    ),
+    people: ranked(
+      [...personCounts].map(([id, count]) => ({
+        id,
+        label: people.get(id)?.name || 'Pessoa indisponível',
+        functions: [...(personFunctions.get(id) || [])].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+        count,
+        percentage: percentage(count, services.length),
+        lastDate: personDates.get(id) || '',
+      })),
+    ),
+    functions: countRows(functionCounts, assignments),
+    themes: countRows(themeCounts, services.length),
+    tags: ranked(tagRows),
+    times: countRows(timeCounts, services.length),
+    timeline: timeline.points,
+    timelineLabel: timeline.label,
     inventory: {
-      songs: songs.size, people: people.size, tags: tags.size,
+      songs: songs.size,
+      people: people.size,
+      tags: tags.size,
       unusedSongs: [...songs.keys()].filter(id => !songCounts.has(id)).length,
       unscheduledPeople: [...people.keys()].filter(id => !personCounts.has(id)).length,
     },

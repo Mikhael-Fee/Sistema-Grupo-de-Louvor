@@ -22,13 +22,21 @@ describe('conservative harmonic key estimates', () => {
   });
 
   it('treats a slash bass as an inversion and preserves chord extensions', () => {
-    expect(estimateSongKey('[G/B] [A7/C#] [Dmaj7/F#] [Bm7] [G/B] [A7] [Dmaj7]'))
-      .toMatchObject({ key: 'D', mode: 'major', confidence: 'high', borrowedChords: [] });
+    expect(estimateSongKey('[G/B] [A7/C#] [Dmaj7/F#] [Bm7] [G/B] [A7] [Dmaj7]')).toMatchObject({
+      key: 'D',
+      mode: 'major',
+      confidence: 'high',
+      borrowedChords: [],
+    });
   });
 
   it('recognizes Cifra Club 7M notation as a major seventh', () => {
-    expect(estimateSongKey('[G7M] [A7] [D7M] [Bm7] [G7M] [A7] [D7M]'))
-      .toMatchObject({ key: 'D', mode: 'major', confidence: 'high', borrowedChords: [] });
+    expect(estimateSongKey('[G7M] [A7] [D7M] [Bm7] [G7M] [A7] [D7M]')).toMatchObject({
+      key: 'D',
+      mode: 'major',
+      confidence: 'high',
+      borrowedChords: [],
+    });
   });
 
   it('normalizes enharmonic roots to the keys supported by the application', () => {
@@ -57,13 +65,11 @@ describe('conservative harmonic key estimates', () => {
   });
 
   it('marks a tonic dominant seventh as outside the major field without asserting its cause', () => {
-    expect(estimateSongKey('[F] [G7] [C] [F] [G7] [C7]'))
-      .toMatchObject({ key: 'C', mode: 'major', borrowedChords: ['C7'] });
+    expect(estimateSongKey('[F] [G7] [C] [F] [G7] [C7]')).toMatchObject({ key: 'C', mode: 'major', borrowedChords: ['C7'] });
   });
 
   it('handles inline ChordPro lyrics and ignores malformed long markers within the input limit', () => {
-    expect(estimateSongKey(`[C${'1'.repeat(45_000)}x] texto [G]paz [A]e [D]luz`))
-      .toMatchObject({ key: 'D', mode: 'major' });
+    expect(estimateSongKey(`[C${'1'.repeat(45_000)}x] texto [G]paz [A]e [D]luz`)).toMatchObject({ key: 'D', mode: 'major' });
     expect(estimateSongKey('['.repeat(90_000))).toBeNull();
     expect(estimateSongKey('[C]'.repeat(33_334))).toBeNull();
   });

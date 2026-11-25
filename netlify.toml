@@ -20,6 +20,9 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     X-Frame-Options = "DENY"
+    # Only this site's own code runs; data comes from Supabase, lyrics from LRCLIB, thumbnails from YouTube.
+    # Keep in sync with public/_headers and tests/content-security.spec.ts.
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co https://i.ytimg.com; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lrclib.net; worker-src 'self' blob:; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     Cache-Control = "no-cache, max-age=0, must-revalidate"
 
 [[headers]]

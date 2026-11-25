@@ -29,7 +29,9 @@ describe('datas do calendário do ministério', () => {
     expect(days.at(-1)?.date).toBe('2026-11-07');
     expect(days.filter(day => day.inMonth)).toHaveLength(31);
     for (let index = 1; index < days.length; index++) {
-      expect(new Date(`${days[index].date}T12:00:00Z`).getTime() - new Date(`${days[index - 1].date}T12:00:00Z`).getTime()).toBe(86_400_000);
+      expect(new Date(`${days[index].date}T12:00:00Z`).getTime() - new Date(`${days[index - 1].date}T12:00:00Z`).getTime()).toBe(
+        86_400_000,
+      );
     }
   });
 
