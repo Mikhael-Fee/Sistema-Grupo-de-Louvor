@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoscrollPixelsPerSecond, setlistPosition, setlistSongPath } from './setlist-navigation';
+import { arrowDirection, autoscrollPixelsPerSecond, setlistPosition, setlistSongPath, swipeDirection } from './setlist-navigation';
 import type { Service } from '../types';
 
 const service: Service = {
@@ -33,5 +33,22 @@ describe('navegação no repertório', () => {
     expect(autoscrollPixelsPerSecond(1)).toBe(16);
     expect(autoscrollPixelsPerSecond(0)).toBe(16);
     expect(autoscrollPixelsPerSecond(99)).toBe(72);
+  });
+});
+
+describe('deslizar e setas para trocar de música', () => {
+  it('deslizar para a esquerda abre a próxima e para a direita a anterior', () => {
+    expect(swipeDirection(-120, 10, 300)).toBe('next');
+    expect(swipeDirection(120, -15, 300)).toBe('previous');
+  });
+  it('ignora toques curtos, lentos ou quase verticais', () => {
+    expect(swipeDirection(-40, 0, 200)).toBeNull();
+    expect(swipeDirection(-150, 0, 1200)).toBeNull();
+    expect(swipeDirection(-100, 80, 300)).toBeNull();
+  });
+  it('setas só valem fora de campos de texto', () => {
+    expect(arrowDirection('ArrowRight', null)).toBe('next');
+    expect(arrowDirection('ArrowLeft', null)).toBe('previous');
+    expect(arrowDirection('ArrowUp', null)).toBeNull();
   });
 });

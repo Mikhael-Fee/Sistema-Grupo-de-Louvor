@@ -84,3 +84,30 @@
 .songs-editor>.songs-step:first-of-type{margin-top:4px;padding-top:0;border-top:0}
 .songs-step>span{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--navy);color:var(--surface);font-size:13px}
 .songs-label-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+/* Previous / next song of the service, at the top of the song opened from a service. */
+.song-setlist-nav{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:stretch;gap:10px;margin:-10px 0 22px}
+.song-setlist-step{display:flex;align-items:center;gap:10px;min-width:0;min-height:56px;padding:9px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);text-decoration:none;transition:border-color .15s,background .15s}
+.song-setlist-step:hover{border-color:var(--flame);background:var(--flame-soft)}
+.song-setlist-step>span{display:grid;gap:1px;min-width:0}
+.song-setlist-step small{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.song-setlist-step strong{font-size:14px;font-weight:650;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.song-setlist-step>svg{color:var(--flame)}
+.song-setlist-next{justify-content:flex-end;text-align:right;background:var(--navy);border-color:var(--navy);color:var(--surface)}
+.song-setlist-next small,.song-setlist-next>svg{color:inherit;opacity:.85}
+.song-setlist-next:hover{background:var(--navy-hover);border-color:var(--navy-hover)}
+.song-setlist-edge{justify-content:center;font-size:12px;color:var(--muted);background:transparent;border-style:dashed}
+.song-setlist-edge:hover{border-color:var(--border);background:transparent}
+.song-setlist-count{display:flex;align-items:center;gap:4px;font-size:13px;color:var(--muted);white-space:nowrap}
+.song-setlist-count strong{font-size:16px;color:var(--text)}
+@media(max-width:700px){
+  .song-setlist-nav{gap:6px;margin:-8px 0 18px}
+  .song-setlist-step{gap:6px;padding:8px 10px;min-height:52px}
+  .song-setlist-step strong{font-size:13px}
+  .song-setlist-step small{font-size:10px}
+  .song-setlist-count{font-size:12px}
+  .song-setlist-count strong{font-size:14px}
+}
+@media(min-width:1280px){
+  .song-page:not(.song-reading){grid-template-areas:"back back" "nav nav" "head head" "meta meta" "reader aside" "save aside"}
+  .song-page:not(.song-reading)>.song-setlist-nav{grid-area:nav}
+}

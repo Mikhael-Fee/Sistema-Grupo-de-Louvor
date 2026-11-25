@@ -25,3 +25,25 @@ export function autoscrollPixelsPerSecond(speed: number): number {
   const step = Math.min(8, Math.max(1, Math.round(speed)));
   return 8 + step * 8;
 }
+
+/**
+ * A finger slide across the song: to the left opens the next song, to the right the previous one.
+ * It must be long, quick and mostly sideways, so reading and vertical scrolling never trigger it.
+ */
+export function swipeDirection(dx: number, dy: number, ms: number, minDistance = 70): 'previous' | 'next' | null {
+  if (Math.abs(dx) < minDistance || ms > 800) return null;
+  if (Math.abs(dx) < Math.abs(dy) * 2) return null;
+  return dx < 0 ? 'next' : 'previous';
+}
+
+/** Arrow keys move through the service, unless the person is typing or choosing in a field. */
+export function arrowDirection(key: string, target: EventTarget | null): 'previous' | 'next' | null {
+  if (key !== 'ArrowLeft' && key !== 'ArrowRight') return null;
+  if (
+    typeof HTMLElement !== 'undefined' &&
+    target instanceof HTMLElement &&
+    (target.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName))
+  )
+    return null;
+  return key === 'ArrowLeft' ? 'previous' : 'next';
+}
