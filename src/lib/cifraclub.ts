@@ -195,12 +195,19 @@ interface ChordRow {
   standalone: boolean;
 }
 
+// Plain-text sources often name an instrumental row without brackets: "Intro: F G Am" or "Solo F G".
+const SECTION_NAME = '(?:intro(?:du[çc][aã]o)?|solo|riff|ponte|final|outro|coda|interl[uú]dio|instrumental|base|passagem|'
+  + 'refr[aã]o|pr[eé][- ]?refr[aã]o|verso|estrofe|(?:primeira|segunda|terceira|quarta)\\s+parte|parte(?:\\s*\\d{1,2})?)';
+const ROW_LABEL = new RegExp(`^\\s*(?:\\[[^\\]\\r\\n]+\\]|${SECTION_NAME}(?:\\s*\\d{1,2})?\\s*:?|[^\\s:\\[\\]][^:\\[\\]\\r\\n]{0,30}:)\\s+`, 'i');
+// Harmless notation between chords, kept verbatim: "F - G", "C % G", "F → G", "N.C.".
+const ROW_NOTATION = /^(?:[|:()]+|\(?\d+x\)?|\(?x\d+\)?|[-–—%→>~*.…/\\]+|n\.?c\.?)$/i;
+
 function readChordRow(line: string): ChordRow | null {
   let remainder = line;
   let offset = 0;
   let standalone = false;
-  const label = /^\s*(\[[^\]\r\n]+\])\s*/.exec(line);
-  if (label && stripChords(label[1]) !== '') {
+  const label = ROW_LABEL.exec(line);
+  if (label && stripChords(label[0].trim()) !== '') {
     offset = label[0].length;
     remainder = line.slice(offset);
     standalone = true;
@@ -211,7 +218,7 @@ function readChordRow(line: string): ChordRow | null {
     if (chord) {
       const position = offset + token.index!;
       chords.push({ position, end: position + token[0].length, chord });
-    } else if (/^(?:[|:()]+|\(?\d+x\)?|\(?x\d+\)?)$/i.test(token[0])) {
+    } else if (ROW_NOTATION.test(token[0])) {
       standalone = true;
     } else return null;
   }

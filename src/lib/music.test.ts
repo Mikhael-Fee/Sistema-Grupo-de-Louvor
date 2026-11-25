@@ -74,4 +74,10 @@ describe('musical chord notation', () => {
     expect(transposeContent(content, 'C', 'D')).toBe(`${openMarkers}\r\n[[C]não é acorde [A]paz`);
     expect(chordSegments(openMarkers)).toEqual([{ chord: '', text: openMarkers }]);
   });
+
+  it('transposes Brazilian chord spellings with trailing alterations and º', () => {
+    expect(transposeContent('[E7(9-)] [F#m7(5-)] [A7(9+)] [Cm(7M)] [Bº] [C(add9)]', 'C', 'D'))
+      .toBe('[F#7(9-)] [G#m7(5-)] [B7(9+)] [Dm(7M)] [C#º] [D(add9)]');
+    expect(stripChords('[Refrão] [E7(9-)]Santo')).toBe('[Refrão] Santo');
+  });
 });

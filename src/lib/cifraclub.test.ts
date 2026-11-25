@@ -158,3 +158,30 @@ describe('referências do Cifra Club', () => {
     }
   });
 });
+
+describe('acordes que antes ficavam sem colchetes', () => {
+  it('reconhece alterações escritas depois do número e o diminuto com º', () => {
+    expect(parseCifraClubText('E7(9-)    A\nSenhor eu te amo').content).toBe('[E7(9-)]Senhor eu [A]te amo');
+    expect(parseCifraClubText('F#m7(5-)  B7\nSenhor eu te amo').content).toBe('[F#m7(5-)]Senhor eu [B7]te amo');
+    expect(parseCifraClubText('A7(9+)  D\nSenhor eu te amo').content).toBe('[A7(9+)]Senhor e[D]u te amo');
+    expect(parseCifraClubText('Cm(7M)  Bº  C(add9)\nlevanta e anda agora').content)
+      .toBe('[Cm(7M)]levanta [Bº]e an[C(add9)]da agora');
+  });
+
+  it('mantém o nome da parte e marca os acordes da linha instrumental', () => {
+    expect(parseCifraClubText('Intro: F  G  Am\n\nSenhor').content).toBe('Intro: [F]  [G]  [Am]\n\nSenhor');
+    expect(parseCifraClubText('Solo F G Am\nF   G\nlyrics').content).toBe('Solo [F] [G] [Am]\n[F]lyri[G]cs');
+    expect(parseCifraClubText('Pré-refrão: C  G/B\nTe louvarei').content).toBe('Pré-refrão: [C]  [G/B]\nTe louvarei');
+  });
+
+  it('não perde os colchetes por causa de traços, setas, reticências ou N.C.', () => {
+    expect(parseCifraClubText('F  G  -  Am\nSenhor eu te amo').content).toBe('[F]  [G]  -  [Am]\nSenhor eu te amo');
+    expect(parseCifraClubText('F  G/B  Am  →  C  ...\nSenhor').content).toBe('[F]  [G/B]  [Am]  →  [C]  ...\nSenhor');
+    expect(parseCifraClubText('N.C.   F   G\nSenhor eu te amo').content).toBe('N.C.   [F]   [G]\nSenhor eu te amo');
+  });
+
+  it('continua tratando letras comuns como letra', () => {
+    expect(parseCifraClubText('Ele disse: vem\nE eu fui').content).toBe('Ele disse: vem\nE eu fui');
+    expect(parseCifraClubText('Refrão:\nSanto, santo').content).toBe('Refrão:\nSanto, santo');
+  });
+});
