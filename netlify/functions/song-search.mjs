@@ -1,4 +1,5 @@
-// Read only public song pages. No authentication, protected charts, or arbitrary proxy URLs.
+// Read only public song pages for approved Candeia accounts. No protected charts or arbitrary proxy URLs.
+// Standalone because the direct deployment helper bundles one .mjs per function.
 const SOURCE_ORIGIN = 'https://www.worshiptogether.com';
 const CIFRA_ORIGIN = 'https://www.cifraclub.com.br';
 const CIFRA_SEARCH = 'https://solr.sscdn.co/cc/select/';
@@ -520,10 +521,48 @@ async function catalog() {
 }
 
 function json(statusCode, body) {
-  return { statusCode, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': statusCode === 200 ? 'public, max-age=300' : 'no-store', 'X-Content-Type-Options': 'nosniff' }, body: JSON.stringify(body) };
+  return { statusCode, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': statusCode === 200 ? 'private, max-age=300' : 'no-store', 'X-Content-Type-Options': 'nosniff' }, body: JSON.stringify(body) };
+}
+
+function supabaseConfiguration() {
+  const value = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+  const key = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || !/^[a-z0-9]{20}\.supabase\.co$/.test(url.hostname) || url.port || url.username || url.password || (url.pathname !== '/' && url.pathname !== '') || url.search || url.hash || !key || /[\r\n]/.test(key)) return null;
+    return { origin: url.origin, key };
+  } catch { return null; }
+}
+
+/** Only approved ministry accounts may use this server to reach the song sources. */
+export async function approvedAccount(token, config) {
+  const options = { headers: { apikey: config.key, Authorization: `Bearer ${token}`, Accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(4_000) };
+  const auth = await fetch(`${config.origin}/auth/v1/user`, options);
+  if (!auth.ok) return 401;
+  const user = await auth.json().catch(() => null);
+  if (typeof user?.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(user.id)) return 401;
+  const profile = await fetch(`${config.origin}/rest/v1/profiles?${new URLSearchParams({ select: 'id,approved', id: `eq.${user.id}`, limit: '1' })}`, { ...options, signal: AbortSignal.timeout(4_000) });
+  if (!profile.ok) throw new Error('auth-source');
+  const rows = await profile.json().catch(() => null);
+  return Array.isArray(rows) && rows[0]?.id === user.id && rows[0]?.approved === true ? 200 : 403;
 }
 
 export async function handler(event) {
+  if (event.httpMethod !== 'GET') return json(405, { error: 'Método não permitido.' });
+  const authorization = event.headers?.authorization || event.headers?.Authorization || '';
+  const token = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/i.exec(authorization)?.[1];
+  if (!token || token.length > 4096) return json(401, { error: 'Entre na sua conta para buscar cifras.' });
+  const config = supabaseConfiguration();
+  if (!config) return json(503, { error: 'A busca de cifras ainda não está configurada no servidor.' });
+  let status;
+  try { status = await approvedAccount(token, config); }
+  catch { return json(503, { error: 'Não foi possível confirmar sua conta. Tente novamente em instantes.' }); }
+  if (status !== 200) return json(status, { error: status === 403 ? 'Seu cadastro precisa estar aprovado para buscar cifras.' : 'Entre novamente na sua conta para buscar cifras.' });
+  return handleSongRequest(event);
+}
+
+/** The song lookup itself, after the account check above. */
+export async function handleSongRequest(event) {
   if (event.httpMethod !== 'GET') return json(405, { error: 'Método não permitido.' });
   const params = event.queryStringParameters || {};
   try {

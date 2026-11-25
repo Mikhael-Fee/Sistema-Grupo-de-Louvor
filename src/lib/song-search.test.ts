@@ -66,7 +66,8 @@ describe('busca de fontes de músicas', () => {
     const result = await searchUnifiedSongSources('Canção', 'Equipe');
     expect(result.results.map(song => song.source)).toEqual(['Cifra Club', 'LRCLIB']);
     expect(result.warnings).toEqual([]);
-    expect(new URL(fetcher.mock.calls[0][0], 'https://candeia.test').searchParams.get('source')).toBe('cifraclub');
+    const cifraCall = fetcher.mock.calls.find(call => call[0].startsWith('/.netlify/'));
+    expect(new URL(cifraCall![0], 'https://candeia.test').searchParams.get('source')).toBe('cifraclub');
   });
 
   it('mantém o LRCLIB acessível e apresenta o erro específico se o Cifra Club falhar', async () => {

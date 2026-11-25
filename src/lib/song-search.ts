@@ -2,6 +2,15 @@ import { KEYS, relativeMajor } from './music';
 export { relativeMajor };
 import { buildCifraClubSearchUrl, normalizeCifraClubUrl } from './cifraclub';
 import type { SongKeyEstimate } from './key-estimate';
+import { supabase } from './backend';
+
+/** The song search function only answers approved accounts, so send the session token. */
+async function sourceHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
 
 export type SongImportKind = 'lyrics' | 'chords';
 export interface SongSearchResult {
@@ -93,7 +102,7 @@ export async function searchSongSources(title: string, artist: string, kind: Son
     url = `/.netlify/functions/song-search?${params}`;
   }
   let response: Response;
-  try { response = await fetch(url, { signal, headers: { Accept: 'application/json' } }); }
+  try { response = await fetch(url, { signal, headers: kind === 'lyrics' ? { Accept: 'application/json' } : await sourceHeaders() }); }
   catch (cause) { if (signal?.aborted) throw cause; throw new Error('Não foi possível acessar a fonte. Confira sua conexão e tente novamente.'); }
   if (!response.ok) {
     if (kind === 'chords') {
@@ -118,7 +127,7 @@ async function searchCifraClub(title: string, artist: string, signal?: AbortSign
   const params = new URLSearchParams({ source: 'cifraclub', title: title.trim() });
   if (artist.trim()) params.set('artist', artist.trim());
   let response: Response;
-  try { response = await fetch(`/.netlify/functions/song-search?${params}`, { signal, headers: { Accept: 'application/json' } }); }
+  try { response = await fetch(`/.netlify/functions/song-search?${params}`, { signal, headers: await sourceHeaders() }); }
   catch (cause) { if (signal?.aborted) throw cause; throw new Error('Não foi possível acessar a busca do Cifra Club.'); }
   const body = await response.json().catch(() => null);
   if (!response.ok || !Array.isArray(body?.results)) throw new Error(body?.error || 'A busca do Cifra Club está indisponível agora.');
@@ -152,7 +161,7 @@ export async function previewSongSource(result: SongSearchResult, signal?: Abort
   const timeout = AbortSignal.timeout(10_000);
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
   let response: Response;
-  try { response = await fetch(`/.netlify/functions/song-search?${new URLSearchParams({ url: result.sourceUrl })}`, { signal: requestSignal, headers: { Accept: 'application/json' } }); }
+  try { response = await fetch(`/.netlify/functions/song-search?${new URLSearchParams({ url: result.sourceUrl })}`, { signal: requestSignal, headers: await sourceHeaders() }); }
   catch (cause) {
     if (signal?.aborted) throw cause;
     throw new Error(timeout.aborted ? 'A consulta à cifra demorou demais. Tente novamente.' : `Não foi possível abrir a cifra do ${result.source}. Confira sua conexão e tente novamente.`);

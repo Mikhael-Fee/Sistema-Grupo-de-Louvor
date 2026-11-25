@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 const functionModulePath = '../../netlify/functions/song-search.mjs';
-const { allowedSongUrl, cleanChordSheet: cleanServerChordSheet, convertCifraClubRows, handler, parseCifraClubPage, parseCifraClubSearch, parseSongPage } = await import(functionModulePath);
+const { allowedSongUrl, cleanChordSheet: cleanServerChordSheet, convertCifraClubRows, handleSongRequest: handler, handler: guardedHandler, parseCifraClubPage, parseCifraClubSearch, parseSongPage } = await import(functionModulePath);
 import { cleanChordSheet } from './cifraclub';
 afterEach(() => vi.unstubAllGlobals());
 
@@ -149,5 +149,40 @@ describe('Cifra Club público', () => {
     const response = await handler({ httpMethod: 'GET', queryStringParameters: { url: 'https://www.cifraclub.com.br/equipe/cancao/' } });
     expect(response.statusCode).toBe(502);
     expect(JSON.parse(response.body).error).toContain('O Cifra Club bloqueou a consulta automática');
+  });
+});
+
+describe('busca de cifras exige conta aprovada', () => {
+  const event = (authorization?: string) => ({ httpMethod: 'GET', headers: authorization ? { authorization } : {}, queryStringParameters: { title: 'santo' } });
+  const token = 'Bearer aaa.bbb.ccc';
+  afterEach(() => vi.unstubAllEnvs());
+  it('recusa pedidos sem login antes de consultar qualquer fonte', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    expect((await guardedHandler(event())).statusCode).toBe(401);
+    expect((await guardedHandler(event('Bearer nao-e-token'))).statusCode).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('recusa contas não aprovadas e libera as aprovadas', async () => {
+    vi.stubEnv('SUPABASE_URL', 'https://abcdefghijklmnopqrst.supabase.co');
+    vi.stubEnv('SUPABASE_ANON_KEY', 'chave-publica');
+    const id = '11111111-2222-3333-4444-555555555555';
+    let approved = false;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('/auth/v1/user')) return new Response(JSON.stringify({ id }), { status: 200 });
+      if (url.includes('/rest/v1/profiles')) return new Response(JSON.stringify([{ id, approved }]), { status: 200 });
+      return new Response('<urlset></urlset>', { status: 200 });
+    }));
+    expect((await guardedHandler(event(token))).statusCode).toBe(403);
+    approved = true;
+    const response = await guardedHandler(event(token));
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['Cache-Control']).toBe('private, max-age=300');
+  });
+  it('recusa token que o Supabase não reconhece', async () => {
+    vi.stubEnv('SUPABASE_URL', 'https://abcdefghijklmnopqrst.supabase.co');
+    vi.stubEnv('SUPABASE_ANON_KEY', 'chave-publica');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })));
+    expect((await guardedHandler(event(token))).statusCode).toBe(401);
   });
 });
