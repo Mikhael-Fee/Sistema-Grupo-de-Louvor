@@ -22,7 +22,7 @@ export default defineConfig({
       display: 'standalone', start_url: '/', scope: '/',
       icons: [{ src: '/pwa-192.png', sizes: '192x192', type: 'image/png' }, { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' }, { src: '/pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }],
     },
-    workbox: { globPatterns: ['**/*.{js,css,html,png,svg,woff2}'], globIgnores: ['downloads/**', '**/pdf-*.js', '**/pdf.worker-*.js', '**/cifra-pdf-worker-*.js'], navigateFallbackDenylist: [/^\/auth\//, /^\/downloads\//], cleanupOutdatedCaches: true },
+    workbox: { importScripts: ['/push-sw.js'], globPatterns: ['**/*.{js,css,html,png,svg,woff2}'], globIgnores: ['downloads/**', '**/pdf-*.js', '**/pdf.worker-*.js', '**/cifra-pdf-worker-*.js'], navigateFallbackDenylist: [/^\/auth\//, /^\/downloads\//], cleanupOutdatedCaches: true },
   })],
   test: { include: ['src/**/*.test.ts', 'tests/*.test.ts'], environment: 'node' },
 } as Parameters<typeof defineConfig>[0]);

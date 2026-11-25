@@ -157,3 +157,22 @@ test('sem a atualização do banco, o app funciona sem os botões de presença',
   await page.goto('/perfil');
   await expect(page.getByText('Datas em que não posso servir')).toHaveCount(0);
 });
+
+test('ao salvar a equipe, o app pede o envio dos avisos e o perfil oferece ativar notificações', async ({ page }) => {
+  const mock = await setupMockMinistry(page, 'leader');
+  const service = mock.data.services.find(item => item.assignments.length)!;
+  const notices: unknown[] = [];
+  await page.route('**/.netlify/functions/notify-assignments', route => {
+    if (route.request().method() === 'POST') notices.push({ body: route.request().postDataJSON(), auth: route.request().headers().authorization });
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(route.request().method() === 'POST' ? { emails: 1, pushes: 0, configured: true } : { publicKey: null }) });
+  });
+  await mock.login();
+  await page.goto(`/cultos/${service.id}`);
+  await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Salvar equipe', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect.poll(() => notices).toEqual([{ body: { serviceId: service.id }, auth: expect.stringMatching(/^Bearer /) }]);
+  await page.goto('/perfil');
+  await expect(page.getByRole('heading', { name: 'Avisos de escala neste aparelho' })).toBeVisible();
+});

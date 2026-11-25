@@ -19,3 +19,4 @@
 .unavailability-list span{display:flex;flex-direction:column;gap:2px}
 .unavailability-list small{color:var(--muted,#5f6b62)}
 @media(max-width:640px){.unavailability-form{grid-template-columns:1fr}}
+.notifications-card .button{margin-top:4px;min-height:44px}

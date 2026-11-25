@@ -3,6 +3,7 @@ import { repository, supabase } from '../lib/backend';
 import { validatePerson, validateService, validateSong, validateTag } from '../lib/validation';
 import { clearSnapshot, isConnectionFailure, readSnapshot, saveSnapshot } from '../lib/offline-snapshot';
 import { ministryToday } from '../lib/service-calendar';
+import { disablePush, notifyNewAssignments } from '../lib/push-notifications';
 import type { AssignmentStatus, MinistryData, Person, Profile, Service, Song, Tag } from '../types';
 
 const EMPTY: MinistryData = { songs: [], tags: [], people: [], services: [] };
@@ -169,6 +170,8 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
     async signOut() {
       // The device copy belongs to this account only.
       clearSnapshot(); setOfflineSavedAt(null);
+      // This device stops receiving the previous account's scale notices.
+      await disablePush().catch(() => undefined);
       if (supabase) { const { error: e } = await supabase.auth.signOut(); if (e) throw e; }
       try {
         sessionStorage.removeItem('candeia.public.session');
@@ -238,6 +241,7 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
         }
       }
       await mutate('plan', () => repository.saveService(service));
+      if (supabase && service.assignments.length) void notifyNewAssignments(service.id);
     },
     async deleteService(id) { await mutate('plan', () => repository.deleteService(id)); },
     listProfiles,
