@@ -1,6 +1,10 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  # Each production publish costs Netlify credits. Skip the build (exit 0) when
+  # the change touches only tests, documentation, CI or database migrations,
+  # which do not change the published site.
+  ignore = "git diff --quiet \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" -- . ':(exclude)tests' ':(exclude,glob)src/**/*.test.ts' ':(exclude)docs' ':(exclude,glob)*.md' ':(exclude).github' ':(exclude)supabase' ':(exclude)playwright.config.ts'"
 
 [build.environment]
   NODE_VERSION = "24"
