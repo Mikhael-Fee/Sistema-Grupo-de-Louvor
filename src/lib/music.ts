@@ -10,8 +10,9 @@ const SHARP_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#',
 const FLAT_NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 // Consume suffixes once. Repeating a numeric regex inside another repetition
 // makes malformed pasted chords (for example C111…x) block the browser.
-const QUALITIES = ['maj', 'Maj', 'min', 'Min', 'dim', 'Dim', 'aug', 'Aug', 'sus', 'Sus', 'add', 'Add', 'omit', 'no', 'm', 'M', 'Δ', '°', 'ø'];
-const PAREN_QUALITIES = ['maj', 'Maj', 'min', 'm', 'M'];
+// Brazilian sources write diminished chords with the ordinal sign (Bº) as often as with the degree sign.
+const QUALITIES = ['maj', 'Maj', 'min', 'Min', 'dim', 'Dim', 'aug', 'Aug', 'sus', 'Sus', 'add', 'Add', 'omit', 'no', 'm', 'M', 'Δ', '°', 'º', 'ø'];
+const PAREN_QUALITIES = ['maj', 'Maj', 'min', 'add', 'Add', 'sus', 'Sus', 'omit', 'no', 'm', 'M'];
 
 function validSuffix(value: string): boolean {
   let cursor = 0;
@@ -33,12 +34,18 @@ function validSuffix(value: string): boolean {
   while (cursor < value.length) {
     const token = value[cursor];
     if (token === '(') {
+      // Each extension may also carry a trailing alteration, as in E7(9-), A7(9+) or Cm(7M).
+      const extension = () => {
+        quality(PAREN_QUALITIES);
+        if (!signedNumber()) return false;
+        if (['+', '-', 'M'].includes(value[cursor])) cursor++;
+        return true;
+      };
       cursor++;
-      quality(PAREN_QUALITIES);
-      if (!signedNumber()) return false;
+      if (!extension()) return false;
       while (value[cursor] === ',' || value[cursor] === '/') {
         cursor++;
-        if (!signedNumber()) return false;
+        if (!extension()) return false;
       }
       if (value[cursor++] !== ')') return false;
     } else if (token === '/') {
