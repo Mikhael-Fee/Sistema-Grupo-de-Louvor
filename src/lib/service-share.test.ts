@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildServiceShareText, whatsappShareUrl } from './service-share';
+import { buildServiceShareText, functionEmoji, whatsappShareUrl } from './service-share';
 import type { Service } from '../types';
 
 const service: Service = { id: 's1', date: '2026-11-29', time: '18:00', type: 'Ceia', notes: 'Chegar 17h', isEvent: false,
@@ -11,19 +11,25 @@ const data = {
 };
 
 describe('texto para compartilhar o culto', () => {
-  it('monta data, repertório com tom e observação, equipe por função e link', () => {
+  it('monta uma linha por item, com negrito do WhatsApp e emoji por função', () => {
     expect(buildServiceShareText(service, data, 'https://app.test/cultos/s1')).toBe([
-      '*Ceia*', 'Domingo, 29 de novembro · 18:00', '', 'Chegar 17h', '',
-      '*Repertório*', '1. Casa de paz (G)', '   Obs.: Abertura suave seguir a condução', '2. Teu amor nos guia (C)', '',
-      '*Equipe*', 'Voz: Helena, Ana', 'Violão: Mikhael', '', 'Ver no Candeia: https://app.test/cultos/s1',
+      '⛪ *Ceia*', '📅 Domingo, 29 de novembro', '🕒 18:00', '', '📝 Chegar 17h', '',
+      '🎶 *Repertório*', '1. Casa de paz · Tom *G*', '      _Abertura suave seguir a condução_', '2. Teu amor nos guia · Tom *C*', '',
+      '👥 *Equipe*', '🎤 *Voz:* Helena, Ana', '🎸 *Violão:* Mikhael', '', '🔗 Ver no Candeia:', 'https://app.test/cultos/s1',
     ].join('\n'));
   });
-  it('avisa quando repertório e equipe ainda estão vazios', () => {
-    const text = buildServiceShareText({ ...service, notes: '', repertoire: [], assignments: [] }, data, 'https://app.test');
-    expect(text).toContain('*Repertório*\nAinda não definido');
-    expect(text).toContain('*Equipe*\nAinda não definida');
+  it('avisa quando repertório e equipe ainda estão vazios e marca eventos', () => {
+    const text = buildServiceShareText({ ...service, notes: '', isEvent: true, repertoire: [], assignments: [] }, data, 'https://app.test');
+    expect(text.startsWith('✨ *Ceia*')).toBe(true);
+    expect(text).toContain('🎶 *Repertório*\nAinda não definido');
+    expect(text).toContain('👥 *Equipe*\nAinda não definida');
   });
-  it('codifica o texto no link do WhatsApp', () => {
-    expect(whatsappShareUrl('Olá & tchau')).toBe('https://wa.me/?text=Ol%C3%A1+%26+tchau');
+  it('usa emoji próprio por instrumento e um genérico para funções novas', () => {
+    expect(functionEmoji('Teclado')).toBe('🎹');
+    expect(functionEmoji('Bateria')).toBe('🥁');
+    expect(functionEmoji('Sonoplastia')).toBe('🎵');
+  });
+  it('mantém as quebras de linha no link do WhatsApp', () => {
+    expect(whatsappShareUrl('Olá & tchau\nlinha 2')).toBe('https://wa.me/?text=Ol%C3%A1%20%26%20tchau%0Alinha%202');
   });
 });

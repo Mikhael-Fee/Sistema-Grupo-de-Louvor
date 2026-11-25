@@ -72,6 +72,18 @@ test('modo palco: próxima música do repertório, rolagem automática e leitura
   await expect(page.getByLabel('Música anterior do repertório')).toBeVisible();
 });
 
+test('o tamanho da letra escolhido vale para as próximas músicas', async ({ page }) => {
+  const mock = await setupMockMinistry(page, 'musician');
+  await mock.login();
+  const [first, second] = mock.data.songs;
+  await page.goto(`/musicas/${first.id}`);
+  await page.getByRole('button', { name: 'Aumentar tamanho da letra', exact: true }).click();
+  await page.getByRole('button', { name: 'Aumentar tamanho da letra', exact: true }).click();
+  await expect(page.locator('.song-sheet')).toHaveCSS('font-size', '22px');
+  await page.goto(`/musicas/${second.id}`);
+  await expect(page.locator('.song-sheet')).toHaveCSS('font-size', '22px');
+});
+
 test('compartilhar escala e repertório no WhatsApp', async ({ page }) => {
   const mock = await setupMockMinistry(page, 'musician');
   await mock.login();
@@ -80,9 +92,11 @@ test('compartilhar escala e repertório no WhatsApp', async ({ page }) => {
   const link = page.getByRole('link', { name: 'Enviar escala e repertório no WhatsApp' });
   const href = await link.getAttribute('href');
   expect(href).toMatch(/^https:\/\/wa\.me\/\?text=/);
+  expect(href).toContain('%0A');
   const text = new URL(href!).searchParams.get('text')!;
   expect(text).toContain(`*${service.type}*`);
+  expect(text.split('\n').length).toBeGreaterThan(8);
   const firstSong = mock.data.songs.find(song => song.id === service.repertoire[0].songId)!;
-  expect(text).toContain(`1. ${firstSong.title} (${service.repertoire[0].key})`);
+  expect(text).toContain(`1. ${firstSong.title} · Tom *${service.repertoire[0].key}*`);
   expect(text).toContain(`/cultos/${service.id}`);
 });

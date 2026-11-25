@@ -15,6 +15,11 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { autoscrollPixelsPerSecond, setlistPosition, setlistSongPath } from '../lib/setlist-navigation';
 
 const SPEED_KEY = 'candeia.reader.scrollSpeed';
+const FONT_KEY = 'candeia.reader.fontSize';
+/** The letter size chosen on this device is kept for every song. */
+function storedFontSize(): number {
+  try { const value = Number(localStorage.getItem(FONT_KEY)); return value >= 14 && value <= 28 ? value : 18; } catch { return 18; }
+}
 function storedSpeed(): number {
   try { const value = Number(localStorage.getItem(SPEED_KEY)); return value >= 1 && value <= 8 ? value : 3; } catch { return 3; }
 }
@@ -32,7 +37,7 @@ export default function SongPage() {
   const defaultKey = setlistItem?.key || song?.churchKey || 'C';
   const [viewKey, setViewKey] = useState(defaultKey);
   const [showChords, setShowChords] = useState(true);
-  const [fontSize, setFontSize] = useState(18);
+  const [fontSize, setFontSize] = useState(storedFontSize);
   const [reading, setReading] = useState(Boolean((location.state as { reading?: boolean } | null)?.reading));
   const [scrolling, setScrolling] = useState(false);
   const [speed, setSpeed] = useState(storedSpeed);
@@ -63,6 +68,7 @@ export default function SongPage() {
   useWakeLock(Boolean(song));
   useEffect(() => { if (!reading) setScrolling(false); }, [reading]);
   useEffect(() => { try { localStorage.setItem(SPEED_KEY, String(speed)); } catch { /* Preference only. */ } }, [speed]);
+  useEffect(() => { try { localStorage.setItem(FONT_KEY, String(fontSize)); } catch { /* Preference only. */ } }, [fontSize]);
   useEffect(() => {
     const target = readerRef.current;
     if (!scrolling || !target) return;
