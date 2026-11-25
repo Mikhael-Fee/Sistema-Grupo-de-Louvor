@@ -11,6 +11,8 @@ import { getPersonPhoto } from '../lib/avatars';
 import { normalizeYouTubeUrl } from '../lib/youtube';
 import { validateService } from '../lib/validation';
 import { buildServiceShareText, whatsappShareUrl } from '../lib/service-share';
+import PresenceButtons, { StatusBadge } from '../components/PresenceButtons';
+import { presenceSummary, unavailableOn } from '../lib/presence';
 import type { Assignment, Person, Service, SetlistItem, Song } from '../types';
 import { formatServiceDate, mergeTeamAssignments, previousTeamService, RepertoirePicker, restoreTeamPickerDraft, selectedRepertoireItems, selectedTeamAssignments, ServiceForm, TeamPicker, teamPickerFromAssignments, type RepertoirePickerDraft, type TeamPickerDraft } from './ServicesPage';
 import './services.css';
@@ -68,7 +70,7 @@ function BulkRepertoireForm({ service, songs, busy, error, onSave, onCancel }: {
 export default function ServicePage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data, canPlan, busy, error, saveService, deleteService } = useMinistry();
+  const { data, canPlan, busy, error, saveService, deleteService, presenceEnabled, profile } = useMinistry();
   const service = data.services.find(item => item.id === id);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -154,9 +156,9 @@ export default function ServicePage() {
         })}</ol></> : <EmptyState title="O repertório está em branco" description={canPlan ? 'Selecione todas as músicas que vão conduzir este encontro.' : 'As músicas aparecerão aqui quando o repertório estiver pronto.'} />}
       </section>
       <section className="card service-team"><div className="service-section-heading"><div><span className="service-section-icon"><Users size={20} /></span><h2>Equipe <span>{service.assignments.length}</span></h2></div></div>
-        {service.assignments.length ? <><p className="service-section-description">Juntos, servimos melhor.</p><ul className="service-team-list">{service.assignments.map(assignment => {
+        {presenceEnabled && <PresenceButtons assignments={service.assignments.filter(item => item.personId === profile?.personId)} />}{service.assignments.length ? <><p className="service-section-description">{presenceEnabled ? (() => { const summary = presenceSummary(service.assignments); return `${summary.confirmed} confirmados · ${summary.declined} não poderão · ${summary.pending} aguardando`; })() : 'Juntos, servimos melhor.'}</p><ul className="service-team-list">{service.assignments.map(assignment => {
           const person = data.people.find(candidate => candidate.id === assignment.personId);
-          return <li key={assignment.id}><ProfileAvatar name={person?.name || 'Pessoa indisponível'} photoUrl={getPersonPhoto(person)} size={39} className="service-avatar" decorative /><div><strong>{person?.name || 'Pessoa indisponível'}</strong><span>{assignment.function}</span></div>{canPlan && <button className="icon-button" disabled={disabled} aria-label={`Remover ${person?.name || 'pessoa'} da função ${assignment.function}`} onClick={() => void save({ ...currentService, assignments: currentService.assignments.filter(candidate => candidate.id !== assignment.id) })}><X size={17} /></button>}</li>;
+          return <li key={assignment.id}><ProfileAvatar name={person?.name || 'Pessoa indisponível'} photoUrl={getPersonPhoto(person)} size={39} className="service-avatar" decorative /><div><strong>{person?.name || 'Pessoa indisponível'}</strong><span>{assignment.function}</span>{presenceEnabled && <StatusBadge assignment={assignment} unavailableNote={unavailableOn(data, assignment.personId, service.date)?.note} />}</div>{canPlan && <button className="icon-button" disabled={disabled} aria-label={`Remover ${person?.name || 'pessoa'} da função ${assignment.function}`} onClick={() => void save({ ...currentService, assignments: currentService.assignments.filter(candidate => candidate.id !== assignment.id) })}><X size={17} /></button>}</li>;
         })}</ul></> : <EmptyState title="Vamos reunir a equipe" description={canPlan ? 'Selecione todas as pessoas e suas funções para este culto.' : 'A escala aparecerá aqui quando estiver pronta.'} />}
         {canPlan && <button className="button button-secondary service-team-batch" onClick={() => open('team')} disabled={disabled}><Users size={16} /> {service.assignments.length ? 'Editar equipe' : 'Selecionar equipe'}</button>}
       </section>

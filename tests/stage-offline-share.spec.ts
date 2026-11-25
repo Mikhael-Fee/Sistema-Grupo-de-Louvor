@@ -113,3 +113,47 @@ test('biblioteca encontra músicas por um trecho da letra e mostra a linha encon
   await page.getByLabel('Buscar por título, artista ou trecho da letra').fill('Casa de paz');
   await expect(rows.first().locator('.songs-lyric-hit')).toHaveCount(0);
 });
+
+test('integrante confirma presença, marca data indisponível e o líder vê os avisos', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 860 });
+  const mock = await setupMockMinistry(page, 'musician');
+  const me = mock.data.people[0];
+  const service = mock.data.services[0];
+  if (!service.assignments.some(item => item.personId === me.id)) service.assignments.push({ id: crypto.randomUUID(), personId: me.id, function: me.functions[0] });
+  await mock.login();
+  // Home: answer for the next service.
+  await page.getByRole('button', { name: 'Confirmar presença' }).click();
+  await expect(page.getByRole('group', { name: 'Sua presença neste culto' }).getByText('Confirmado')).toBeVisible();
+  expect(service.assignments.filter(item => item.personId === me.id).every(item => item.status === 'confirmed')).toBe(true);
+  await page.getByRole('button', { name: 'Não poderei' }).click();
+  await page.getByLabel(/Motivo/).fill('Viagem');
+  await page.getByRole('button', { name: 'Avisar que não poderei' }).click();
+  await expect(page.getByText('Motivo: Viagem')).toBeVisible();
+  // Profile: mark the date of the next service as unavailable.
+  await page.goto('/perfil');
+  await page.getByLabel('Data', { exact: true }).fill(service.date);
+  await page.getByLabel(/Motivo/).fill('Casamento');
+  await page.getByRole('button', { name: 'Marcar data' }).click();
+  await expect(page.getByText('Casamento')).toBeVisible();
+  expect(mock.data.unavailability).toEqual([expect.objectContaining({ personId: me.id, date: service.date, note: 'Casamento' })]);
+  // Leader sees the answers on the service and the warning in the team picker.
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await mock.login('leader');
+  await page.goto(`/cultos/${service.id}`);
+  const row = page.locator('.service-team-list li').filter({ hasText: me.name }).first();
+  await expect(row.getByText('Não poderá')).toBeVisible();
+  await expect(row.getByText('Marcou indisponível')).toBeVisible();
+  await page.getByRole('button', { name: /Editar equipe|Selecionar equipe/ }).click();
+  await expect(page.getByText('Indisponível neste dia: Casamento').first()).toBeVisible();
+});
+
+test('sem a atualização do banco, o app funciona sem os botões de presença', async ({ page }) => {
+  const mock = await setupMockMinistry(page, 'musician');
+  await page.route('**/rest/v1/unavailability**', route => route.fulfill({ status: 404, contentType: 'application/json',
+    body: JSON.stringify({ code: 'PGRST205', message: "Could not find the table 'public.unavailability' in the schema cache" }) }));
+  await mock.login();
+  await expect(page.getByRole('link', { name: 'Abrir culto', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Confirmar presença' })).toHaveCount(0);
+  await page.goto('/perfil');
+  await expect(page.getByText('Datas em que não posso servir')).toHaveCount(0);
+});

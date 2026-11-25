@@ -1,0 +1,21 @@
+.presence{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.presence-actions{display:flex;flex-wrap:wrap;gap:8px}
+.presence-actions .button{min-height:44px}
+.presence-status{display:inline-flex;align-items:center;gap:4px;align-self:flex-start;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:#eef1ee;color:#4d5a50}
+.presence-confirmed{background:#e3f2e6;color:#23683a}
+.presence-declined{background:#fbe5e1;color:#a23a24}
+.presence-unavailable{background:#fdf0d8;color:#8a5a0b}
+.presence-badges{display:inline-flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.presence-note{font-size:13px;color:var(--muted,#5f6b62)}
+.presence-decline{display:flex;flex-direction:column;gap:8px;max-width:420px}
+.presence-dark .presence-note,.presence-dark .field{color:#e9edf2}
+.presence-dark .presence-decline input{background:#fff;color:#1b2430}
+.unavailability-card{margin-top:20px}
+.unavailability-card h2{display:flex;align-items:center;gap:8px;font-size:18px;margin:0 0 6px}
+.unavailability-form{display:grid;grid-template-columns:minmax(150px,180px) minmax(0,1fr) auto;gap:10px;align-items:end;margin:12px 0}
+.unavailability-form .button{min-height:44px}
+.unavailability-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.unavailability-list li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border,#e6e2dc);border-radius:12px}
+.unavailability-list span{display:flex;flex-direction:column;gap:2px}
+.unavailability-list small{color:var(--muted,#5f6b62)}
+@media(max-width:640px){.unavailability-form{grid-template-columns:1fr}}

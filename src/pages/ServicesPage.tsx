@@ -9,6 +9,7 @@ import { useDraft } from '../hooks/useDraft';
 import { validateService } from '../lib/validation';
 import { getPersonPhoto } from '../lib/avatars';
 import { ministryToday } from '../lib/service-calendar';
+import { unavailableOn } from '../lib/presence';
 import { SERVICE_TYPES, type Assignment, type Person, type Service, type SetlistItem, type Song } from '../types';
 import './services.css';
 
@@ -114,6 +115,7 @@ export function previousTeamService(service: Service, services: Service[]) {
 }
 
 export function TeamPicker({ service, people, value, onChange, disabled, editExisting = false }: { service: Service; people: Person[]; value: TeamPickerDraft; onChange: (value: TeamPickerDraft) => void; disabled: boolean; editExisting?: boolean }) {
+  const { data } = useMinistry();
   const query = value.search.trim().toLocaleLowerCase('pt-BR');
   const availableFunctions = (person: Person) => {
     if (person.active === false) return editExisting ? person.functions.filter(personFunction => service.assignments.some(item => item.personId === person.id && item.function === personFunction)) : [];
@@ -139,7 +141,7 @@ export function TeamPicker({ service, people, value, onChange, disabled, editExi
       const functions = availableFunctions(person);
       const checked = functions.includes(value.selection[person.id]);
       return <div key={person.id} className={`service-batch-person ${checked ? 'service-batch-selected' : ''}`}>
-        <label className="service-batch-check"><input type="checkbox" aria-label={`Selecionar ${person.name}`} checked={checked} disabled={disabled || !functions.length} onChange={event => { const selection = { ...value.selection }; const additional = { ...value.additional }; if (event.target.checked) selection[person.id] = functions[0]; else { delete selection[person.id]; delete additional[person.id]; } onChange({ ...value, selection, additional }); }} /><ProfileAvatar name={person.name} photoUrl={getPersonPhoto(person)} size={36} className="service-picker-avatar" decorative /><span className="service-batch-identity"><strong>{person.name}</strong><small>{person.functions.join(' · ') || 'Sem função'}</small>{person.active === false && <small className="service-batch-archived">Fora da equipe ativa</small>}</span></label>
+        <label className="service-batch-check"><input type="checkbox" aria-label={`Selecionar ${person.name}`} checked={checked} disabled={disabled || !functions.length} onChange={event => { const selection = { ...value.selection }; const additional = { ...value.additional }; if (event.target.checked) selection[person.id] = functions[0]; else { delete selection[person.id]; delete additional[person.id]; } onChange({ ...value, selection, additional }); }} /><ProfileAvatar name={person.name} photoUrl={getPersonPhoto(person)} size={36} className="service-picker-avatar" decorative /><span className="service-batch-identity"><strong>{person.name}</strong><small>{person.functions.join(' · ') || 'Sem função'}</small>{person.active === false && <small className="service-batch-archived">Fora da equipe ativa</small>}{(() => { const away = unavailableOn(data, person.id, service.date); return away ? <small className="service-batch-unavailable">Indisponível neste dia{away.note ? `: ${away.note}` : ''}</small> : null; })()}</span></label>
         {functions.length ? checked && <select aria-label={`Função de ${person.name}`} disabled={disabled || !checked} value={checked ? value.selection[person.id] : functions[0]} onChange={event => onChange({ ...value, selection: { ...value.selection, [person.id]: event.target.value }, additional: { ...value.additional, [person.id]: (value.additional?.[person.id] || []).filter(item => item !== event.target.value) } })}>{functions.map(personFunction => <option key={personFunction}>{personFunction}</option>)}</select> : <span className="badge">{person.functions.length ? 'Já na escala' : 'Sem função'}</span>}
         {editExisting && checked && functions.length > 1 && <details className="service-batch-functions"><summary>{value.additional?.[person.id]?.length ? `${value.additional[person.id].length + 1} funções selecionadas` : 'Outras funções'}</summary><div>{functions.filter(item => item !== value.selection[person.id]).map(personFunction => <label key={personFunction}><input type="checkbox" aria-label={`Também ${person.name} em ${personFunction}`} checked={value.additional?.[person.id]?.includes(personFunction) || false} disabled={disabled} onChange={event => { const additions = new Set(value.additional?.[person.id] || []); if (event.target.checked) additions.add(personFunction); else additions.delete(personFunction); onChange({ ...value, additional: { ...value.additional, [person.id]: [...additions] } }); }} />{personFunction}</label>)}</div></details>}
       </div>;

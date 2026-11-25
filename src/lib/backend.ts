@@ -58,7 +58,7 @@ export const repository = {
     const profile = await repository.getProfile(auth.user.id);
     if (!profile.approved) throw new Error('Seu cadastro aguarda aprovação de um administrador.');
 
-    const [songs, tags, people, services, songTags, assignments, repertoire, teamPhotos] = await Promise.all([
+    const [songs, tags, people, services, songTags, assignments, repertoire, teamPhotos, unavailability] = await Promise.all([
       db.from('songs').select('*').order('title'),
       db.from('tags').select('*').order('name'),
       db.from('people').select('*').order('name'),
@@ -67,8 +67,12 @@ export const repository = {
       db.from('assignments').select('*').order('position'),
       db.from('repertoire').select('*').order('position'),
       db.rpc('read_team_profile_photos', {}, { get: true }),
+      db.from('unavailability').select('id, person_id, date, note').order('date'),
     ]);
     for (const result of [songs, tags, people, services, songTags, assignments, repertoire, teamPhotos]) check(result.error);
+    // Before migration 008 the table does not exist: the app works without these features.
+    const featureMissing = (error: { code?: string } | null) => Boolean(error && ['42P01', 'PGRST205', 'PGRST200'].includes(error.code || ''));
+    if (!featureMissing(unavailability.error)) check(unavailability.error);
     if (!Array.isArray(teamPhotos.data)) throw new Error('Não foi possível consultar as fotos vinculadas à equipe.');
     const accountPhotos = new Map<string, string>(teamPhotos.data.map((row: { personId: string; photoUrl: string }) => [row.personId, row.photoUrl]));
     return {
@@ -84,11 +88,13 @@ export const repository = {
         id: row.id, date: row.date, time: row.time.slice(0, 5), type: row.type, notes: row.notes, isEvent: row.is_event === true,
         assignments: (assignments.data ?? []).filter(link => link.service_id === row.id).map(link => ({
           id: link.id, personId: link.person_id, function: link.function,
+          ...(typeof link.status === 'string' ? { status: link.status, statusNote: link.status_note || '' } : {}),
         })),
         repertoire: (repertoire.data ?? []).filter(link => link.service_id === row.id).map(link => ({
           id: link.id, songId: link.song_id, key: link.key, notes: link.notes, youtubeUrl: link.youtube_url || '',
         })),
       })),
+      ...(featureMissing(unavailability.error) ? {} : { unavailability: (unavailability.data ?? []).map(row => ({ id: row.id, personId: row.person_id, date: row.date, note: row.note })) }),
     };
   },
 
@@ -168,6 +174,14 @@ export const repository = {
   },
   async deleteService(id: string): Promise<void> {
     const { error } = await client().from('services').delete().eq('id', id).select('id').single();
+    check(error);
+  },
+  async respondAssignment(id: string, status: 'pending' | 'confirmed' | 'declined', note = ''): Promise<void> {
+    const { error } = await client().rpc('respond_assignment', { p_assignment_id: id, p_status: status, p_note: note });
+    check(error);
+  },
+  async setUnavailability(personId: string, date: string, unavailable: boolean, note = ''): Promise<void> {
+    const { error } = await client().rpc('set_unavailability', { p_person_id: personId, p_date: date, p_unavailable: unavailable, p_note: note });
     check(error);
   },
   async listProfiles(): Promise<Profile[]> {

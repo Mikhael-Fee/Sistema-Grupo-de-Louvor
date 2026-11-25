@@ -3,7 +3,7 @@ import { repository, supabase } from '../lib/backend';
 import { validatePerson, validateService, validateSong, validateTag } from '../lib/validation';
 import { clearSnapshot, isConnectionFailure, readSnapshot, saveSnapshot } from '../lib/offline-snapshot';
 import { ministryToday } from '../lib/service-calendar';
-import type { MinistryData, Person, Profile, Service, Song, Tag } from '../types';
+import type { AssignmentStatus, MinistryData, Person, Profile, Service, Song, Tag } from '../types';
 
 const EMPTY: MinistryData = { songs: [], tags: [], people: [], services: [] };
 interface MinistryContextValue {
@@ -19,6 +19,10 @@ interface MinistryContextValue {
   saveService(service: Service): Promise<void>; deleteService(id: string): Promise<void>;
   listProfiles(): Promise<Profile[]>; updateProfile(profile: Profile): Promise<void>;
   updateProfilePhoto(photo: Blob | null): Promise<void>;
+  /** True once the database has presence confirmation and unavailable dates (migration 008). */
+  presenceEnabled: boolean;
+  respondAssignment(assignmentId: string, status: AssignmentStatus, note?: string): Promise<void>;
+  setUnavailability(personId: string, date: string, unavailable: boolean, note?: string): Promise<void>;
 }
 const Context = createContext<MinistryContextValue | null>(null);
 const check = (message: string | null) => { if (message) throw new Error(message); };
@@ -133,11 +137,12 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
       window.clearInterval(timer);
     };
   }, [approved, loadUser]);
-  const authorize = (kind: 'library' | 'plan' | 'admin') => {
+  const authorize = (kind: 'library' | 'plan' | 'admin' | 'member') => {
     if (offlineSavedAt) throw new Error(OFFLINE_EDIT);
+    if (kind === 'member') { if (!profile?.approved) throw new Error('Seu perfil não tem permissão para esta ação.'); return; }
     if (!profile?.approved || (kind === 'plan' ? !['admin', 'leader'].includes(profile.role) : profile.role !== 'admin')) throw new Error('Seu perfil não tem permissão para esta ação.');
   };
-  const mutate = async (kind: 'library' | 'plan' | 'admin', remote: () => Promise<void>) => {
+  const mutate = async (kind: 'library' | 'plan' | 'admin' | 'member', remote: () => Promise<void>) => {
     authorize(kind);
     if (lock.current) throw new Error('Aguarde a alteração em andamento.');
     const actor = profile?.id;
@@ -152,6 +157,7 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
     } catch (e) { throw e instanceof Error ? e : new Error('Não foi possível salvar.'); }
     finally { lock.current = false; setBusy(false); }
   };
+  const canPlanNow = () => Boolean(profile?.approved && ['admin', 'leader'].includes(profile.role));
   const listProfiles = useCallback(async () => {
     if (!profile?.approved || profile.role !== 'admin') throw new Error('Seu perfil não tem permissão para esta ação.');
     return repository.listProfiles();
@@ -235,6 +241,18 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
     },
     async deleteService(id) { await mutate('plan', () => repository.deleteService(id)); },
     listProfiles,
+    presenceEnabled: Array.isArray(data.unavailability),
+    async respondAssignment(assignmentId, status, note = '') {
+      const assignment = data.services.flatMap(service => service.assignments).find(item => item.id === assignmentId);
+      if (!assignment) throw new Error('Escala não encontrada.');
+      if (!canPlanNow() && assignment.personId !== profile?.personId) throw new Error('Você só pode responder às suas próprias escalas.');
+      await mutate('member', () => repository.respondAssignment(assignmentId, status, note.trim().slice(0, 300)));
+    },
+    async setUnavailability(personId, date, unavailable, note = '') {
+      if (!canPlanNow() && personId !== profile?.personId) throw new Error('Você só pode marcar as suas próprias datas.');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Escolha uma data.');
+      await mutate('member', () => repository.setUnavailability(personId, date, unavailable, note.trim().slice(0, 200)));
+    },
     async updateProfile(nextProfile) {
       authorize('admin');
       await repository.updateProfile(nextProfile); await loadUser(profile?.id, false);
