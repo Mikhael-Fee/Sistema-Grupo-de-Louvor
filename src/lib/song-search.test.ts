@@ -22,8 +22,11 @@ describe('busca de fontes de músicas', () => {
     expect(notesWithCifraClubSource(notes, '')).toBe('Começar suave.');
     expect(() => notesWithCifraClubSource('Original', 'https://evil.test/cifra/')).toThrow('link HTTPS');
   });
-  it('usa a raiz do tom real da fonte e normaliza equivalências sem gerar acordes', () => {
-    expect(sourceKey('C#m')).toBe('Db');
+  it('usa a relativa maior para tons menores e normaliza equivalências sem gerar acordes', () => {
+    expect(sourceKey('C#')).toBe('Db');
+    expect(sourceKey('C#m')).toBe('E');
+    expect(sourceKey('Gm')).toBe('Bb');
+    expect(sourceKey('A#')).toBe('Bb');
     expect(sourceKey('Gb')).toBe('F#');
     expect(sourceKey('D')).toBe('D');
     expect(sourceKey('desconhecido')).toBeNull();

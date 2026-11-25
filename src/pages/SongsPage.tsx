@@ -21,10 +21,11 @@ function blankSong(): Song {
   return { id: crypto.randomUUID(), title: '', artist: '', originalKey: 'C', churchKey: 'C', content: '', youtubeUrl: '', notes: '', tagIds: [] };
 }
 
-function SourceKeyConfirmation({ value, onChange, reason }: { value: string; onChange: (key: string) => void; reason?: string }) {
+function SourceKeyConfirmation({ value, onChange, reason, detected }: { value: string; onChange: (key: string) => void; reason?: string; detected?: string }) {
+  if (detected) return <label className="field songs-source-key">Tom dos acordes recebidos<select aria-label="Tom dos acordes recebidos" value={value || detected} onChange={event => onChange(event.target.value)}>{KEYS.map(key => <option key={key}>{key}</option>)}</select><span className="songs-field-hint">Detectado: {detected}. Se os acordes da prévia estiverem em outro tom, escolha o tom certo antes de importar. Tons menores usam a relativa maior (Gm → Bb).</span></label>;
   return <div className="songs-cifra-replace">
     <p>{reason || 'A fonte não informou o tom dos acordes escritos. Confirme esse tom uma vez para converter a cifra corretamente.'}</p>
-    <label className="field">Tom dos acordes recebidos<select aria-label="Tom dos acordes recebidos" value={value} onChange={event => onChange(event.target.value)}><option value="">Selecione o tom na fonte</option>{KEYS.map(key => <option key={key}>{key}</option>)}</select><span className="songs-field-hint">Confira o tom das posições dos acordes na fonte. O primeiro acorde sozinho não determina o tom.</span></label>
+    <label className="field">Tom dos acordes recebidos<select aria-label="Tom dos acordes recebidos" value={value} onChange={event => onChange(event.target.value)}><option value="">Selecione o tom na fonte</option>{KEYS.map(key => <option key={key}>{key}</option>)}</select><span className="songs-field-hint">Confira o tom das posições dos acordes na fonte. O primeiro acorde sozinho não determina o tom. Tons menores usam a relativa maior (Gm → Bb).</span></label>
   </div>;
 }
 
@@ -96,7 +97,8 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
       : { ...current, [field]: value });
   };
   const previewNeedsKey = Boolean(preview?.kind === 'chords' && hasWrittenChords(preview.content || '') && !sourceKey(preview.originalKey));
-  const previewImportKey = sourceKey(preview?.originalKey) || sourceKey(previewWrittenKey);
+  // A key chosen in the preview always wins over the detected one.
+  const previewImportKey = sourceKey(previewWrittenKey) || sourceKey(preview?.originalKey);
   const previewChurchKey = !keyPreference.manual && previewImportKey ? previewImportKey : draft.churchKey;
   function sourceDefault(key: string | null) {
     if (key && !keyPreferenceRef.current.manual) {
@@ -226,7 +228,7 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
 
   function draftFromPreview(current: Song): Song {
     if (!preview?.content) throw new Error('Escolha uma versão com conteúdo para importar.');
-    const key = sourceKey(preview.originalKey) || sourceKey(previewWrittenKey);
+    const key = sourceKey(previewWrittenKey) || sourceKey(preview.originalKey);
     const churchKey = !keyPreferenceRef.current.manual && key ? key : current.churchKey;
     const content = contentInChurchKey(preview.kind === 'lyrics' ? stripChords(preview.content) : preview.content, key || undefined, churchKey);
     const attribution = `Fonte ${preview.kind === 'chords' ? 'da letra e cifra' : 'da letra'}: ${preview.source} — ${preview.sourceUrl}`;
@@ -304,10 +306,10 @@ export function SongEditor({ song, incomingSource, incomingDraftId, resumePrevie
           {searched && !sourceResults.length && <p className="songs-source-empty" role="status">Nenhuma versão encontrada. Tente parte do título ou revise o nome do artista.</p>}
           {sourceResults.length > 0 && <ul className="songs-source-results">{sourceResults.map(result => <li key={`${result.source}:${result.id}`}><div><strong>{result.title}</strong><span>{result.artist || 'Confira o artista na prévia'}{result.album && ` · ${result.album}`}</span><span className={`songs-result-source ${result.source === 'Cifra Club' ? 'songs-result-primary' : ''}`}>{result.source} · {result.kind === 'chords' ? 'Letra e cifra' : 'Letra sem acordes'}</span></div><div className="songs-result-actions"><button type="button" className="button button-ghost" disabled={Boolean(previewing)} aria-label={`Ver prévia de ${result.title}`} onClick={() => openPreview(result)}>{previewing === result.id ? 'Abrindo…' : 'Ver prévia'}<ArrowUpRight size={14} /></button><a href={result.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${result.title} na fonte`}>Fonte<ExternalLink size={11} /></a></div></li>)}</ul>}
           {preview && <div className="songs-source-preview">
-            <div className="songs-preview-heading"><div><h3>{preview.title}</h3><p>{preview.artist || 'Artista não informado pela fonte'} · {preview.source} · {preview.kind === 'chords' ? `Tom dos acordes na fonte: ${sourceKey(preview.originalKey) || 'a confirmar'}` : 'Letra sem acordes'}</p></div><a href={preview.sourceUrl} target="_blank" rel="noopener noreferrer">Ver fonte<ExternalLink size={12} /></a></div>
+            <div className="songs-preview-heading"><div><h3>{preview.title}</h3><p>{preview.artist || 'Artista não informado pela fonte'} · {preview.source} · {preview.kind === 'chords' ? `Tom dos acordes na fonte: ${previewImportKey || 'a confirmar'}` : 'Letra sem acordes'}</p></div><a href={preview.sourceUrl} target="_blank" rel="noopener noreferrer">Ver fonte<ExternalLink size={12} /></a></div>
             {preview.capo !== undefined && <p className="songs-import-hint">Capotraste na fonte: {preview.capo}ª casa{preview.soundingKey ? ` · Tom sonoro: ${preview.soundingKey}` : ''}. Tom dos acordes sem capotraste: {sourceKey(preview.originalKey) || 'a confirmar'}. O capotraste não será aplicado novamente.</p>}
             {preview.keyEstimate && <div className="songs-import-hint" role="status"><p>Tom provável: {preview.keyEstimate.key}{preview.keyEstimate.mode === 'minor' ? 'm' : ''}. {preview.keyEstimate.confidence === 'low' ? 'Acordes insuficientes ou tonalidades próximas: confirme abaixo.' : 'Sugerido pelo campo harmônico; confira antes de salvar.'}</p>{preview.keyEstimate.borrowedChords.length > 0 && <p>Fora do campo harmônico sugerido: {preview.keyEstimate.borrowedChords.join(', ')}. Podem ser empréstimos harmônicos ou outra variação.</p>}{preview.keyEstimate.alternatives.length > 0 && <p>Outras possibilidades: {preview.keyEstimate.alternatives.map(item => `${item.key}${item.mode === 'minor' ? 'm' : ''}`).join(', ')}.</p>}</div>}
-            {previewNeedsKey && <SourceKeyConfirmation value={previewWrittenKey} onChange={key => { setPreviewWrittenKey(key); sourceDefault(sourceKey(key)); }} reason={preview.keyUnknownReason} />}
+            {preview.kind === 'chords' && hasWrittenChords(preview.content || '') && <SourceKeyConfirmation value={previewWrittenKey} onChange={key => { setPreviewWrittenKey(key); sourceDefault(sourceKey(key)); }} reason={preview.keyUnknownReason} detected={previewNeedsKey ? undefined : sourceKey(preview.originalKey) || undefined} />}
             {preview.kind === 'chords' && <label className="songs-source-metadata songs-preview-lyrics"><input type="checkbox" checked={previewLyricsOnly} onChange={e => setPreviewLyricsOnly(e.target.checked)} />Ver somente letra na prévia</label>}
             <pre tabIndex={0} aria-label="Prévia do conteúdo para importar">{previewText.slice(0, 12000)}</pre>
             {previewText.length > 12000 && <p className="songs-import-hint">A prévia exibe o início do texto. A importação inclui o conteúdo completo.</p>}

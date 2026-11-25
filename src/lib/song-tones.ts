@@ -1,6 +1,6 @@
 import { cleanChordSheet } from './cifraclub';
 import { chordSegments, KEYS, transposeContent } from './music';
-import { sourceKey, type SongSearchResult } from './song-search';
+import { relativeMajor, sourceKey, type SongSearchResult } from './song-search';
 import { estimateSongKey } from './key-estimate';
 import type { Song } from '../types';
 
@@ -36,9 +36,11 @@ export function resolveSourceTonality(input: SongSearchResult): SourceTonality {
   const chords = input.kind === 'chords' && hasWrittenChords(cleaned);
   const estimate = chords ? estimateSongKey(cleaned) : null;
   const usable = Boolean(estimate && estimate.confidence !== 'low' && !conflict);
-  return { source: { ...input, originalKey: usable ? estimate!.key : undefined, keyEstimate: estimate || undefined,
-    keyUnknownReason: usable ? undefined : input.keyUnknownReason }, writtenKey: estimate?.key || null,
-    churchKey: estimate?.key || null, estimated: Boolean(estimate), requiresKeyConfirmation: Boolean(chords && !usable) };
+  // A probable Gm uses the chords of Bb; the base for transposition is the major key.
+  const estimated = estimate ? estimate.mode === 'minor' ? relativeMajor(estimate.key) : estimate.key : null;
+  return { source: { ...input, originalKey: usable ? estimated! : undefined, keyEstimate: estimate || undefined,
+    keyUnknownReason: usable ? undefined : input.keyUnknownReason }, writtenKey: estimated,
+    churchKey: estimated, estimated: Boolean(estimate), requiresKeyConfirmation: Boolean(chords && !usable) };
 }
 
 /** Convert the written chords directly to the target key, without adding a capo twice. */

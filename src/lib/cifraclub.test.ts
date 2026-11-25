@@ -11,8 +11,11 @@ describe('importação de texto do Cifra Club', () => {
   });
 
   it('normaliza tom enarmônico, símbolos e extensões que continuam transponíveis', () => {
-    const parsed = parseCifraClubText('Tom: C♯m\nF♯m7(b5)   G♯7(9)/B♯\nLuz e paz para nós');
+    const parsed = parseCifraClubText('Tom: D♭\nF♯m7(b5)   G♯7(9)/B♯\nLuz e paz para nós');
     expect(parsed.originalKey).toBe('Db');
+    // Um tom menor usa os acordes da relativa maior: C#m → E, Gm → Bb.
+    expect(parseCifraClubText('Tom: C♯m\nF♯m7(b5)\nLuz').originalKey).toBe('E');
+    expect(parseCifraClubText('Tom: Gm\nGm  F\nLuz').originalKey).toBe('Bb');
     expect(parsed.content).toBe('[F#m7(b5)]Luz e paz p[G#7(9)/B#]ara nós');
     expect(transposeContent(parsed.content, 'Db', 'D')).toBe('[Gm7(b5)]Luz e paz p[A7(9)/C#]ara nós');
   });
