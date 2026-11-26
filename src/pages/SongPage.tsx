@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { EmptyState, FormError } from '../components/ui';
 import YoutubeVideoCard from '../components/YoutubeVideoCard';
+import SongHistoryCard from '../components/SongHistoryCard';
 import { useMinistry } from '../context/MinistryContext';
 import { chordSegments, KEYS, stripChords, transposeContent } from '../lib/music';
 import { cleanChordSheet } from '../lib/cifraclub';
@@ -657,6 +658,7 @@ export default function SongPage() {
               </section>
             )}
           </div>
+          <SongHistoryCard songId={song.id} />
         </>
       )}
       {editing && <SongEditor song={song} onClose={() => setEditing(false)} />}

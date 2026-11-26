@@ -19,6 +19,10 @@ export interface AnalyticsPerson extends AnalyticsCount {
   functions: string[];
   lastDate: string;
 }
+/** How many repertoire entries used each key; songs counts distinct songs played in it. */
+export interface AnalyticsKey extends AnalyticsCount {
+  songs: number;
+}
 export interface AnalyticsTimeline {
   id: string;
   label: string;
@@ -42,6 +46,7 @@ export interface MinistryAnalytics {
   functions: AnalyticsCount[];
   themes: AnalyticsCount[];
   tags: AnalyticsCount[];
+  keys: AnalyticsKey[];
   times: AnalyticsCount[];
   timeline: AnalyticsTimeline[];
   timelineLabel: string;
@@ -150,6 +155,8 @@ export function buildMinistryAnalytics(data: MinistryData, range: AnalyticsRange
   const themeCounts = new Map<string, number>();
   const timeCounts = new Map<string, number>();
   const tagCounts = new Map<string, number>();
+  const keyCounts = new Map<string, number>();
+  const keySongs = new Map<string, Set<string>>();
   const timeline = timelineFor(services, range);
   const timelinePoints = new Map(timeline.points.map(point => [point.id, point]));
   let participations = 0;
@@ -179,6 +186,13 @@ export function buildMinistryAnalytics(data: MinistryData, range: AnalyticsRange
     }
     const repertoire = new Set(service.repertoire.map(item => item.songId));
     for (const id of repertoire) {
+      // The key saved for that service wins; older entries without one use the song's church key.
+      const item = service.repertoire.find(entry => entry.songId === id);
+      const key = item?.key?.trim() || songs.get(id)?.churchKey?.trim() || 'Sem tom';
+      increment(keyCounts, key);
+      const keyed = keySongs.get(key) || new Set<string>();
+      keyed.add(id);
+      keySongs.set(key, keyed);
       increment(songCounts, id);
       songDates.set(id, service.date > (songDates.get(id) || '') ? service.date : songDates.get(id)!);
       const songTags = new Set(songs.get(id)?.tagIds || []);
@@ -244,6 +258,15 @@ export function buildMinistryAnalytics(data: MinistryData, range: AnalyticsRange
     functions: countRows(functionCounts, assignments),
     themes: countRows(themeCounts, services.length),
     tags: ranked(tagRows),
+    keys: ranked(
+      [...keyCounts].map(([key, count]) => ({
+        id: key,
+        label: key,
+        count,
+        percentage: percentage(count, songUses),
+        songs: keySongs.get(key)?.size || 0,
+      })),
+    ),
     times: countRows(timeCounts, services.length),
     timeline: timeline.points,
     timelineLabel: timeline.label,
