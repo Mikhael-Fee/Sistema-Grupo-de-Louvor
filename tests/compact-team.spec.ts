@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { setupMockMinistry } from './fixtures';
 
 for (const width of [320, 390]) {
-  test(`equipe e seleção em duas colunas com nomes longos em ${width}px`, async ({ page }) => {
+  test(`equipe em lista e seleção em duas colunas com nomes longos em ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     const mock = await setupMockMinistry(page);
     const longName = 'Ana Clara de Albuquerque Fernandes';
@@ -25,11 +25,13 @@ for (const width of [320, 390]) {
     await page.goto('/pessoas');
     await expect(page.locator('.people-person')).toHaveCount(mock.data.people.length);
     const columns = await page.locator('.people-grid').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length);
-    expect(columns).toBe(2);
+    expect(columns).toBe(1);
     const personCard = page.locator('.people-person').filter({ has: page.getByRole('heading', { name: longName, exact: true }) });
     await expect(personCard.locator('img')).toHaveAttribute('src', person.photoUrl);
     await expect.poll(() => personCard.locator('img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(1);
-    for (const button of await personCard.getByRole('button').all()) {
+    // The name opens the profile and its tap area is the whole card; the icon buttons must be 44px.
+    expect((await personCard.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    for (const button of await personCard.locator('.people-person-actions').getByRole('button').all()) {
       const box = await button.boundingBox();
       expect(box!.width).toBeGreaterThanOrEqual(44);
       expect(box!.height).toBeGreaterThanOrEqual(44);

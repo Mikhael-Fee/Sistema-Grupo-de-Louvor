@@ -22,9 +22,15 @@ test('início mostra minhas próximas escalas e o tema escuro fica salvo no apar
   if (!service.assignments.some(item => item.personId === me.id))
     service.assignments.push({ id: crypto.randomUUID(), personId: me.id, function: me.functions[0] });
   await mock.login();
-  const mine = page.getByRole('region', { name: 'Minhas próximas escalas' });
-  await expect(mine.getByRole('link').first()).toContainText(service.type);
-  await expect(mine.getByRole('link').first()).toContainText(service.assignments.find(item => item.personId === me.id)!.function);
+  // The next service is the hero; the later ones list show where the person serves.
+  const myFunction = service.assignments.find(item => item.personId === me.id)!.function;
+  await expect(page.locator('.your-assignment')).toContainText(myFunction);
+  const later = mock.data.services[1];
+  const upcoming = page.getByRole('region', { name: 'Próximos cultos' });
+  await expect(upcoming.locator('.home-upcoming-row').first()).toContainText(later.type);
+  await expect(upcoming.locator('.home-upcoming-row').first()).toContainText(
+    `Você: ${later.assignments.find(item => item.personId === me.id)!.function}`,
+  );
   await expect(page.locator('.dashboard-stats')).toHaveCount(0);
   await page.goto('/perfil?aba=ajustes');
   await page.getByRole('radio', { name: 'Escuro' }).click();

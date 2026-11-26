@@ -372,7 +372,7 @@ export function TeamPicker({
                       const level = count === 0 ? 'low' : count >= 3 ? 'high' : 'mid';
                       return (
                         <small className={`service-batch-month service-batch-month-${level}`}>
-                          {count === 0 ? 'Ainda não serviu neste mês' : `${count}× neste mês`}
+                          {count === 0 ? 'Nenhuma escala neste mês' : `${count}× neste mês`}
                         </small>
                       );
                     })()}

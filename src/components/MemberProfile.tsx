@@ -122,7 +122,17 @@ function useShowMore<T>(items: T[], first: number) {
   return { visible, button };
 }
 
-export function UpcomingServicesCard({ personId, today, limit = 3 }: { personId: string; today: string; limit?: number }) {
+export function UpcomingServicesCard({
+  personId,
+  today,
+  limit = 3,
+  title = 'Minhas próximas escalas',
+}: {
+  personId: string;
+  today: string;
+  limit?: number;
+  title?: string;
+}) {
   const { data, presenceEnabled } = useMinistry();
   const all = [...data.services]
     .filter(service => service.date >= today && service.assignments.some(item => item.personId === personId))
@@ -134,7 +144,7 @@ export function UpcomingServicesCard({ personId, today, limit = 3 }: { personId:
         <span className="member-card-icon">
           <CalendarDays size={16} />
         </span>
-        Minhas próximas escalas
+        {title}
       </h2>
       {upcoming.length ? (
         <ul className="member-list">
@@ -537,7 +547,7 @@ export function PersonSummary({ person, today }: { person: Person; today: string
   return (
     <div className="member-summary">
       <ProfileHero person={person} name={person.name} subtitle={person.functions.join(' · ')} stats={stats} />
-      <UpcomingServicesCard personId={person.id} today={today} limit={3} />
+      <UpcomingServicesCard personId={person.id} today={today} limit={3} title="Próximas escalas" />
       {keys.length > 0 && (
         <section className="card member-card" aria-label="Tons">
           <h2>

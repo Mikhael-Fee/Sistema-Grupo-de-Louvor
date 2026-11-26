@@ -9,6 +9,7 @@ import { upcomingBirthdays } from '../lib/member-profile';
 import { unavailableOn } from '../lib/presence';
 import type { Person } from '../types';
 import '../components/member-profile.css';
+import './home.css';
 
 function birthdayWhen(person: Person, inDays: number) {
   if (inDays === 0) return 'Hoje! 🎉';
@@ -18,11 +19,21 @@ function birthdayWhen(person: Person, inDays: number) {
 }
 
 /** Team birthdays in the next seven days. */
-function BirthdaysCard({ people, today, myPersonId }: { people: Person[]; today: string; myPersonId?: string }) {
+function BirthdaysCard({
+  people,
+  today,
+  myPersonId,
+  className = '',
+}: {
+  people: Person[];
+  today: string;
+  myPersonId?: string;
+  className?: string;
+}) {
   const birthdays = upcomingBirthdays(people, today, 7);
   if (!birthdays.length) return null;
   return (
-    <section className="card member-birthdays" aria-labelledby="birthdays-title">
+    <section className={`card member-birthdays ${className}`} aria-labelledby="birthdays-title">
       <h2 id="birthdays-title" className="member-card-title">
         <Cake size={18} aria-hidden="true" /> Aniversariantes da semana
       </h2>
@@ -69,16 +80,16 @@ export default function HomePage() {
   const next = upcoming[0];
   const mine = next?.assignments.filter(a => a.personId === profile?.personId) || [];
   const nextDate = next ? dateParts(next.date) : null;
-  const myServices = profile?.personId
-    ? upcoming
-        .map(service => ({ service, assignments: service.assignments.filter(a => a.personId === profile.personId) }))
-        .filter(item => item.assignments.length)
-        .slice(0, 4)
-    : [];
+  const later = upcoming.slice(1, 5);
+  const birthdayToday = upcomingBirthdays(data.people, today, 0).length > 0;
+  const todayLabel = sentenceCase(
+    new Date(`${today}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }),
+  );
   return (
     <>
       <PageHeader
         title={`Olá, ${profile?.name.split(' ')[0] || 'equipe'} 👋`}
+        description={todayLabel}
         action={
           canPlan ? (
             <Link className="button button-primary" to="/cultos?novo=1">
@@ -88,7 +99,7 @@ export default function HomePage() {
           ) : undefined
         }
       />
-      <BirthdaysCard people={data.people} today={today} myPersonId={profile?.personId} />
+      {birthdayToday && <BirthdaysCard people={data.people} today={today} myPersonId={profile?.personId} className="home-birthdays-top" />}
       {next ? (
         <>
           <section className="next-service">
@@ -128,7 +139,7 @@ export default function HomePage() {
               <span className="hero-line line-three" />
             </div>
           </section>
-          <div className="dashboard-columns">
+          <div className="dashboard-columns home-columns">
             <section className="card dashboard-repertoire">
               <div className="card-heading">
                 <div>
@@ -171,42 +182,45 @@ export default function HomePage() {
                 <EmptyState title="Repertório ainda não definido" />
               )}
             </section>
-            <section className="card dashboard-team">
-              <div className="card-heading">
-                <div>
-                  <h2>Equipe escalada</h2>
+            <div className="home-side">
+              <section className="card dashboard-team">
+                <div className="card-heading">
+                  <div>
+                    <h2>Equipe escalada</h2>
+                  </div>
+                  <span className="count-badge">{next.assignments.length}</span>
                 </div>
-                <span className="count-badge">{next.assignments.length}</span>
-              </div>
-              <div className="home-team-list">
-                {next.assignments.map(a => {
-                  const person = data.people.find(p => p.id === a.personId);
-                  return (
-                    <div key={a.id} className="home-team-person">
-                      <ProfileAvatar
-                        name={person?.name || 'Pessoa indisponível'}
-                        photoUrl={getPersonPhoto(person)}
-                        size={41}
-                        className={`avatar ${person?.id === profile?.personId ? 'avatar-green' : ''}`}
-                        decorative
-                      />
-                      <div>
-                        <strong>
-                          {person?.name || 'Pessoa indisponível'}
-                          {person?.id === profile?.personId && <span className="you-tag">você</span>}
-                        </strong>
-                        <span>{a.function}</span>
+                <div className="home-team-list">
+                  {next.assignments.map(a => {
+                    const person = data.people.find(p => p.id === a.personId);
+                    return (
+                      <div key={a.id} className="home-team-person">
+                        <ProfileAvatar
+                          name={person?.name || 'Pessoa indisponível'}
+                          photoUrl={getPersonPhoto(person)}
+                          size={41}
+                          className={`avatar ${person?.id === profile?.personId ? 'avatar-green' : ''}`}
+                          decorative
+                        />
+                        <div>
+                          <strong>
+                            {person?.name || 'Pessoa indisponível'}
+                            {person?.id === profile?.personId && <span className="you-tag">você</span>}
+                          </strong>
+                          <span>{a.function}</span>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-                {!next.assignments.length && <p className="muted">A equipe ainda não foi definida.</p>}
-              </div>
-              <Link className="team-footer" to={`/cultos/${next.id}`}>
-                Ver escala completa
-                <ArrowRight size={16} />
-              </Link>
-            </section>
+                    );
+                  })}
+                  {!next.assignments.length && <p className="muted">A equipe ainda não foi definida.</p>}
+                </div>
+                <Link className="team-footer" to={`/cultos/${next.id}`}>
+                  Ver escala completa
+                  <ArrowRight size={16} />
+                </Link>
+              </section>
+              {!birthdayToday && <BirthdaysCard people={data.people} today={today} myPersonId={profile?.personId} />}
+            </div>
           </div>
         </>
       ) : (
@@ -224,79 +238,58 @@ export default function HomePage() {
           />
         </section>
       )}
-      <section className="upcoming-section">
-        <div className="section-heading">
-          <h2>Próximos encontros</h2>
-          <Link className="text-link" to="/cultos">
-            Todos os cultos
-            <ArrowRight size={16} />
-          </Link>
-        </div>
-        <div className="upcoming-grid">
-          {upcoming.slice(1, 4).map(service => {
-            const d = dateParts(service.date);
-            return (
-              <Link key={service.id} to={`/cultos/${service.id}`} className="upcoming-card">
-                <span className="date-tile">
-                  <strong>{d.day}</strong>
-                  <span>{d.month}</span>
-                </span>
-                <div>
-                  <h3>{service.type}</h3>
-                  <p>
-                    <Clock3 size={14} />
-                    {service.time}
-                    <span>·</span>
-                    {service.repertoire.length} músicas
-                  </p>
-                </div>
-                <ArrowRight size={18} />
-              </Link>
-            );
-          })}
-          {upcoming.length < 2 && <p className="muted">Os próximos cultos aparecerão aqui.</p>}
-        </div>
-      </section>
-      {profile?.personId ? (
-        <section className="upcoming-section my-assignments" aria-labelledby="my-assignments-title">
-          <div className="section-heading">
-            <h2 id="my-assignments-title">Minhas próximas escalas</h2>
+      {!next && !birthdayToday && <BirthdaysCard people={data.people} today={today} myPersonId={profile?.personId} />}
+      {later.length > 0 && (
+        <section className="card home-upcoming" aria-labelledby="home-upcoming-title">
+          <div className="card-heading">
+            <h2 id="home-upcoming-title">Próximos cultos</h2>
+            <Link className="text-link" to="/cultos">
+              Todos os cultos
+              <ArrowRight size={15} />
+            </Link>
           </div>
-          {myServices.length ? (
-            <div className="upcoming-grid">
-              {myServices.map(({ service, assignments }) => {
-                const d = dateParts(service.date);
-                return (
-                  <Link key={service.id} to={`/cultos/${service.id}`} className="upcoming-card my-assignment-card">
+          <ul className="home-upcoming-list">
+            {later.map(service => {
+              const d = dateParts(service.date);
+              const myAssignments = service.assignments.filter(a => a.personId === profile?.personId);
+              return (
+                <li key={service.id}>
+                  <Link
+                    to={`/cultos/${service.id}`}
+                    className={myAssignments.length ? 'home-upcoming-row home-upcoming-mine' : 'home-upcoming-row'}
+                  >
                     <span className="date-tile">
                       <strong>{d.day}</strong>
                       <span>{d.month}</span>
                     </span>
-                    <div>
-                      <h3>{service.type}</h3>
-                      <p>
-                        <Clock3 size={14} />
-                        {service.time}
-                        <span>·</span>
-                        {assignments.map(a => a.function).join(', ')}
-                      </p>
-                      {presenceEnabled && (
-                        <StatusBadge
-                          assignment={assignments[0]}
-                          unavailableNote={unavailableOn(data, assignments[0].personId, service.date)?.note}
-                        />
-                      )}
-                    </div>
-                    <ArrowRight size={18} />
+                    <span className="home-upcoming-text">
+                      <strong>{service.type}</strong>
+                      <small>
+                        <Clock3 size={13} aria-hidden="true" /> {service.time} · {service.repertoire.length}{' '}
+                        {service.repertoire.length === 1 ? 'música' : 'músicas'} · {service.assignments.length}{' '}
+                        {service.assignments.length === 1 ? 'pessoa' : 'pessoas'}
+                      </small>
+                    </span>
+                    {myAssignments.length > 0 && (
+                      <span className="home-upcoming-you">
+                        <span className="home-you-chip">Você: {myAssignments.map(a => a.function).join(', ')}</span>
+                        {presenceEnabled && (
+                          <StatusBadge
+                            assignment={myAssignments[0]}
+                            unavailableNote={unavailableOn(data, myAssignments[0].personId, service.date)?.note}
+                          />
+                        )}
+                      </span>
+                    )}
+                    <ArrowRight size={16} className="home-upcoming-arrow" aria-hidden="true" />
                   </Link>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="muted">Você não está em nenhuma escala dos próximos cultos.</p>
-          )}
+                </li>
+              );
+            })}
+          </ul>
         </section>
-      ) : (
+      )}
+      {!profile?.personId && (
         <div className="dashboard-stats">
           <div className="stat-card">
             <span className="stat-icon">
