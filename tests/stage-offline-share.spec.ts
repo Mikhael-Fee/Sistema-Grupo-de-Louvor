@@ -137,7 +137,7 @@ test('integrante confirma presença, marca data indisponível e o líder vê os 
   await page.getByRole('button', { name: 'Avisar que não poderei' }).click();
   await expect(page.getByText('Motivo: Viagem')).toBeVisible();
   // Profile: mark the date of the next service as unavailable.
-  await page.goto('/perfil');
+  await page.goto('/perfil?aba=ajustes');
   await page.getByLabel('Data', { exact: true }).fill(service.date);
   await page.getByLabel(/Motivo/).fill('Casamento');
   await page.getByRole('button', { name: 'Marcar data' }).click();
@@ -167,7 +167,7 @@ test('sem a atualização do banco, o app funciona sem os botões de presença',
   await mock.login();
   await expect(page.getByRole('link', { name: 'Abrir culto', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Confirmar presença' })).toHaveCount(0);
-  await page.goto('/perfil');
+  await page.goto('/perfil?aba=ajustes');
   await expect(page.getByText('Datas em que não posso servir')).toHaveCount(0);
 });
 
@@ -190,6 +190,6 @@ test('ao salvar a equipe, o app pede o envio dos avisos e o perfil oferece ativa
   await dialog.getByRole('button', { name: 'Salvar equipe', exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect.poll(() => notices).toEqual([{ body: { serviceId: service.id }, auth: expect.stringMatching(/^Bearer /) }]);
-  await page.goto('/perfil');
+  await page.goto('/perfil?aba=ajustes');
   await expect(page.getByRole('heading', { name: 'Avisos de escala neste aparelho' })).toBeVisible();
 });

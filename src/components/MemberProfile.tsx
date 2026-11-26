@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { BarChart3, Cake, CalendarDays, Check, Headphones, MessageCircle, Mic2, Plus, Save, X } from 'lucide-react';
+import { BarChart3, Cake, CalendarDays, Camera, Check, ChevronDown, Headphones, MessageCircle, Mic2, Plus, Save, X } from 'lucide-react';
 import { useMinistry } from '../context/MinistryContext';
 import ProfileAvatar from './ProfileAvatar';
 import { StatusBadge } from './PresenceButtons';
@@ -26,70 +26,108 @@ const shortDate = (date: string) =>
   new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const sinceLabel = (date: string) => `${shortMonthName(Number(date.slice(5, 7)))}/${date.slice(0, 4)}`;
 
-/** Photo, name, functions, birthday and a quick count of what the person served. */
-export function ProfileHero({ person, name, subtitle, stats }: { person?: Person; name: string; subtitle: string; stats?: PersonStats }) {
+/** Cover with photo, name, functions, birthday, WhatsApp and a quick count of what the person served. */
+export function ProfileHero({
+  person,
+  name,
+  subtitle,
+  stats,
+  photoUrl,
+  editPhotoTo,
+}: {
+  person?: Person;
+  name: string;
+  subtitle: string;
+  stats?: PersonStats;
+  photoUrl?: string;
+  editPhotoTo?: string;
+}) {
   const birthday = person ? formatBirthday(person) : '';
   return (
-    <section className="card member-hero" aria-label="Resumo do perfil">
-      <div className="member-hero-identity">
-        <ProfileAvatar name={name} photoUrl={getPersonPhoto(person)} size={68} className="member-hero-avatar" decorative />
-        <div>
+    <section className="member-hero" aria-label="Resumo do perfil">
+      <div className="member-hero-cover" aria-hidden="true" />
+      <div className="member-hero-body">
+        <div className="member-hero-avatar-wrap">
+          <ProfileAvatar name={name} photoUrl={photoUrl ?? getPersonPhoto(person)} size={88} className="member-hero-avatar" decorative />
+          {editPhotoTo && (
+            <Link to={editPhotoTo} className="member-hero-camera" aria-label="Trocar foto de perfil">
+              <Camera size={15} />
+            </Link>
+          )}
+        </div>
+        <div className="member-hero-text">
           <h2>{name}</h2>
           <p>
             {subtitle}
-            {stats?.since && ` · servindo desde ${sinceLabel(stats.since)}`}
+            {stats?.since && ` · desde ${sinceLabel(stats.since)}`}
           </p>
-          {(birthday || person?.whatsapp) && (
-            <p className="member-hero-meta">
-              {birthday && (
-                <span>
-                  <Cake size={14} aria-hidden="true" /> {birthday}
-                </span>
-              )}
-              {person?.whatsapp && (
-                <a href={whatsappLink(person.whatsapp)} target="_blank" rel="noreferrer" aria-label={`WhatsApp de ${name}`}>
-                  <MessageCircle size={14} aria-hidden="true" /> {formatWhatsapp(person.whatsapp)}
-                </a>
-              )}
-            </p>
-          )}
         </div>
+        {(person?.functions.length || birthday || person?.whatsapp) && (
+          <div className="member-hero-tags">
+            {person?.functions.map(item => (
+              <span key={item} className="member-chip">
+                {item}
+              </span>
+            ))}
+            {birthday && (
+              <span className="member-chip member-chip-soft">
+                <Cake size={13} aria-hidden="true" /> {birthday}
+              </span>
+            )}
+            {person?.whatsapp && (
+              <a
+                className="member-chip member-chip-whatsapp"
+                href={whatsappLink(person.whatsapp)}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`WhatsApp de ${name}`}
+              >
+                <MessageCircle size={13} aria-hidden="true" /> {formatWhatsapp(person.whatsapp)}
+              </a>
+            )}
+          </div>
+        )}
+        {stats && (
+          <dl className="member-stats">
+            <div>
+              <dt>{stats.month === 1 ? 'escala no mês' : 'escalas no mês'}</dt>
+              <dd>{stats.month}</dd>
+            </div>
+            <div>
+              <dt>no ano</dt>
+              <dd>{stats.year}</dd>
+            </div>
+            <div>
+              <dt>{stats.songs === 1 ? 'música tocada' : 'músicas tocadas'}</dt>
+              <dd>{stats.songs}</dd>
+            </div>
+          </dl>
+        )}
       </div>
-      {person && (
-        <div className="member-chips" aria-label="Funções">
-          {person.functions.map(item => (
-            <span key={item} className="member-chip">
-              {item}
-            </span>
-          ))}
-        </div>
-      )}
-      {stats && (
-        <div className="member-stats">
-          <div>
-            <strong>{stats.month}</strong>
-            <span>{stats.month === 1 ? 'escala no mês' : 'escalas no mês'}</span>
-          </div>
-          <div>
-            <strong>{stats.year}</strong>
-            <span>no ano</span>
-          </div>
-          <div>
-            <strong>{stats.songs}</strong>
-            <span>{stats.songs === 1 ? 'música tocada' : 'músicas tocadas'}</span>
-          </div>
-        </div>
-      )}
     </section>
   );
 }
 
-export function UpcomingServicesCard({ personId, today, limit = 4 }: { personId: string; today: string; limit?: number }) {
+/** Shows the first items and a button for the rest, so long lists don't stretch the page. */
+function useShowMore<T>(items: T[], first: number) {
+  const [open, setOpen] = useState(false);
+  const visible = open ? items : items.slice(0, first);
+  const button =
+    items.length > first ? (
+      <button type="button" className="member-more" onClick={() => setOpen(value => !value)}>
+        {open ? 'Mostrar menos' : `Ver todas (${items.length})`}
+        <ChevronDown size={15} className={open ? 'member-more-open' : undefined} aria-hidden="true" />
+      </button>
+    ) : null;
+  return { visible, button };
+}
+
+export function UpcomingServicesCard({ personId, today, limit = 3 }: { personId: string; today: string; limit?: number }) {
   const { data, presenceEnabled } = useMinistry();
-  const upcoming = [...data.services]
+  const all = [...data.services]
     .filter(service => service.date >= today && service.assignments.some(item => item.personId === personId))
-    .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`))
-    .slice(0, limit);
+    .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
+  const { visible: upcoming, button } = useShowMore(all, limit);
   return (
     <section className="card member-card" aria-labelledby="member-upcoming">
       <h2 id="member-upcoming">
@@ -129,14 +167,26 @@ export function UpcomingServicesCard({ personId, today, limit = 4 }: { personId:
       ) : (
         <p className="muted member-empty">Nenhuma escala nos próximos cultos.</p>
       )}
+      {button}
     </section>
   );
 }
 
 export function RehearsalCard({ personId, today }: { personId: string; today: string }) {
   const { data } = useMinistry();
-  const songs = songsToRehearse(data, personId, today).slice(0, 8);
-  if (!songs.length) return null;
+  const { visible: songs, button } = useShowMore(songsToRehearse(data, personId, today), 4);
+  if (!songs.length)
+    return (
+      <section className="card member-card" aria-labelledby="member-rehearsal">
+        <h2 id="member-rehearsal">
+          <span className="member-card-icon">
+            <Headphones size={16} />
+          </span>
+          Para ensaiar
+        </h2>
+        <p className="muted member-empty">Quando você estiver numa escala com repertório, as músicas aparecem aqui.</p>
+      </section>
+    );
   return (
     <section className="card member-card" aria-labelledby="member-rehearsal">
       <h2 id="member-rehearsal">
@@ -164,6 +214,7 @@ export function RehearsalCard({ personId, today }: { personId: string; today: st
           </li>
         ))}
       </ul>
+      {button}
     </section>
   );
 }
@@ -180,6 +231,7 @@ export function SongKeysCard({ personId }: { personId: string }) {
     .map(item => ({ ...item, song: data.songs.find(song => song.id === item.songId) }))
     .filter(item => item.song)
     .sort((a, b) => a.song!.title.localeCompare(b.song!.title, 'pt-BR'));
+  const { visible: shownKeys, button: keysButton } = useShowMore(mine, 5);
   const available = [...data.songs]
     .filter(song => !mine.some(item => item.songId === song.id))
     .sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
@@ -217,7 +269,7 @@ export function SongKeysCard({ personId }: { personId: string }) {
       <p className="member-hint">O tom em que você canta cada música. Quem monta o culto vê como sugestão quando você está na voz.</p>
       {mine.length > 0 && (
         <ul className="member-list">
-          {mine.map(item => (
+          {shownKeys.map(item => (
             <li key={item.songId} className="member-row">
               <span className="member-row-text">
                 <strong>{item.song!.title}</strong>
@@ -247,6 +299,7 @@ export function SongKeysCard({ personId }: { personId: string }) {
           ))}
         </ul>
       )}
+      {keysButton}
       <form className="member-key-form" onSubmit={add}>
         <label className="field">
           Música
@@ -295,19 +348,22 @@ export function HistoryCard({ stats }: { stats: PersonStats }) {
         </span>
         Meu histórico
       </h2>
-      {stats.perMonth.every(item => !item.count) && <p className="member-hint">Nenhuma escala nos últimos seis meses.</p>}
-      <div className="member-bars" role="img" aria-label={stats.perMonth.map(item => `${item.label}: ${item.count}`).join(', ')}>
-        {stats.perMonth.map((item, index) => (
-          <div key={item.month} className="member-bar">
-            <span className="member-bar-value">{item.count || ''}</span>
-            <span
-              className={`member-bar-fill ${index === stats.perMonth.length - 1 ? 'member-bar-current' : ''}`}
-              style={{ height: `${Math.max(4, (item.count / peak) * 100)}%` }}
-            />
-            <span className="member-bar-label">{item.label}</span>
-          </div>
-        ))}
-      </div>
+      {stats.perMonth.every(item => !item.count) ? (
+        <p className="muted member-empty">Nenhuma escala nos últimos seis meses.</p>
+      ) : (
+        <div className="member-bars" role="img" aria-label={stats.perMonth.map(item => `${item.label}: ${item.count}`).join(', ')}>
+          {stats.perMonth.map((item, index) => (
+            <div key={item.month} className="member-bar">
+              <span className="member-bar-value">{item.count || ''}</span>
+              <span
+                className={`member-bar-fill ${index === stats.perMonth.length - 1 ? 'member-bar-current' : ''}`}
+                style={{ height: `${Math.max(4, (item.count / peak) * 100)}%` }}
+              />
+              <span className="member-bar-label">{item.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <ul className="member-list">
         <li className="member-row">
           <span className="member-row-text">
@@ -343,6 +399,12 @@ export function AboutMeForm({ person }: { person: Person }) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const disabled = busy || saving;
+  const changed =
+    name.trim() !== person.name ||
+    FUNCTIONS.filter(item => functions.includes(item)).join() !== FUNCTIONS.filter(item => person.functions.includes(item)).join() ||
+    day !== (person.birthDay ? String(person.birthDay) : '') ||
+    month !== (person.birthMonth ? String(person.birthMonth) : '') ||
+    whatsapp !== formatWhatsapp(person.whatsapp);
   const touch = () => {
     setSaved(false);
     setError(null);
@@ -448,7 +510,7 @@ export function AboutMeForm({ person }: { person: Person }) {
         </p>
         <FormError error={error} />
         <div className="form-actions">
-          <button className="button button-primary" disabled={disabled}>
+          <button className="button button-primary" disabled={disabled || !changed}>
             <Save size={16} />
             {saving ? 'Salvando…' : 'Salvar meus dados'}
           </button>

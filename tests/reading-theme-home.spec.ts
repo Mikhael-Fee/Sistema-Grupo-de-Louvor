@@ -26,7 +26,7 @@ test('início mostra minhas próximas escalas e o tema escuro fica salvo no apar
   await expect(mine.getByRole('link').first()).toContainText(service.type);
   await expect(mine.getByRole('link').first()).toContainText(service.assignments.find(item => item.personId === me.id)!.function);
   await expect(page.locator('.dashboard-stats')).toHaveCount(0);
-  await page.goto('/perfil');
+  await page.goto('/perfil?aba=ajustes');
   await page.getByRole('radio', { name: 'Escuro' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   const background = await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
@@ -60,7 +60,7 @@ test('o tema claro é o padrão mesmo com o aparelho no modo escuro', async ({ p
   const mock = await setupMockMinistry(page, 'musician');
   await mock.login();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await page.goto('/perfil');
+  await page.goto('/perfil?aba=ajustes');
   await expect(page.getByRole('radio', { name: 'Claro' })).toHaveAttribute('aria-checked', 'true');
   await page.getByRole('radio', { name: 'Automático' }).click();
   await page.reload();

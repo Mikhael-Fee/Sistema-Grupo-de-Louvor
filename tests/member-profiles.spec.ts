@@ -34,12 +34,30 @@ test('membro edita o próprio perfil, salva tons e aparece nos aniversariantes',
     assignments: [{ id: '50000000-0000-4000-8000-000000000099', personId: me.id, function: 'Voz' }],
     repertoire: [{ id: '60000000-0000-4000-8000-000000000099', songId: first.id, key: 'G', notes: '' }],
   });
+  // A few recent services, so the six-month chart has bars.
+  [12, 40, 47, 75, 110].forEach((daysAgo, index) => {
+    const date = new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);
+    mock.data.services.push({
+      id: `40000000-0000-4000-8000-0000000001${index}0`,
+      date,
+      time: '18:00',
+      type: 'Culto de Domingo',
+      notes: '',
+      assignments: [{ id: `50000000-0000-4000-8000-0000000001${index}0`, personId: me.id, function: index % 2 ? 'Violão' : 'Voz' }],
+      repertoire: [{ id: `60000000-0000-4000-8000-0000000001${index}0`, songId: mock.data.songs[index % 3].id, key: 'G', notes: '' }],
+    });
+  });
   mock.data.songKeys = [{ personId: me.id, songId: second.id, key: 'A' }];
   await mock.login();
   await page.goto('/perfil');
-  for (const title of ['Minhas próximas escalas', 'Para ensaiar', 'Meus tons', 'Meu histórico', 'Sobre mim'])
+  for (const title of ['Minhas próximas escalas', 'Meu histórico'])
     await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  await shot(page, 'perfil-geral');
+  await page.getByRole('tab', { name: 'Músicas' }).click();
+  for (const title of ['Para ensaiar', 'Meus tons']) await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
   await expect(page.getByLabel(`Meu tom em ${second.title}`)).toHaveValue('A');
+  await page.getByRole('tab', { name: 'Meus dados' }).click();
+  await expect(page).toHaveURL(/aba=dados/);
 
   const { month, day } = todayParts();
   const about = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Sobre mim', exact: true }) });
@@ -59,6 +77,9 @@ test('membro edita o próprio perfil, salva tons e aparece nos aniversariantes',
   expect(saved.functions).toEqual(['Voz', 'Teclado', 'Violão']);
   expect([saved.birthMonth, saved.birthDay, saved.whatsapp]).toEqual([month, day, '5511987654321']);
   await expect(page.getByRole('link', { name: 'WhatsApp de Mikhael' })).toHaveAttribute('href', 'https://wa.me/5511987654321');
+  await page.evaluate(() => scrollTo(0, 0));
+  await shot(page, 'perfil-dados');
+  await page.getByRole('tab', { name: 'Músicas' }).click();
 
   const keys = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Meus tons', exact: true }) });
   await keys.getByLabel('Música').selectOption({ label: first.title });
@@ -71,7 +92,14 @@ test('membro edita o próprio perfil, salva tons e aparece nos aniversariantes',
   expect(mock.data.songKeys).toContainEqual({ personId: me.id, songId: first.id, key: 'E' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.evaluate(() => scrollTo(0, 0));
-  await shot(page, 'perfil-celular');
+  await shot(page, 'perfil-musicas');
+  await page.getByRole('tab', { name: 'Visão geral' }).click();
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await shot(page, 'perfil-geral-escuro');
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await shot(page, 'perfil-computador');
+  await page.setViewportSize({ width: 390, height: 844 });
 
   await page.goto('/');
   const birthdays = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Aniversariantes da semana' }) });
@@ -133,7 +161,9 @@ test('sem a atualização 010 do banco, o perfil continua funcionando sem tons e
   await mock.login();
   await page.goto('/perfil');
   await expect(page.getByRole('heading', { name: 'Minhas próximas escalas', exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: 'Músicas' }).click();
   await expect(page.getByRole('heading', { name: 'Meus tons', exact: true })).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Meus dados' }).click();
   await expect(page.getByRole('heading', { name: 'Sobre mim', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Salvar foto', exact: true })).toBeVisible();
 });

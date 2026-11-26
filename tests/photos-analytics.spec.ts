@@ -78,7 +78,8 @@ test('músico atualiza e remove própria foto preservando papel, aprovação e p
   const before = structuredClone(mock.profiles[0]);
   await expect(page.locator('.topbar-profile-link')).toHaveAttribute('aria-label', 'Meu perfil');
   await page.locator('.topbar-profile-link').click();
-  await expect(page.getByRole('heading', { name: 'Meu perfil', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Meu perfil', exact: true })).toBeAttached();
+  await page.getByRole('link', { name: 'Trocar foto de perfil' }).click();
   await expect(page.getByRole('button', { name: 'Salvar foto', exact: true })).toBeDisabled();
   await page.getByLabel('Escolher foto', { exact: true }).setInputFiles(await photo(page));
   await expect(page.getByRole('status').filter({ hasText: 'Foto pronta.' })).toBeVisible();
