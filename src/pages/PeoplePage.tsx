@@ -9,6 +9,8 @@ import { validatePerson } from '../lib/validation';
 import { normalizeSearch } from '../lib/music';
 import { getPersonPhoto } from '../lib/avatars';
 import { FUNCTIONS, type Person } from '../types';
+import { PersonSummary } from '../components/MemberProfile';
+import { ministryToday } from '../lib/service-calendar';
 import './people.css';
 
 const readableError = (error: unknown) =>
@@ -144,6 +146,7 @@ export default function PeoplePage() {
   const [functionFilter, setFunctionFilter] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   const [editing, setEditing] = useState<Person | null>(null);
+  const [viewing, setViewing] = useState<Person | null>(null);
   const [removing, setRemoving] = useState<Person | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -292,7 +295,11 @@ export default function PeoplePage() {
                     </div>
                   )}
                 </div>
-                <h2>{person.name}</h2>
+                <h2>
+                  <button type="button" className="people-person-open" title="Ver perfil" onClick={() => setViewing(person)}>
+                    {person.name}
+                  </button>
+                </h2>
                 <div className="people-functions">
                   {person.functions.map(fn => (
                     <span className="badge people-function" key={fn}>
@@ -318,6 +325,11 @@ export default function PeoplePage() {
             )
           }
         />
+      )}
+      {viewing && (
+        <Modal title={`Perfil de ${viewing.name}`} onClose={() => setViewing(null)}>
+          <PersonSummary person={data.people.find(person => person.id === viewing.id) ?? viewing} today={ministryToday()} />
+        </Modal>
       )}
       {editing && (
         <Modal

@@ -149,7 +149,8 @@ test('integrante confirma presença, marca data indisponível e o líder vê os 
   await page.goto(`/cultos/${service.id}`);
   const row = page.locator('.service-team-list li').filter({ hasText: me.name }).first();
   await expect(row.getByText('Não poderá')).toBeVisible();
-  await expect(row.getByText('Marcou indisponível')).toBeVisible();
+  // The answer already says it; the unavailable date does not add a second badge.
+  await expect(row.getByText('Marcou indisponível')).toHaveCount(0);
   await page.getByRole('button', { name: /Editar equipe|Selecionar equipe/ }).click();
   await expect(page.getByText('Indisponível neste dia: Casamento').first()).toBeVisible();
 });

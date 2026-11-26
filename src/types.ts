@@ -20,6 +20,17 @@ export interface Person {
   photoUrl?: string;
   accountPhotoUrl?: string;
   active?: boolean;
+  /** Birthday without the year (migration 010). */
+  birthMonth?: number;
+  birthDay?: number;
+  /** Digits only, with the country code (migration 010). */
+  whatsapp?: string;
+}
+/** The key one person sings a song in (migration 010). */
+export interface PersonSongKey {
+  personId: string;
+  songId: string;
+  key: string;
 }
 export interface Song {
   id: string;
@@ -70,6 +81,7 @@ export interface MinistryData {
   people: Person[];
   services: Service[];
   /** Absent until the database update is applied. */ unavailability?: Unavailability[];
+  /** Absent until migration 010 is applied. */ songKeys?: PersonSongKey[];
 }
 export const ROLE_LABELS: Record<Role, string> = { admin: 'Administrador', leader: 'Líder', musician: 'Músico / vocalista' };
 export const FUNCTIONS = ['Voz', 'Teclado', 'Violão', 'Guitarra', 'Baixo', 'Bateria', 'Percussão'];

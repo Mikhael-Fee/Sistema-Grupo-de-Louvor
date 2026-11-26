@@ -11,8 +11,19 @@ export function unavailableOn(data: Pick<MinistryData, 'unavailability'>, person
   return data.unavailability?.find(item => item.personId === personId && item.date === date);
 }
 
-export function presenceSummary(assignments: Assignment[]): { confirmed: number; declined: number; pending: number } {
-  const count = (status: AssignmentStatus) => assignments.filter(item => (item.status ?? 'pending') === status).length;
+/**
+ * Counts answers. Someone who has not answered but marked the date as unavailable
+ * already said they cannot serve, so they count as "não poderão", not "aguardando".
+ */
+export function presenceSummary(
+  assignments: Assignment[],
+  isUnavailable: (personId: string) => boolean = () => false,
+): { confirmed: number; declined: number; pending: number } {
+  const shown = (item: Assignment): AssignmentStatus => {
+    const status = item.status ?? 'pending';
+    return status === 'pending' && isUnavailable(item.personId) ? 'declined' : status;
+  };
+  const count = (status: AssignmentStatus) => assignments.filter(item => shown(item) === status).length;
   return { confirmed: count('confirmed'), declined: count('declined'), pending: count('pending') };
 }
 

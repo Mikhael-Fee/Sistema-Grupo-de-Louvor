@@ -25,6 +25,19 @@ describe('presença e datas indisponíveis', () => {
       ]),
     ).toEqual({ confirmed: 1, declined: 1, pending: 1 });
   });
+  it('quem marcou a data como indisponível e não respondeu conta como "não poderão", não como aguardando', () => {
+    const away = (personId: string) => Boolean(unavailableOn(data, personId, '2026-12-06'));
+    expect(
+      presenceSummary(
+        [
+          { id: 'a', personId: 'p1', function: 'Teclado' },
+          { id: 'b', personId: 'p3', function: 'Voz' },
+          { id: 'c', personId: 'p2', function: 'Voz', status: 'confirmed' },
+        ],
+        away,
+      ),
+    ).toEqual({ confirmed: 1, declined: 1, pending: 1 });
+  });
   it('lista só as próximas datas da pessoa, em ordem', () => {
     expect(upcomingUnavailability(data, 'p1', '2026-11-25').map(item => item.date)).toEqual(['2026-11-29', '2026-12-06']);
   });

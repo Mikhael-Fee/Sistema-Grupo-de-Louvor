@@ -1,10 +1,48 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, CalendarDays, Clock3, Music2, Users, Plus, Check } from 'lucide-react';
+import { ArrowRight, Cake, CalendarDays, Clock3, Music2, Users, Plus, Check } from 'lucide-react';
 import { useMinistry } from '../context/MinistryContext';
 import { EmptyState, PageHeader } from '../components/ui';
 import ProfileAvatar from '../components/ProfileAvatar';
 import { getPersonPhoto } from '../lib/avatars';
 import PresenceButtons, { StatusBadge } from '../components/PresenceButtons';
+import { upcomingBirthdays } from '../lib/member-profile';
+import { unavailableOn } from '../lib/presence';
+import type { Person } from '../types';
+import '../components/member-profile.css';
+
+function birthdayWhen(person: Person, inDays: number) {
+  if (inDays === 0) return 'Hoje! 🎉';
+  if (inDays === 1) return 'Amanhã';
+  const date = new Date(Date.UTC(2000, person.birthMonth! - 1, person.birthDay!));
+  return sentenceCase(date.toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit' })) + ` · em ${inDays} dias`;
+}
+
+/** Team birthdays in the next seven days. */
+function BirthdaysCard({ people, today, myPersonId }: { people: Person[]; today: string; myPersonId?: string }) {
+  const birthdays = upcomingBirthdays(people, today, 7);
+  if (!birthdays.length) return null;
+  return (
+    <section className="card member-birthdays" aria-labelledby="birthdays-title">
+      <h2 id="birthdays-title" className="member-card-title">
+        <Cake size={18} aria-hidden="true" /> Aniversariantes da semana
+      </h2>
+      <ul>
+        {birthdays.map(({ person, inDays }) => (
+          <li key={person.id} className={inDays === 0 ? 'member-birthday-today' : undefined}>
+            <ProfileAvatar name={person.name} photoUrl={getPersonPhoto(person)} size={36} decorative />
+            <span>
+              <strong>
+                {person.name}
+                {person.id === myPersonId && <span className="you-tag">você</span>}
+              </strong>
+              <small>{birthdayWhen(person, inDays)}</small>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 export function dateParts(date: string) {
   const value = new Date(`${date}T12:00:00`);
@@ -50,6 +88,7 @@ export default function HomePage() {
           ) : undefined
         }
       />
+      <BirthdaysCard people={data.people} today={today} myPersonId={profile?.personId} />
       {next ? (
         <>
           <section className="next-service">
@@ -241,7 +280,12 @@ export default function HomePage() {
                         <span>·</span>
                         {assignments.map(a => a.function).join(', ')}
                       </p>
-                      {presenceEnabled && <StatusBadge assignment={assignments[0]} />}
+                      {presenceEnabled && (
+                        <StatusBadge
+                          assignment={assignments[0]}
+                          unavailableNote={unavailableOn(data, assignments[0].personId, service.date)?.note}
+                        />
+                      )}
                     </div>
                     <ArrowRight size={18} />
                   </Link>

@@ -91,13 +91,23 @@ export default function PresenceButtons({ assignments, tone = 'light' }: { assig
 
 export function StatusBadge({ assignment, unavailableNote }: { assignment: Assignment; unavailableNote?: string }) {
   const status = assignment.status ?? 'pending';
+  const unavailable = unavailableNote !== undefined;
+  // Marked the date as unavailable and never answered: that is the answer, not "Aguardando".
+  if (status === 'pending' && unavailable)
+    return (
+      <span className="presence-badges">
+        <span className="presence-status presence-unavailable" title={unavailableNote || undefined}>
+          Marcou indisponível
+        </span>
+      </span>
+    );
   return (
     <span className="presence-badges">
       <span className={`presence-status presence-${status}`} title={assignment.statusNote || undefined}>
         {status === 'confirmed' ? <Check size={12} /> : status === 'declined' ? <X size={12} /> : null}
         {status === 'pending' ? 'Aguardando' : STATUS_LABELS[status]}
       </span>
-      {unavailableNote !== undefined && (
+      {unavailable && status === 'confirmed' && (
         <span className="presence-status presence-unavailable" title={unavailableNote || undefined}>
           Marcou indisponível
         </span>

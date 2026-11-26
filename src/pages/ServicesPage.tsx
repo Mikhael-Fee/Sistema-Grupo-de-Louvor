@@ -24,6 +24,8 @@ import { validateService } from '../lib/validation';
 import { getPersonPhoto } from '../lib/avatars';
 import { ministryToday } from '../lib/service-calendar';
 import { unavailableOn } from '../lib/presence';
+import { servicesInMonth, singerKeys } from '../lib/member-profile';
+import '../components/member-profile.css';
 import { SERVICE_TYPES, type Assignment, type Person, type Service, type SetlistItem, type Song } from '../types';
 import './services.css';
 
@@ -90,6 +92,7 @@ export function RepertoirePicker({
   onChange: (value: RepertoirePickerDraft) => void;
   disabled: boolean;
 }) {
+  const { data } = useMinistry();
   const normalize = (text: string) =>
     text
       .normalize('NFD')
@@ -160,6 +163,14 @@ export function RepertoirePicker({
                 <strong>{song.title}</strong>
                 <small>{song.artist}</small>
                 {included && <small>Já no repertório</small>}
+                {(() => {
+                  const keys = singerKeys(data, service, song.id);
+                  return keys.length ? (
+                    <small className="service-song-singers">
+                      {keys.map(item => `${item.person.name.split(' ')[0]} canta em ${item.key}`).join(' · ')}
+                    </small>
+                  ) : null;
+                })()}
               </span>
               <span className="service-key">{song.churchKey || song.originalKey}</span>
             </label>
@@ -355,6 +366,16 @@ export function TeamPicker({
                   <strong>{person.name}</strong>
                   <small>{person.functions.join(' · ') || 'Sem função'}</small>
                   {person.active === false && <small className="service-batch-archived">Fora da equipe ativa</small>}
+                  {person.active !== false &&
+                    (() => {
+                      const count = servicesInMonth(data.services, person.id, service.date, service.id);
+                      const level = count === 0 ? 'low' : count >= 3 ? 'high' : 'mid';
+                      return (
+                        <small className={`service-batch-month service-batch-month-${level}`}>
+                          {count === 0 ? 'Ainda não serviu neste mês' : `${count}× neste mês`}
+                        </small>
+                      );
+                    })()}
                   {(() => {
                     const away = unavailableOn(data, person.id, service.date);
                     return away ? (

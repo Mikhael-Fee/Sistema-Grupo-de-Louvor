@@ -53,6 +53,8 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
   };
   // Migration 008 (presence and unavailable dates) is installed in the simulated project.
   mock.data.unavailability ??= [];
+  // Migration 010 (member profiles: birthdays, WhatsApp, keys per singer) too.
+  mock.data.songKeys ??= [];
   mock.profiles[0].personId = mock.data.people[0]?.id;
   mock.profiles[1].personId = mock.data.people[1]?.id;
   mock.profiles[2].personId = mock.data.people[3]?.id;
@@ -128,7 +130,16 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
       case 'tags':
         return mock.data.tags.map(tag => ({ ...tag }));
       case 'people':
-        return mock.data.people.map(person => ({ ...person, photo_url: person.photoUrl || '' }));
+        return mock.data.people.map(person => ({
+          ...person,
+          photo_url: person.photoUrl || '',
+          birth_month: person.birthMonth ?? null,
+          birth_day: person.birthDay ?? null,
+          whatsapp: person.whatsapp ?? '',
+        }));
+      case 'person_song_keys':
+        if (!mock.data.songKeys) return undefined;
+        return mock.data.songKeys.map(item => ({ person_id: item.personId, song_id: item.songId, key: item.key }));
       case 'songs':
         return mock.data.songs.map(song => ({
           id: song.id,
@@ -333,6 +344,44 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
         mock.data.unavailability = body.p_unavailable
           ? [...others, { id: crypto.randomUUID(), personId, date, note: String(body.p_note || '').trim() }]
           : others;
+        return respond(route, null);
+      }
+      if (rpc === 'update_my_person') {
+        if (!authorized('read')) return denied(route);
+        const personId = actor().personId;
+        const previous = mock.data.people.find(person => person.id === personId);
+        if (!previous) return denied(route);
+        const next = body.p_person as {
+          name: string;
+          functions: string[];
+          birthMonth: number | null;
+          birthDay: number | null;
+          whatsapp: string;
+        };
+        if (
+          mock.data.services.some(service =>
+            service.assignments.some(assignment => assignment.personId === personId && !next.functions.includes(assignment.function)),
+          )
+        )
+          return error(route, '23514', 'Esta função está em uma escala. Ajuste a escala antes de removê-la.');
+        const { birthMonth: _month, birthDay: _day, whatsapp: _whatsapp, ...rest } = previous;
+        mock.data.people = put(mock.data.people, {
+          ...rest,
+          name: next.name.trim(),
+          functions: next.functions,
+          ...(next.birthMonth && next.birthDay ? { birthMonth: next.birthMonth, birthDay: next.birthDay } : {}),
+          ...(next.whatsapp ? { whatsapp: next.whatsapp } : {}),
+        });
+        actor().name = next.name.trim();
+        return respond(route, null);
+      }
+      if (rpc === 'set_song_key') {
+        if (!authorized('read')) return denied(route);
+        const personId = String(body.p_person_id);
+        const songId = String(body.p_song_id);
+        if (!authorized('plan') && actor().personId !== personId) return denied(route);
+        const others = (mock.data.songKeys ?? []).filter(item => !(item.personId === personId && item.songId === songId));
+        mock.data.songKeys = body.p_key ? [...others, { personId, songId, key: String(body.p_key) }] : others;
         return respond(route, null);
       }
       if (rpc === 'update_profile') {
