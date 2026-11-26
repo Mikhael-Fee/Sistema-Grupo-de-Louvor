@@ -53,3 +53,14 @@ body .songs-source-search>.cifra-pdf-picker{margin:0;border:0;border-bottom:1px 
 /* Início: the next service comes first; the totals move to the end of the page. */
 body .upcoming-section+.dashboard-stats,body .empty-state+.dashboard-stats{margin:26px 0 0}
 @media(max-width:700px){body a.button[href="/cultos?novo=1"]{display:none}}
+
+/* Background texture behind the cards: a fine dot grid with two soft glows.
+   Colors come from the theme tokens, so the dark theme follows on its own. */
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background-image:
+    radial-gradient(circle at 1px 1px,color-mix(in srgb,var(--text) 10%,transparent) 1px,transparent 1.5px),
+    radial-gradient(70rem 34rem at 100% -8%,color-mix(in srgb,var(--flame) 9%,transparent),transparent 70%),
+    radial-gradient(60rem 32rem at -10% 108%,color-mix(in srgb,var(--navy) 7%,transparent),transparent 70%);
+  background-size:22px 22px,auto,auto;
+  -webkit-mask-image:linear-gradient(180deg,#000 0,#000 55%,#0009 100%);mask-image:linear-gradient(180deg,#000 0,#000 55%,#0009 100%)}
+@media print{body::before{display:none}}

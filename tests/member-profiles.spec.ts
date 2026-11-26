@@ -165,5 +165,6 @@ test('sem a atualização 010 do banco, o perfil continua funcionando sem tons e
   await expect(page.getByRole('heading', { name: 'Meus tons', exact: true })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Meus dados' }).click();
   await expect(page.getByRole('heading', { name: 'Sobre mim', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Salvar foto', exact: true })).toBeVisible();
+  await expect(page.getByText('Seus dados aparecem aqui assim que o banco do app for atualizado.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Alterar foto de perfil', exact: true })).toBeVisible();
 });

@@ -70,7 +70,8 @@ test('admin retira e reativa pessoa escalada sem apagar histórico, fotos ou con
   await expect(historicalRow).toBeVisible();
   await expect(historicalRow.getByText(person.name, { exact: true })).toBeVisible();
   const historicalPhoto = historicalRow.locator('img');
-  await expect(historicalPhoto).toHaveAttribute('src', person.photoUrl);
+  // The photo the member chose in their own profile wins over the team photo.
+  await expect(historicalPhoto).toHaveAttribute('src', account.photoUrl!);
   await historicalPhoto.scrollIntoViewIfNeeded();
   await expect.poll(() => historicalPhoto.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(1);
   await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
@@ -83,7 +84,7 @@ test('admin retira e reativa pessoa escalada sem apagar histórico, fotos ou con
   const status = page.getByRole('combobox', { name: 'Situação na equipe', exact: true });
   await status.selectOption('archived');
   await expect(personCard(page, person.name)).toBeVisible();
-  await expect(personCard(page, person.name).locator('img')).toHaveAttribute('src', person.photoUrl);
+  await expect(personCard(page, person.name).locator('img')).toHaveAttribute('src', account.photoUrl!);
   await personCard(page, person.name)
     .getByRole('button', { name: `Reativar ${person.name}`, exact: true })
     .click();

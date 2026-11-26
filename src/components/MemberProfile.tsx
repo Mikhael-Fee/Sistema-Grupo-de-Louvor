@@ -1,11 +1,29 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { BarChart3, Cake, CalendarDays, Camera, Check, ChevronDown, Headphones, MessageCircle, Mic2, Plus, Save, X } from 'lucide-react';
+import {
+  AlertCircle,
+  BarChart3,
+  Cake,
+  CalendarDays,
+  Camera,
+  Check,
+  ChevronDown,
+  Headphones,
+  ImageUp,
+  LoaderCircle,
+  MessageCircle,
+  Mic2,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useMinistry } from '../context/MinistryContext';
 import ProfileAvatar from './ProfileAvatar';
 import { StatusBadge } from './PresenceButtons';
 import { FormError } from './ui';
 import { getPersonPhoto } from '../lib/avatars';
+import { PHOTO_INPUT_ACCEPT, preprocessProfilePhoto } from '../lib/profile-photo';
 import { KEYS } from '../lib/music';
 import { unavailableOn } from '../lib/presence';
 import {
@@ -33,14 +51,16 @@ export function ProfileHero({
   subtitle,
   stats,
   photoUrl,
-  editPhotoTo,
+  photoAction,
+  notice,
 }: {
   person?: Person;
   name: string;
   subtitle: string;
   stats?: PersonStats;
   photoUrl?: string;
-  editPhotoTo?: string;
+  photoAction?: ReactNode;
+  notice?: PhotoNotice | null;
 }) {
   const birthday = person ? formatBirthday(person) : '';
   return (
@@ -49,17 +69,17 @@ export function ProfileHero({
       <div className="member-hero-body">
         <div className="member-hero-avatar-wrap">
           <ProfileAvatar name={name} photoUrl={photoUrl ?? getPersonPhoto(person)} size={88} className="member-hero-avatar" decorative />
-          {editPhotoTo && (
-            <Link to={editPhotoTo} className="member-hero-camera" aria-label="Trocar foto de perfil">
-              <Camera size={15} />
-            </Link>
-          )}
+          {photoAction}
         </div>
         <div className="member-hero-text">
           <h2>{name}</h2>
           <p>
             {subtitle}
             {stats?.since && ` · desde ${sinceLabel(stats.since)}`}
+          </p>
+          <p className={`member-hero-notice ${notice?.kind === 'error' ? 'member-hero-notice-error' : ''}`} role="status">
+            {notice && (notice.kind === 'ok' ? <Check size={14} aria-hidden="true" /> : <AlertCircle size={14} aria-hidden="true" />)}
+            {notice?.text}
           </p>
         </div>
         {(person?.functions.length || birthday || person?.whatsapp) && (
@@ -105,6 +125,133 @@ export function ProfileHero({
         )}
       </div>
     </section>
+  );
+}
+
+export type PhotoNotice = { kind: 'ok' | 'error' | 'busy'; text: string };
+
+/** Camera on the cover: choosing a photo saves it right away; the menu also removes it. */
+export function HeroPhotoButton({
+  hasOwnPhoto,
+  hasTeamPhoto,
+  onNotice,
+}: {
+  hasOwnPhoto: boolean;
+  hasTeamPhoto: boolean;
+  onNotice: (notice: PhotoNotice | null) => void;
+}) {
+  const { busy, updateProfilePhoto } = useMinistry();
+  const [open, setOpen] = useState(false);
+  const [working, setWorking] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const menuId = useId();
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!wrap.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      button.current?.focus();
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open]);
+  const blocked = busy || working;
+
+  async function save(photo: Blob | null, prepare?: () => Promise<Blob>) {
+    setWorking(true);
+    onNotice({ kind: 'busy', text: photo === null && !prepare ? 'Removendo foto…' : 'Salvando foto…' });
+    try {
+      await updateProfilePhoto(prepare ? await prepare() : photo);
+      onNotice({
+        kind: 'ok',
+        text: prepare
+          ? 'Foto atualizada. Ela já aparece para a equipe.'
+          : hasTeamPhoto
+            ? 'Foto removida. Voltamos a usar a foto da equipe.'
+            : 'Foto removida.',
+      });
+    } catch (cause) {
+      onNotice({ kind: 'error', text: cause instanceof Error ? cause.message : 'Não foi possível salvar a foto. Tente novamente.' });
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  function choose(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || blocked) return;
+    void save(null, () => preprocessProfilePhoto(file));
+  }
+
+  return (
+    <div className="member-hero-camera-wrap" ref={wrap}>
+      <input
+        ref={input}
+        className="member-hero-file"
+        type="file"
+        accept={PHOTO_INPUT_ACCEPT}
+        aria-label="Escolher foto"
+        tabIndex={-1}
+        disabled={blocked}
+        onChange={choose}
+      />
+      <button
+        ref={button}
+        type="button"
+        className="member-hero-camera"
+        aria-label="Alterar foto de perfil"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        disabled={blocked}
+        onClick={() => {
+          if (!hasOwnPhoto) {
+            input.current?.click();
+            return;
+          }
+          setOpen(value => !value);
+        }}
+      >
+        {working ? <LoaderCircle size={15} className="spin" /> : <Camera size={15} />}
+      </button>
+      {open && (
+        <div className="member-photo-menu" id={menuId} role="menu" aria-label="Foto de perfil">
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              input.current?.click();
+            }}
+          >
+            <ImageUp size={16} aria-hidden="true" />
+            Escolher nova foto
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="member-photo-menu-danger"
+            onClick={() => {
+              setOpen(false);
+              void save(null);
+            }}
+          >
+            <Trash2 size={16} aria-hidden="true" />
+            Remover foto
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

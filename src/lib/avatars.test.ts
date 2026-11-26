@@ -16,10 +16,14 @@ const profile = (photos: Partial<Profile> = {}): Profile => ({
 const data = (people: Person[]): MinistryData => ({ people, songs: [], tags: [], services: [] });
 
 describe('fotos próprias e vinculadas', () => {
-  it('prioriza a foto própria da pessoa sem modificar a foto da conta', () => {
+  it('prioriza a foto que o membro escolheu no próprio perfil sem apagar a foto da equipe', () => {
     const linkedPerson = Object.freeze(person({ photoUrl: PERSON_PHOTO, accountPhotoUrl: ACCOUNT_PHOTO }));
-    expect(getPersonPhoto(linkedPerson)).toBe(PERSON_PHOTO);
+    expect(getPersonPhoto(linkedPerson)).toBe(ACCOUNT_PHOTO);
     expect(linkedPerson).toMatchObject({ photoUrl: PERSON_PHOTO, accountPhotoUrl: ACCOUNT_PHOTO });
+  });
+
+  it('usa a foto da equipe quando o membro não tem foto no perfil', () => {
+    expect(getPersonPhoto(person({ photoUrl: PERSON_PHOTO, accountPhotoUrl: '' }))).toBe(PERSON_PHOTO);
   });
 
   it('usa a foto da conta quando a pessoa não possui uma foto própria', () => {

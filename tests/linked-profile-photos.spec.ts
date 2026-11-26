@@ -69,8 +69,9 @@ test('foto cadastrada na pessoa aparece no painel, escala, seleção de equipe e
   await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await page.goto('/perfil');
   await expectPhoto(page.locator('.member-hero'), personPhoto);
-  await page.getByRole('tab', { name: 'Meus dados' }).click();
-  await expect(page.getByRole('button', { name: 'Remover foto', exact: true })).toHaveCount(0);
+  // Without an own photo the camera goes straight to the file picker, so there is nothing to remove.
+  await expect(page.getByRole('button', { name: 'Alterar foto de perfil', exact: true })).not.toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('menuitem', { name: 'Remover foto' })).toHaveCount(0);
   expect(mock.profiles[0].photoUrl).toBeUndefined();
   expect(
     mock.calls.filter(call => call.method === 'POST' && /\/rpc\/(?:save_service|update_my_profile_photo|update_profile)$/.test(call.path)),
@@ -123,7 +124,7 @@ test('administrador vincula selfie à pessoa; desvincular ou suspender acesso re
   expect(mock.profiles[2].photoUrl).toBe(selfie);
 });
 
-test('foto própria da pessoa tem prioridade na equipe; remover selfie usa cadastro sem apagá-lo', async ({ page }) => {
+test('foto do perfil do membro aparece na equipe; remover a foto volta para a foto da equipe sem apagá-la', async ({ page }) => {
   const mock = await setupMockMinistry(page);
   await page.goto('/');
   const person = mock.data.people[0];
@@ -134,15 +135,17 @@ test('foto própria da pessoa tem prioridade na equipe; remover selfie usa cadas
   await mock.login();
   await expectPhoto(page.locator('.topbar-profile-link'), selfie);
   await expectNextService(page, mock);
-  await expectPhoto(homeTeamRow(page, person.name), personPhoto);
+  await expectPhoto(homeTeamRow(page, person.name), selfie);
   await page.goto('/pessoas');
-  await expectPhoto(personCard(page, person.name), personPhoto);
-  await page.goto('/perfil?aba=dados');
-  await page.getByRole('button', { name: 'Remover foto', exact: true }).click();
-  await expectPhoto(page.locator('.photo-picker'), personPhoto);
-  expect(mock.profiles[0].photoUrl).toBe(selfie);
-  await page.getByRole('button', { name: 'Salvar foto', exact: true }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Foto atualizada.' })).toBeVisible();
+  await expectPhoto(personCard(page, person.name), selfie);
+  await page.goto(`/cultos/${mock.data.services[0].id}`);
+  await expectPhoto(teamRow(page, person.name), selfie);
+  await page.goto('/perfil');
+  await expectPhoto(page.locator('.member-hero'), selfie);
+  await page.getByRole('button', { name: 'Alterar foto de perfil', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Remover foto' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Voltamos a usar a foto da equipe.' })).toBeVisible();
+  await expectPhoto(page.locator('.member-hero'), personPhoto);
   await expectPhoto(page.locator('.topbar-profile-link'), personPhoto);
   expect(mock.profiles[0].photoUrl).toBeUndefined();
   expect(mock.data.people[0].photoUrl).toBe(personPhoto);
