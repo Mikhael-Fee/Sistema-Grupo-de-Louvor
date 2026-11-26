@@ -68,6 +68,8 @@ try {
     '010_member_profiles.sql',
     '011_song_suggestions.sql',
     '011_song_suggestions.sql', // re-running is safe
+    '012_suggestion_approval_notifications.sql',
+    '012_suggestion_approval_notifications.sql', // re-running is safe
   ]) {
     await db.exec(await readFile(new URL(`../../supabase/migrations/${migration}`, import.meta.url), 'utf8'));
   }
@@ -175,6 +177,23 @@ try {
   await as('leader');
   await db.query('select public.approve_song_suggestion($1,null,$2)', [second, songId]);
   equal((await read()).find(item => item.id === second).songId, songId);
+
+  // Migration 012: the author of an approved suggestion is notified once, by a leader.
+  await as('musician');
+  await db.query("select public.save_push_subscription('https://push.example.test/send/musician', $1, 'auth-secret-01')", ['p'.repeat(30)]);
+  await rejected('select * from public.claim_suggestion_approval_notification($1)', [first]);
+  await as('leader');
+  const claimed = (await db.query('select * from public.claim_suggestion_approval_notification($1)', [first])).rows;
+  equal(
+    claimed.map(item => [item.suggestion_id, item.title, item.song_id, item.subscriptions.map(device => device.endpoint)]),
+    [[first, 'Lugar Secreto', songId, ['https://push.example.test/send/musician']]],
+  );
+  equal((await db.query('select * from public.claim_suggestion_approval_notification($1)', [first])).rows, [], 'sent only once');
+  equal(
+    (await db.query('select subscriptions from public.claim_suggestion_approval_notification($1)', [second])).rows,
+    [{ subscriptions: [] }],
+    'author without devices',
+  );
   const third = await create('qqqqqqqqqqq', 'Terceira');
   await db.query("select public.set_song_suggestion_status($1,'declined','Fora do nosso estilo')", [third]);
   row = (await read()).find(item => item.id === third);

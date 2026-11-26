@@ -5,7 +5,7 @@ import { KEYS } from '../lib/music';
 import { validatePerson, validateService, validateSong, validateTag } from '../lib/validation';
 import { clearSnapshot, isConnectionFailure, readSnapshot, saveSnapshot } from '../lib/offline-snapshot';
 import { ministryToday } from '../lib/service-calendar';
-import { disablePush, notifyNewAssignments } from '../lib/push-notifications';
+import { disablePush, notifyNewAssignments, notifySuggestionApproved } from '../lib/push-notifications';
 import type { AssignmentStatus, MinistryData, Person, Profile, Service, Song, Tag } from '../types';
 
 const EMPTY: MinistryData = { songs: [], tags: [], people: [], services: [] };
@@ -437,6 +437,7 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
       await mutate('plan', ['suggestions', 'songs'], async () => {
         created = await repository.approveSuggestion(id, songId ? null : key, songId);
       });
+      if (supabase) void notifySuggestionApproved(id);
       return created;
     },
     async deleteSuggestion(id) {

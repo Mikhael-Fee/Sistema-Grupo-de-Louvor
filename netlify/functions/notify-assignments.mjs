@@ -1,4 +1,5 @@
 // Tell people they were added to a scale: one e-mail and one phone notification per person.
+// Also tells the author of a song suggestion that it was approved (phone notification only).
 // Supabase decides who is new (claim_assignment_notifications), so the caller must be a
 // leader or administrator and nothing is sent twice. Standalone: no npm imports, because
 // the direct deployment helper bundles one .mjs per function.
@@ -221,6 +222,52 @@ function siteAddress() {
   return 'https://louvor-grupo-fxebsy.netlify.app';
 }
 
+export function approvalContent(row) {
+  const title = clean(row.title) || 'Sua sugestão';
+  return {
+    title: 'Sua sugestão foi aprovada',
+    body: `"${title}" entrou na Biblioteca do Candeia. Obrigado pela sugestão!`,
+    url: row.song_id && UUID.test(String(row.song_id)) ? `/musicas/${row.song_id}` : '/sugestoes',
+  };
+}
+
+// Tell whoever suggested a song that a leader approved it. Phone notification only.
+// Supabase checks that the caller is a leader and hands the notice out once.
+async function notifySuggestionApproved(token, suggestionId, keys) {
+  const config = supabaseConfiguration();
+  if (!config || !keys) return reply(200, { pushes: 0, configured: false });
+  let rows;
+  try {
+    const response = await rpc(config, token, 'claim_suggestion_approval_notification', { p_suggestion_id: suggestionId });
+    if (response.status === 401 || response.status === 403) return reply(403, { error: 'Apenas líderes e administradores enviam este aviso.' });
+    if (!response.ok) {
+      const failure = await response.json().catch(() => null);
+      if (failure?.code === '42501') return reply(403, { error: 'Apenas líderes e administradores enviam este aviso.' });
+      throw new Error('claim');
+    }
+    rows = await response.json();
+    if (!Array.isArray(rows)) throw new Error('claim');
+  } catch {
+    return reply(503, { error: 'Não foi possível preparar o aviso agora.' });
+  }
+  let pushes = 0;
+  const gone = [];
+  for (const row of rows.slice(0, 1)) {
+    const content = approvalContent(row);
+    for (const subscription of Array.isArray(row.subscriptions) ? row.subscriptions.slice(0, 10) : []) {
+      try {
+        const result = await sendPush(keys, subscription, content);
+        if (result === 'sent') pushes++;
+        else if (result === 'gone') gone.push(subscription.endpoint);
+      } catch {
+        /* a broken device never blocks the others */
+      }
+    }
+  }
+  if (gone.length) await rpc(config, token, 'forget_push_subscriptions', { p_endpoints: gone }).catch(() => null);
+  return reply(200, { pushes, configured: true });
+}
+
 export async function handler(event) {
   const keys = vapidKeys();
   if (event.httpMethod === 'GET') return reply(200, { publicKey: keys?.publicKey || null });
@@ -229,11 +276,13 @@ export async function handler(event) {
   const token = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/i.exec(authorization)?.[1];
   if (!token || token.length > 4096) return reply(401, { error: 'Entre na sua conta para enviar avisos.' });
   let serviceId;
+  let suggestionId;
   try {
-    serviceId = JSON.parse(event.body || '{}')?.serviceId;
+    ({ serviceId, suggestionId } = JSON.parse(event.body || '{}') || {});
   } catch {
     /* below */
   }
+  if (typeof suggestionId === 'string' && UUID.test(suggestionId)) return notifySuggestionApproved(token, suggestionId, keys);
   if (typeof serviceId !== 'string' || !UUID.test(serviceId)) return reply(400, { error: 'Informe o culto.' });
   const config = supabaseConfiguration();
   const provider = emailProvider();
