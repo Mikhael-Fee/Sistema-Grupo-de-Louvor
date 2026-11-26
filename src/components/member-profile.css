@@ -6,7 +6,19 @@
 .member-hero-avatar-wrap{grid-area:avatar;position:relative;margin:-40px 0 0 4px;width:88px;height:88px}
 .member-hero-avatar{box-shadow:0 0 0 4px var(--surface),0 8px 24px #14253830}
 .member-hero-camera{position:absolute;right:-4px;bottom:-2px;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 2px 8px #14253820}
-.member-hero-camera:hover{color:var(--flame)}
+.member-hero-camera:hover:not(:disabled){color:var(--flame)}
+.member-hero-camera{cursor:pointer;padding:0}
+.member-hero-camera:disabled{cursor:progress;opacity:.85}
+.member-hero-camera-wrap{position:absolute;right:-4px;bottom:-2px;width:32px;height:32px}
+.member-hero-camera-wrap .member-hero-camera{right:0;bottom:0}
+.member-hero-file{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.member-photo-menu{position:absolute;top:calc(100% + 8px);left:-8px;z-index:20;min-width:200px;display:flex;flex-direction:column;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 32px #14253833}
+.member-photo-menu button{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;border:0;border-radius:10px;background:transparent;color:var(--text);font:inherit;font-size:14px;font-weight:600;text-align:left;cursor:pointer}
+.member-photo-menu button:hover,.member-photo-menu button:focus-visible{background:var(--green-light)}
+.member-photo-menu .member-photo-menu-danger{color:var(--c-a33d33ff)}
+.member-hero-notice{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--c-39754aff);margin:6px 0 0}
+.member-hero-notice:empty{display:none}
+.member-hero-notice-error{color:var(--c-a33d33ff)}
 .member-hero-text{grid-area:text;align-self:end;min-width:0;padding-top:10px}
 .member-hero h2{font-size:23px;line-height:1.2;letter-spacing:-.6px;margin:0;overflow-wrap:anywhere}
 .member-hero-text p{font-size:13px;color:var(--muted);margin:3px 0 0;line-height:1.45}
@@ -33,7 +45,7 @@
 .member-settings .theme-card{grid-column:1/-1}
 .member-more{display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:6px 0;background:none;border:0;color:var(--navy);font-size:12.5px;font-weight:700}
 .member-more svg{transition:transform .15s}.member-more-open{transform:rotate(180deg)}
-.member-photo-card h2{margin-bottom:14px}.member-photo-card .photo-picker-copy>strong{display:none}
+
 .member-card{padding:20px;border-radius:18px}
 .member-card h2{display:flex;align-items:center;gap:9px;font-size:17px;margin:0}
 .member-card-icon{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--flame-soft);color:var(--flame);flex-shrink:0}

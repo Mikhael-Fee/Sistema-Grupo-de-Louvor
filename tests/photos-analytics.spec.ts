@@ -79,22 +79,21 @@ test('músico atualiza e remove própria foto preservando papel, aprovação e p
   await expect(page.locator('.topbar-profile-link')).toHaveAttribute('aria-label', 'Meu perfil');
   await page.locator('.topbar-profile-link').click();
   await expect(page.getByRole('heading', { name: 'Meu perfil', exact: true })).toBeAttached();
-  await page.getByRole('link', { name: 'Trocar foto de perfil' }).click();
-  await expect(page.getByRole('button', { name: 'Salvar foto', exact: true })).toBeDisabled();
+  // No own photo yet: the camera opens the file picker and saves right away.
   await page.getByLabel('Escolher foto', { exact: true }).setInputFiles(await photo(page));
-  await expect(page.getByRole('status').filter({ hasText: 'Foto pronta.' })).toBeVisible();
-  expect(uploads(mock)).toHaveLength(0);
-  await page.getByRole('button', { name: 'Salvar foto', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Foto atualizada.' })).toBeVisible();
+  expect(uploads(mock)).toHaveLength(1);
   const saved = mock.profiles[0];
   expect(saved.photoUrl).toBeTruthy();
   expect({ ...saved, photoUrl: undefined }).toEqual({ ...before, photoUrl: undefined });
   expect(mock.data.people.find(person => person.id === before.personId)?.photoUrl).toBeUndefined();
   await expect(page.locator('.topbar-profile-link img')).toHaveAttribute('src', saved.photoUrl!);
-  await page.getByRole('button', { name: 'Remover foto', exact: true }).click();
-  expect(mock.profiles[0].photoUrl).toBe(saved.photoUrl);
-  await page.getByRole('button', { name: 'Salvar foto', exact: true }).click();
+  await expect(page.locator('.member-hero img')).toHaveAttribute('src', saved.photoUrl!);
+  // With an own photo the camera opens a menu to choose another one or remove it.
+  await page.getByRole('button', { name: 'Alterar foto de perfil', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Remover foto' }).click();
   await expect.poll(() => mock.profiles[0].photoUrl).toBeUndefined();
+  await expect(page.getByRole('status').filter({ hasText: 'Foto removida.' })).toBeVisible();
   await expect(page.locator('.topbar-profile-link img')).toHaveCount(0);
   expect(mock.profiles[0].role).toBe('musician');
   expect(mock.profiles[0].approved).toBe(true);

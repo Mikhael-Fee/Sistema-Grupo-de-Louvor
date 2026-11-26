@@ -90,7 +90,7 @@ function PersonForm({ initial, onSaved, onCancel }: { initial: Person; onSaved: 
       </label>
       <PhotoPicker
         name={draft.name || 'nova pessoa'}
-        currentPhotoUrl={getPersonPhoto(initial)}
+        currentPhotoUrl={initial.photoUrl || initial.accountPhotoUrl}
         fallbackPhotoUrl={initial.accountPhotoUrl}
         hasOwnPhoto={Boolean(initial.photoUrl)}
         value={photo}
@@ -98,7 +98,11 @@ function PersonForm({ initial, onSaved, onCancel }: { initial: Person; onSaved: 
         onBusyChange={setPhotoProcessing}
         disabled={saving || busy}
       />
-      <p className="people-photo-note muted">Sem foto própria, usamos a foto da conta vinculada.</p>
+      <p className="people-photo-note muted">
+        {initial.accountPhotoUrl
+          ? 'Esta pessoa escolheu uma foto no próprio perfil, e é ela que aparece no app. A foto daqui fica de reserva.'
+          : 'Se a pessoa escolher uma foto no próprio perfil, ela passa a aparecer no lugar desta.'}
+      </p>
       <fieldset className="people-functions-field">
         <legend>Funções no ministério</legend>
         <div className="people-function-options">
