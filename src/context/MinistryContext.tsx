@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { repository, supabase, type DataPart, type MyPersonUpdate } from '../lib/backend';
+import { repository, supabase, type DataPart, type MyPersonUpdate, type NewSuggestion } from '../lib/backend';
 import { normalizeWhatsapp, validBirthday } from '../lib/member-profile';
 import { KEYS } from '../lib/music';
 import { validatePerson, validateService, validateSong, validateTag } from '../lib/validation';
@@ -45,6 +45,16 @@ interface MinistryContextValue {
   updateMyPerson(update: MyPersonUpdate): Promise<void>;
   /** Saves the key a person sings a song in; an empty key removes it. */
   setSongKey(personId: string, songId: string, key: string): Promise<void>;
+  /** True once the database has the Sugestões tab (migration 011). */
+  suggestionsEnabled: boolean;
+  createSuggestion(suggestion: NewSuggestion): Promise<void>;
+  voteSuggestion(id: string, vote: boolean): Promise<void>;
+  commentSuggestion(id: string, body: string): Promise<void>;
+  deleteSuggestionComment(id: string): Promise<void>;
+  setSuggestionStatus(id: string, status: 'suggested' | 'reviewing' | 'declined', note?: string): Promise<void>;
+  /** Creates the library song (or links an existing one) and returns its id. */
+  approveSuggestion(id: string, key: string | null, songId: string | null): Promise<string>;
+  deleteSuggestion(id: string): Promise<void>;
 }
 const Context = createContext<MinistryContextValue | null>(null);
 const check = (message: string | null) => {
@@ -388,6 +398,49 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
       if (key && !KEYS.includes(key)) throw new Error('Escolha um tom válido.');
       if (!data.songs.some(song => song.id === songId)) throw new Error('Música não encontrada.');
       await mutate('member', ['songKeys'], () => repository.setSongKey(personId, songId, key));
+    },
+    suggestionsEnabled: Array.isArray(data.suggestions),
+    async createSuggestion(suggestion) {
+      const title = suggestion.title.trim();
+      const artist = suggestion.artist.trim();
+      if (!title || title.length > 160) throw new Error('Informe o nome do louvor (até 160 caracteres).');
+      if (!artist || artist.length > 160) throw new Error('Informe o artista ou ministério (até 160 caracteres).');
+      if (!/^[A-Za-z0-9_-]{11}$/.test(suggestion.videoId)) throw new Error('Escolha um vídeo do YouTube.');
+      if (suggestion.tagIds.some(id => !data.tags.some(tag => tag.id === id))) throw new Error('Uma etiqueta selecionada não existe.');
+      await mutate('member', ['suggestions'], () =>
+        repository.createSuggestion({
+          ...suggestion,
+          title,
+          artist,
+          videoTitle: suggestion.videoTitle.slice(0, 200),
+          channel: suggestion.channel.slice(0, 200),
+        }),
+      );
+    },
+    async voteSuggestion(id, vote) {
+      await mutate('member', ['suggestions'], () => repository.voteSuggestion(id, vote));
+    },
+    async commentSuggestion(id, body) {
+      const text = body.trim();
+      if (!text || text.length > 500) throw new Error('Escreva um comentário de até 500 caracteres.');
+      await mutate('member', ['suggestions'], () => repository.commentSuggestion(id, text));
+    },
+    async deleteSuggestionComment(id) {
+      await mutate('member', ['suggestions'], () => repository.deleteSuggestionComment(id));
+    },
+    async setSuggestionStatus(id, status, note = '') {
+      await mutate('plan', ['suggestions'], () => repository.setSuggestionStatus(id, status, note.trim().slice(0, 300)));
+    },
+    async approveSuggestion(id, key, songId) {
+      if (!songId && (!key || !KEYS.includes(key))) throw new Error('Escolha o tom da música.');
+      let created = '';
+      await mutate('plan', ['suggestions', 'songs'], async () => {
+        created = await repository.approveSuggestion(id, songId ? null : key, songId);
+      });
+      return created;
+    },
+    async deleteSuggestion(id) {
+      await mutate('member', ['suggestions'], () => repository.deleteSuggestion(id));
     },
     async updateProfile(nextProfile) {
       authorize('admin');

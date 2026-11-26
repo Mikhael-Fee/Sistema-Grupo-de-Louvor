@@ -15,6 +15,7 @@ import {
   LoaderCircle,
   ChartNoAxesCombined,
   UserRound,
+  Lightbulb,
 } from 'lucide-react';
 import { useMinistry } from './context/MinistryContext';
 import { ROLE_LABELS } from './types';
@@ -38,12 +39,14 @@ const CifraBrowserPage = lazy(() => import('./pages/CifraBrowserPage'));
 const CifraMobileImportPage = lazy(() => import('./pages/CifraMobileImportPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const SuggestionsPage = lazy(() => import('./pages/SuggestionsPage'));
 
 const links = [
   { path: '/', label: 'Início', icon: House },
   { path: '/cultos', label: 'Cultos', icon: CalendarDays },
   { path: '/musicas', label: 'Biblioteca', icon: Music2 },
   { path: '/pessoas', label: 'Equipe', icon: Users },
+  { path: '/sugestoes', label: 'Sugestões', icon: Lightbulb },
   { path: '/etiquetas', label: 'Etiquetas', icon: Tags },
   { path: '/graficos', label: 'Gráficos', icon: ChartNoAxesCombined },
 ];
@@ -260,6 +263,7 @@ export default function App() {
           <Route path="graficos" element={<AnalyticsPage />} />
           <Route path="perfil" element={<ProfilePage />} />
           <Route path="etiquetas" element={<TagsPage />} />
+          <Route path="sugestoes" element={<SuggestionsPage />} />
           <Route path="administracao" element={<AdminAccess />} />
           <Route
             path="*"

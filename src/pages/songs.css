@@ -111,3 +111,4 @@
   .song-page:not(.song-reading){grid-template-areas:"back back" "nav nav" "head head" "meta meta" "reader aside" "save aside"}
   .song-page:not(.song-reading)>.song-setlist-nav{grid-area:nav}
 }
+.songs-name small.songs-pending{display:inline-block;margin-top:6px;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:650;background:var(--c-fff3e5ff);color:var(--c-a34712ff)}
