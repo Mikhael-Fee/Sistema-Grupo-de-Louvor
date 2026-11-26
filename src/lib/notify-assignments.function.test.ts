@@ -198,4 +198,47 @@ describe('avisos de escala por e-mail e notificação', () => {
     api = await importFunction();
     expect(api.emailProvider()).toEqual({ kind: 'brevo', key: 'xkeysib-test', sender: { name: 'Candeia', email: 'lider@gmail.test' } });
   });
+  it('avisa quem sugeriu quando a sugestão é aprovada, só por notificação e uma vez', async () => {
+    const SUGGESTION = '40000000-0000-4000-8000-000000000001';
+    const SONG = '50000000-0000-4000-8000-000000000001';
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL, init: RequestInit) => {
+        const url = String(input);
+        calls.push({ url, init });
+        if (url.endsWith('/rpc/claim_suggestion_approval_notification'))
+          return new Response(
+            JSON.stringify([
+              { suggestion_id: SUGGESTION, title: 'Bondade de Deus', author_name: 'Ana', song_id: SONG, subscriptions: [subscription] },
+            ]),
+            { status: 200 },
+          );
+        return new Response('{}', { status: 201 });
+      }),
+    );
+    expect(JSON.parse((await api.handler(event({ suggestionId: SUGGESTION }))).body)).toEqual({ pushes: 1, configured: true });
+    const claim = calls.find(call => call.url.endsWith('/rpc/claim_suggestion_approval_notification'))!;
+    expect(JSON.parse(String(claim.init.body))).toEqual({ p_suggestion_id: SUGGESTION });
+    expect(calls.some(call => call.url.includes('resend') || call.url.includes('brevo'))).toBe(false);
+    const push = calls.find(call => call.url === subscription.endpoint)!;
+    expect(JSON.parse(decrypt(push.init.body as Buffer))).toEqual({
+      title: 'Sua sugestão foi aprovada',
+      body: '"Bondade de Deus" entrou na Biblioteca do Candeia. Obrigado pela sugestão!',
+      url: `/musicas/${SONG}`,
+    });
+  });
+
+  it('não envia o aviso de sugestão sem as chaves de notificação, e recusa quem não é líder', async () => {
+    const SUGGESTION = '40000000-0000-4000-8000-000000000001';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: '42501' }), { status: 400 })));
+    expect((await api.handler(event({ suggestionId: SUGGESTION }))).statusCode).toBe(403);
+    vi.stubEnv('VAPID_PRIVATE_KEY', '');
+    vi.resetModules();
+    api = await importFunction();
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    expect(JSON.parse((await api.handler(event({ suggestionId: SUGGESTION }))).body)).toEqual({ pushes: 0, configured: false });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
 });

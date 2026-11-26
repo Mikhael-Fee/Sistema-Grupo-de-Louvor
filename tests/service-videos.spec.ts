@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { setupMockMinistry, type MockMinistry } from './fixtures';
+import { editRepertoire, setupMockMinistry, showServiceTab, type MockMinistry } from './fixtures';
 
 const LIBRARY_ID = 'dQw4w9WgXcQ';
 const SERVICE_ID = '9bZkp7q19f0';
@@ -35,6 +35,7 @@ for (const width of [1200, 320]) {
     await expect(card().locator('img')).toHaveAttribute('loading', 'lazy');
     await expect(page.locator('iframe')).toHaveCount(0);
 
+    await editRepertoire(page);
     await page.getByRole('button', { name: `Editar tom e observação de ${song.title}`, exact: true }).click();
     let dialog = page.getByRole('dialog');
     await expect(dialog.getByRole('combobox', { name: 'Tom neste culto', exact: true })).toHaveValue('Bb');
@@ -62,12 +63,14 @@ for (const width of [1200, 320]) {
     await page.getByRole('button', { name: `Mover ${song.title} para baixo`, exact: true }).click();
     await expect(page.locator('.service-setlist-item').nth(1)).toContainText(song.title);
     expect(saved().repertoire.find(candidate => candidate.id === item.id)).toEqual({ ...original.repertoire[0], youtubeUrl: serviceUrl });
+    await showServiceTab(page, 'Equipe');
     await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
     dialog = page.getByRole('dialog');
     await dialog.getByRole('button', { name: 'Salvar equipe', exact: true }).click();
     await expect(dialog).toBeHidden();
     expect(saved().repertoire.find(candidate => candidate.id === item.id)?.youtubeUrl).toBe(serviceUrl);
     expect(saved().isEvent).toBe(true);
+    await showServiceTab(page, 'Repertório');
     await expect(card()).toHaveAttribute('href', serviceUrl);
 
     await row().getByRole('link', { name: song.title, exact: true }).click();
@@ -88,6 +91,7 @@ for (const width of [1200, 320]) {
     await expect(readerCard).toContainText('Vídeo da biblioteca');
     await page.goto(`/cultos/${service.id}`);
 
+    await editRepertoire(page);
     await page.getByRole('button', { name: `Editar tom e observação de ${song.title}`, exact: true }).click();
     dialog = page.getByRole('dialog');
     await dialog.getByLabel('Link do vídeo do YouTube neste culto', { exact: true }).fill('');

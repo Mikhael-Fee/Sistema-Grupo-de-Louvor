@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { loginAs } from './fixtures';
+import { loginAs, serviceMenu } from './fixtures';
 
 for (const width of [1280, 350]) {
   test(`temática personalizada em ${width}px persiste, vira sugestão e aparece nos filtros`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     const mock = await loginAs(page);
     await page.goto('/cultos');
-    await page.getByRole('button', { name: 'Cards', exact: true }).click();
+    await page.getByRole('button', { name: 'Lista', exact: true }).click();
     await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
     let dialog = page.getByRole('dialog');
     const theme = dialog.getByRole('combobox', { name: 'Tipo de culto', exact: true });
@@ -32,7 +32,7 @@ for (const width of [1280, 350]) {
 
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Cultos', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Cards', exact: true }).click();
+    await page.getByRole('button', { name: 'Lista', exact: true }).click();
     const filters = page.getByRole('button', { name: /^Filtros/ });
     if (await filters.isVisible()) await filters.click();
     await page.getByLabel('Filtrar por tipo de culto').selectOption('Santa Ceia');
@@ -40,14 +40,14 @@ for (const width of [1280, 350]) {
     await expect(page.getByRole('article')).toContainText('Santa Ceia');
     await page.getByRole('article').getByRole('link', { name: 'Ver culto', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Santa Ceia', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Editar culto', exact: true }).click();
+    await serviceMenu(page, 'Editar culto');
     dialog = page.getByRole('dialog');
     await expect(dialog.getByRole('combobox', { name: 'Tipo de culto', exact: true })).toHaveValue('Santa Ceia');
     await expect(dialog.locator('datalist option[value="Santa Ceia"]')).toHaveCount(1);
     await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
 
     await page.goto('/cultos');
-    await page.getByRole('button', { name: 'Cards', exact: true }).click();
+    await page.getByRole('button', { name: 'Lista', exact: true }).click();
     await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
     dialog = page.getByRole('dialog');
     await expect(dialog.locator('datalist option[value="Santa Ceia"]')).toHaveCount(1);

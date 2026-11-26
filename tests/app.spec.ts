@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { loginAs, setupMockMinistry } from './fixtures';
+import { editRepertoire, loginAs, serviceMenu, setupMockMinistry } from './fixtures';
 
 const MANUAL_CHURCH_CONTENT = '[D]Tua luz nos [A/C#]guia\n[Bm7]Seguimos em [G]paz';
 
@@ -122,7 +122,7 @@ test('cadastra pessoas com várias funções e etiquetas e recupera após recarr
 test('planeja culto, escala e repertório ordenado com um tom independente da biblioteca', async ({ page }) => {
   await loginAs(page);
   await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Lista', exact: true }).click();
   await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Data', { exact: true }).fill('2099-11-10');
@@ -149,6 +149,7 @@ test('planeja culto, escala e repertório ordenado com um tom independente da bi
   }
   await dialog.getByRole('button', { name: 'Adicionar selecionadas (2)', exact: true }).click();
   await expect(dialog).toBeHidden();
+  await editRepertoire(page);
   await page.getByRole('button', { name: 'Mover Teu amor nos guia para cima', exact: true }).click();
   const repertoire = page.locator('.service-setlist > li');
   await expect(repertoire).toHaveCount(2);
@@ -193,7 +194,7 @@ test('músico consulta e transpõe sem ações de edição', async ({ page }) =>
   await expect(page.getByRole('button', { name: 'Editar Casa de paz', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Excluir Casa de paz', exact: true })).toHaveCount(0);
   await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Lista', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Novo culto', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: 'Ver culto' }).first().click();
   await expect(page.getByRole('button', { name: 'Editar culto', exact: true })).toHaveCount(0);
@@ -218,10 +219,13 @@ test('líder planeja cultos e escala sem editar a biblioteca', async ({ page }) 
   await page.goto('/musicas');
   await expect(page.getByRole('button', { name: 'Nova música', exact: true })).toHaveCount(0);
   await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Lista', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Novo culto', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Ver culto' }).first().click();
-  await expect(page.getByRole('button', { name: 'Editar culto', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Mais opções do culto', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: 'Editar culto', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await editRepertoire(page);
   await expect(page.getByRole('button', { name: 'Selecionar músicas', exact: true })).toBeVisible();
 });
 
@@ -234,7 +238,7 @@ test('funciona em 390 px sem rolagem horizontal, inclusive música e formulário
     expect(await page.evaluate(() => document.documentElement.scrollWidth), `largura de ${path}`).toBeLessThanOrEqual(390);
   }
   await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Lista', exact: true }).click();
   await page.getByRole('link', { name: 'Ver culto' }).first().click();
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -285,7 +289,7 @@ test('preserva rascunho de nova música ao fechar e navegar, e Cancelar descarta
 test('preserva rascunho de novo culto ao fechar e navegar, e Cancelar descarta', async ({ page }) => {
   await loginAs(page);
   await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Lista', exact: true }).click();
   await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Data', { exact: true }).fill('2099-10-20');
@@ -340,7 +344,7 @@ test('rascunho de edição permanece entre biblioteca e detalhes sem alterar a m
 test('monta escala de três pessoas em lote antes de salvar o novo culto', async ({ page }) => {
   await loginAs(page);
   await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Lista', exact: true }).click();
   await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Data', { exact: true }).fill('2099-11-20');
@@ -375,7 +379,7 @@ test('preserva a seleção ativa ao remover do resumo e reutilizar a última esc
   await loginAs(page);
   async function prepareService(date: string, note: string, team: [string, string][]) {
     await page.goto('/cultos');
-    await page.getByRole('button', { name: 'Cards', exact: true }).click();
+    await page.getByRole('button', { name: 'Lista', exact: true }).click();
     await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Data', { exact: true }).fill(date);
@@ -394,7 +398,7 @@ test('preserva a seleção ativa ao remover do resumo e reutilizar a última esc
     ['Mikhael', 'Violão'],
   ]);
   await page.getByRole('article').filter({ hasText: 'Escala com seleção ativa' }).getByRole('link', { name: 'Ver culto' }).click();
-  await page.getByRole('button', { name: 'Editar culto', exact: true }).click();
+  await serviceMenu(page, 'Editar culto');
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Editar equipe', exact: true }).click();
   await dialog.getByRole('checkbox', { name: 'Selecionar Gabriel', exact: true }).check();
@@ -437,7 +441,7 @@ test('preserva a seleção ativa ao remover do resumo e reutilizar a última esc
 test('edita a equipe inteira em lote, troca funções e remove pessoas sem duplicar pares', async ({ page }) => {
   await loginAs(page);
   await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Lista', exact: true }).click();
   await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Data', { exact: true }).fill('2099-11-21');
@@ -492,7 +496,7 @@ test('edita a equipe inteira em lote, troca funções e remove pessoas sem dupli
 test('preserva funções múltiplas e rascunho no editor único de equipe, e permite limpar a escala', async ({ page }) => {
   await loginAs(page);
   await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Lista', exact: true }).click();
   await page.getByRole('button', { name: 'Novo culto', exact: true }).click();
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Data', { exact: true }).fill('2099-11-22');
@@ -521,7 +525,7 @@ test('preserva funções múltiplas e rascunho no editor único de equipe, e per
   await dialog.getByRole('checkbox', { name: 'Também Ana Clara em Teclado', exact: true }).uncheck();
   await dialog.getByRole('button', { name: 'Fechar', exact: true }).click();
   await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Lista', exact: true }).click();
   await page.goto(serviceUrl);
   await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
   dialog = page.getByRole('dialog');
@@ -574,7 +578,7 @@ test('músico aprovado consulta culto, equipe e cifra com transposição tempor�
   const fixture = await setupMockMinistry(page, 'musician');
   await fixture.login();
   await page.goto('/cultos');
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Lista', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Cultos', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Novo culto', exact: true })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Administração', exact: true })).toHaveCount(0);

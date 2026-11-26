@@ -69,8 +69,7 @@ export async function disablePush(): Promise<void> {
   await subscription.unsubscribe();
 }
 
-/** Asks the server to tell newly scheduled people. Never blocks or fails the save. */
-export async function notifyNewAssignments(serviceId: string): Promise<void> {
+async function askServerToNotify(body: { serviceId: string } | { suggestionId: string }): Promise<void> {
   try {
     const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
     if (!token) return;
@@ -78,9 +77,19 @@ export async function notifyNewAssignments(serviceId: string): Promise<void> {
       method: 'POST',
       keepalive: true,
       headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ serviceId }),
+      body: JSON.stringify(body),
     });
   } catch {
-    /* the notice is a convenience; the scale is already saved */
+    /* the notice is a convenience; the change is already saved */
   }
+}
+
+/** Asks the server to tell newly scheduled people. Never blocks or fails the save. */
+export async function notifyNewAssignments(serviceId: string): Promise<void> {
+  await askServerToNotify({ serviceId });
+}
+
+/** Asks the server to tell the author that their suggestion was approved. Never blocks the approval. */
+export async function notifySuggestionApproved(suggestionId: string): Promise<void> {
+  await askServerToNotify({ suggestionId });
 }

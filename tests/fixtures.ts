@@ -659,3 +659,24 @@ export async function loginAs(page: Page, role: Role = 'admin'): Promise<MockMin
   await mock.login();
   return mock;
 }
+
+/** On phones the service page shows one tab at a time; on wider screens every section is visible. */
+export async function showServiceTab(page: Page, name: 'Repertório' | 'Equipe' | 'Detalhes'): Promise<void> {
+  await page.locator('.culto-hero').waitFor();
+  const tab = page.getByRole('tab', { name: new RegExp(`^${name}`) });
+  if (await tab.isVisible()) await tab.click();
+}
+
+/** Turns on the repertoire edit mode, where the reorder, adjust and remove buttons live. */
+export async function editRepertoire(page: Page): Promise<void> {
+  await showServiceTab(page, 'Repertório');
+  const toggle = page.getByRole('button', { name: 'Editar repertório', exact: true });
+  if (await toggle.isVisible()) await toggle.click();
+  await page.getByRole('button', { name: 'Concluir', exact: true }).waitFor();
+}
+
+/** Opens the "⋯" menu of the service page and clicks one of its items. */
+export async function serviceMenu(page: Page, item: string): Promise<void> {
+  await page.getByRole('button', { name: 'Mais opções do culto', exact: true }).click();
+  await page.getByRole('menuitem', { name: item, exact: true }).click();
+}

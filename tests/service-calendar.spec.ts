@@ -15,6 +15,7 @@ for (const width of [1200, 320]) {
     await mock.login();
     await page.goto('/cultos');
     const calendar = page.getByRole('region', { name: 'Calendário de cultos', exact: true });
+    await page.getByRole('button', { name: 'Calendário', exact: true }).click();
     await expect(calendar).toBeVisible();
     await expect(page.getByRole('button', { name: 'Calendário', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(calendar.locator('[data-date]')).toHaveCount(42);
@@ -46,7 +47,8 @@ for (const width of [1200, 320]) {
     await expect(calendar.locator(`[data-date="${month}-12"]`)).toHaveClass(/calendar-day-event/);
     await page.reload();
     await expect(calendar.locator(`[data-date="${month}-12"]`)).toHaveClass(/calendar-day-event/);
-    await page.getByRole('button', { name: 'Cards', exact: true }).click();
+    await page.getByRole('button', { name: 'Lista', exact: true }).click();
+    await page.getByRole('button', { name: 'Todos', exact: true }).click();
     const card = page.getByRole('article').filter({ hasText: 'Evento de comunhão' });
     await expect(card.getByText('Evento', { exact: true })).toBeVisible();
     await card.getByRole('button', { name: /^Editar Evento de comunhão/ }).click();
@@ -71,6 +73,7 @@ test('filtros não confundem dias ocupados com livres e calendário navega pelos
   await mock.login();
   await page.goto('/cultos');
   const calendar = page.getByRole('region', { name: 'Calendário de cultos', exact: true });
+  await page.getByRole('button', { name: 'Calendário', exact: true }).click();
   await page.getByRole('textbox', { name: 'Buscar cultos', exact: true }).fill('inexistente');
   const occupied = calendar.locator(`[data-date="${month}-08"]`);
   await expect(occupied).toHaveAttribute('aria-label', /1 fora dos filtros/);
@@ -87,7 +90,7 @@ test('filtros não confundem dias ocupados com livres e calendário navega pelos
   await expect(calendar.getByRole('heading', { name: calendarMonthLabel(shiftCalendarMonth(month, -1)), exact: true })).toBeVisible();
   await calendar.getByRole('button', { name: 'Hoje', exact: true }).click();
   await expect(calendar.getByRole('heading', { name: calendarMonthLabel(month), exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Cards', exact: true }).click();
+  await page.getByRole('button', { name: 'Lista', exact: true }).click();
   await page.getByRole('button', { name: /^Anteriores/ }).click();
   const expectedPast = new Date(`${mock.data.services[0].date}T${mock.data.services[0].time}`).getTime() < Date.now();
   await expect(page.getByRole('article')).toHaveCount(expectedPast ? 1 : 0);
@@ -104,6 +107,7 @@ for (const role of ['leader', 'musician'] as const) {
     await mock.login();
     await page.goto('/cultos');
     const calendar = page.getByRole('region', { name: 'Calendário de cultos', exact: true });
+    await page.getByRole('button', { name: 'Calendário', exact: true }).click();
     await expect(calendar.locator(`[data-date="${month}-12"]`)).toBeDisabled();
     await expect(calendar.locator(`[data-date="${month}-08"]`)).toBeEnabled();
     await calendar.locator(`[data-date="${month}-08"]`).click();
@@ -118,6 +122,7 @@ test('rascunho mantém evento e campos quando outro dia é escolhido sem salvar'
   await mock.login();
   await page.goto('/cultos');
   const calendar = page.getByRole('region', { name: 'Calendário de cultos', exact: true });
+  await page.getByRole('button', { name: 'Calendário', exact: true }).click();
   await calendar.locator(`[data-date="${month}-12"]`).click();
   let dialog = page.getByRole('dialog');
   await dialog.getByRole('combobox', { name: 'Tipo de culto', exact: true }).fill('Evento em preparação');
@@ -132,12 +137,23 @@ test('rascunho mantém evento e campos quando outro dia é escolhido sem salvar'
   await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
 });
 
-test('no celular o calendário vem primeiro e os filtros ficam no botão Filtros', async ({ page }) => {
+test('no celular a lista dos próximos cultos vem primeiro, o calendário é lembrado e os filtros ficam no botão Filtros', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const mock = await setupMockMinistry(page);
   await mock.login();
   await page.goto('/cultos');
   const calendar = page.getByRole('region', { name: 'Calendário de cultos', exact: true });
+  await expect(page.getByRole('button', { name: 'Lista', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(calendar).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Próximos/ })).toHaveAttribute('aria-pressed', 'true');
+  const cards = page.getByRole('article');
+  await expect(cards).toHaveCount(mock.data.services.length);
+  await expect(cards.first()).toContainText(mock.data.services[0].type);
+  await expect(cards.first().getByRole('link', { name: 'Ver culto', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Calendário', exact: true }).click();
+  await page.reload();
   await expect(calendar).toBeVisible();
   const search = page.getByRole('textbox', { name: 'Buscar cultos', exact: true });
   await expect(search).toBeHidden();
@@ -147,7 +163,5 @@ test('no celular o calendário vem primeiro e os filtros ficam no botão Filtros
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await search.fill('inexistente');
   await expect(toggle).toHaveAccessibleName(/^Filtros ?, 1 filtro ativo$/);
-  const summary = page.locator('.services-summary');
-  expect((await calendar.boundingBox())!.y).toBeLessThan((await summary.boundingBox())!.y);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

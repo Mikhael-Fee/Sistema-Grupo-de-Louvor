@@ -1,5 +1,5 @@
-import { useRef, useState, type FormEvent, type MouseEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useId, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowDown,
   ArrowLeft,
@@ -8,18 +8,21 @@ import {
   Check,
   Clock3,
   Copy,
-  ExternalLink,
+  FileText,
   GripVertical,
   MessageCircle,
+  MoreHorizontal,
   Music2,
   Pencil,
+  PlayCircle,
+  Plus,
   Search,
   Sparkles,
   Trash2,
   Users,
   X,
 } from 'lucide-react';
-import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
+import { EmptyState, FormError, Modal } from '../components/ui';
 import ProfileAvatar from '../components/ProfileAvatar';
 import YoutubeVideoCard from '../components/YoutubeVideoCard';
 import YoutubeVersionPicker from '../components/YoutubeVersionPicker';
@@ -50,6 +53,7 @@ import {
   type TeamPickerDraft,
 } from './ServicesPage';
 import './services.css';
+import './service-page.css';
 
 type Dialog = 'edit' | 'team' | 'song' | 'delete' | null;
 
@@ -324,9 +328,78 @@ function BulkRepertoireForm({
   );
 }
 
+const TABS = [
+  { id: 'repertorio', label: 'Repertório', icon: Music2 },
+  { id: 'equipe', label: 'Equipe', icon: Users },
+  { id: 'detalhes', label: 'Detalhes', icon: FileText },
+] as const;
+type TabId = (typeof TABS)[number]['id'];
+
+/** Overlapping photos of the people scheduled, at most five plus a "+N". */
+function AvatarStack({ people }: { people: (Person | undefined)[] }) {
+  const unique = people.filter((person, index, all): person is Person => Boolean(person) && all.indexOf(person) === index);
+  if (!unique.length) return null;
+  const shown = unique.slice(0, 5);
+  return (
+    <span className="culto-avatars" aria-hidden="true">
+      {shown.map(person => (
+        <ProfileAvatar key={person.id} name={person.name} photoUrl={getPersonPhoto(person)} size={30} className="culto-avatar" decorative />
+      ))}
+      {unique.length > shown.length && <span className="culto-avatar culto-avatar-more">+{unique.length - shown.length}</span>}
+    </span>
+  );
+}
+
+/** "⋯" menu with the actions nobody needs on a Sunday: copy text, edit and delete. */
+function MoreMenu({ children }: { children: (close: () => void) => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (!wrap.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      button.current?.focus();
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open]);
+  return (
+    <div className="culto-more" ref={wrap}>
+      <button
+        ref={button}
+        type="button"
+        className="icon-button culto-more-button"
+        aria-label="Mais opções do culto"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onClick={() => setOpen(value => !value)}
+      >
+        <MoreHorizontal size={19} />
+      </button>
+      {open && (
+        <div className="culto-menu" id={menuId} role="menu" aria-label="Opções do culto">
+          {children(() => setOpen(false))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ServicePage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const { data, canPlan, busy, error, saveService, deleteService, presenceEnabled, profile } = useMinistry();
   const service = data.services.find(item => item.id === id);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -338,6 +411,8 @@ export default function ServicePage() {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const disabled = busy || saving;
+  const requested = params.get('aba');
+  const tab: TabId = TABS.some(item => item.id === requested) ? (requested as TabId) : 'repertorio';
 
   if (!service)
     return (
@@ -358,7 +433,23 @@ export default function ServicePage() {
     );
 
   const currentService = service;
+  // Kept in the address so a refresh of the shared data (which remounts the page) keeps the mode.
+  const editing = canPlan && params.get('editar') === 'repertorio';
+  function updateParams(changes: Record<string, string | null>) {
+    const next = new URLSearchParams(params);
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null) next.delete(key);
+      else next.set(key, value);
+    }
+    setParams(next, { replace: true });
+  }
   const shareText = buildServiceShareText(service, data, `${window.location.origin}/cultos/${service.id}`);
+  const isUnavailable = (personId: string) => Boolean(unavailableOn(data, personId, service.date));
+  const summary = presenceEnabled ? presenceSummary(service.assignments, isUnavailable) : null;
+  const myAssignments = presenceEnabled ? service.assignments.filter(item => item.personId === profile?.personId) : [];
+  const firstItem = service.repertoire[0];
+  const scheduledPeople = service.assignments.map(assignment => data.people.find(person => person.id === assignment.personId));
+  const peopleCount = new Set(service.assignments.map(item => item.personId)).size;
   // The system share sheet hands the exact text (with line breaks) to the WhatsApp app.
   // Browsers without it open the wa.me link instead.
   function shareNatively(event: MouseEvent<HTMLAnchorElement>) {
@@ -436,115 +527,216 @@ export default function ServicePage() {
       setSaving(false);
     }
   }
+  const teamGroups: { id: string; label: string; items: Assignment[] }[] = summary
+    ? [
+        {
+          id: 'confirmed',
+          label: 'Confirmados',
+          items: service.assignments.filter(item => item.status === 'confirmed'),
+        },
+        {
+          id: 'pending',
+          label: 'Aguardando resposta',
+          items: service.assignments.filter(item => (item.status ?? 'pending') === 'pending' && !isUnavailable(item.personId)),
+        },
+        {
+          id: 'declined',
+          label: 'Não poderão',
+          items: service.assignments.filter(
+            item => item.status === 'declined' || ((item.status ?? 'pending') === 'pending' && isUnavailable(item.personId)),
+          ),
+        },
+      ].filter(group => group.items.length)
+    : [{ id: 'all', label: '', items: service.assignments }];
+  const dateLong = formatServiceDate(service.date, { weekday: 'long', day: 'numeric', month: 'long' });
+
   return (
-    <>
+    <div className="culto-page">
       <Link to="/cultos" className="service-back">
         <ArrowLeft size={17} /> Voltar aos cultos
       </Link>
-      <PageHeader
-        eyebrow="DETALHES DO ENCONTRO"
-        title={service.type}
-        description={formatServiceDate(service.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        action={
-          <div className="service-header-actions">
+      <section className="culto-hero" aria-label="Resumo do culto">
+        <div className="member-hero-cover" aria-hidden="true" />
+        <div className="culto-hero-body">
+          <div className="culto-hero-date" aria-hidden="true">
+            <strong>{service.date.slice(8, 10)}</strong>
+            <span>{formatServiceDate(service.date, { month: 'short' }).replace('.', '')}</span>
+          </div>
+          <div className="culto-hero-text">
+            <h1>{service.type}</h1>
+            <p>
+              <span className="culto-hero-when">{dateLong}</span>
+              <span aria-hidden="true"> · </span>
+              <span>
+                <Clock3 size={13} aria-hidden="true" /> {service.time}
+              </span>
+            </p>
+          </div>
+          <div className="culto-hero-summary">
+            <AvatarStack people={scheduledPeople} />
+            <span className="culto-hero-counts">
+              {service.repertoire.length} {service.repertoire.length === 1 ? 'música' : 'músicas'} · {peopleCount}{' '}
+              {peopleCount === 1 ? 'pessoa' : 'pessoas'}
+            </span>
+            {summary && service.assignments.length > 0 && (
+              <span className="culto-presence-pill">
+                <Check size={13} aria-hidden="true" /> {summary.confirmed} de {service.assignments.length} confirmados
+              </span>
+            )}
+            {service.isEvent && (
+              <span className="service-event-indicator">
+                <Sparkles size={13} /> Evento
+              </span>
+            )}
+          </div>
+          <div className="culto-hero-actions">
+            {firstItem ? (
+              <Link
+                className="button button-primary culto-open"
+                to={`/musicas/${firstItem.songId}?service=${service.id}&item=${firstItem.id}`}
+              >
+                <PlayCircle size={17} /> Abrir repertório
+              </Link>
+            ) : (
+              <span className="culto-open-empty muted">O repertório ainda não foi montado.</span>
+            )}
             <a
-              className="button button-secondary service-share"
+              className="icon-button culto-whatsapp"
               href={whatsappShareUrl(shareText)}
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Enviar escala e repertório no WhatsApp"
+              title="Enviar no WhatsApp"
               onClick={shareNatively}
             >
-              <MessageCircle size={16} /> WhatsApp
+              <MessageCircle size={19} />
             </a>
-            <button
-              type="button"
-              className="button button-secondary"
-              aria-label={copied ? 'Texto copiado' : 'Copiar texto da escala e do repertório'}
-              onClick={() => void copyShareText()}
-            >
-              {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? 'Copiado' : 'Copiar texto'}
-            </button>
-            {canPlan && (
+            <MoreMenu>
+              {closeMenu => (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      closeMenu();
+                      void copyShareText();
+                    }}
+                  >
+                    <Copy size={16} /> Copiar texto da escala
+                  </button>
+                  {canPlan && (
+                    <>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={disabled}
+                        onClick={() => {
+                          closeMenu();
+                          open('edit');
+                        }}
+                      >
+                        <Pencil size={16} /> Editar culto
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="culto-menu-danger"
+                        disabled={disabled}
+                        onClick={() => {
+                          closeMenu();
+                          open('delete');
+                        }}
+                      >
+                        <Trash2 size={16} /> Excluir culto
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+            </MoreMenu>
+          </div>
+          <p className="culto-hero-notice" role="status">
+            {copied && (
               <>
-                <button className="button button-secondary" onClick={() => open('edit')} disabled={disabled}>
-                  <Pencil size={16} /> Editar culto
-                </button>
-                <button
-                  className="icon-button service-delete"
-                  aria-label="Excluir culto"
-                  title="Excluir culto"
-                  onClick={() => open('delete')}
-                  disabled={disabled}
-                >
-                  <Trash2 size={18} />
-                </button>
+                <Check size={14} aria-hidden="true" /> Texto copiado. É só colar no grupo.
               </>
             )}
-          </div>
-        }
-      />
+          </p>
+        </div>
+      </section>
       <FormError error={actionError && !dialog && !editingItem ? actionError : null} />
       <FormError error={error} />
-      <div className="card service-overview">
-        <div className="service-overview-facts">
-          {service.isEvent && (
-            <span className="service-event-indicator">
-              <Sparkles size={17} /> Evento
-            </span>
-          )}
-          <span>
-            <CalendarDays size={19} /> {formatServiceDate(service.date, { day: '2-digit', month: '2-digit', year: 'numeric' })}
-          </span>
-          <span>
-            <Clock3 size={19} /> {service.time}
-          </span>
-          <span>
-            <Users size={19} /> {service.assignments.length} pessoas na escala
-          </span>
-          <span>
-            <Music2 size={19} /> {service.repertoire.length} músicas
-          </span>
-        </div>
-        {service.notes && (
-          <div className="service-observations">
-            <span className="eyebrow">OBSERVAÇÕES DO CULTO</span>
-            <p>{service.notes}</p>
-          </div>
-        )}
+      {myAssignments.length > 0 && (
+        <section className="card culto-presence-card" aria-label="Sua escala neste culto">
+          <p>
+            Você está na escala como <strong>{[...new Set(myAssignments.map(item => item.function))].join(' e ')}</strong>.{' '}
+            {(myAssignments[0].status ?? 'pending') === 'pending' ? 'Vai poder?' : ''}
+          </p>
+          <PresenceButtons assignments={myAssignments} />
+        </section>
+      )}
+      <div className="member-tabs culto-tabs" role="tablist" aria-label="Seções do culto">
+        {TABS.map(({ id: tabId, label, icon: Icon }) => (
+          <button
+            key={tabId}
+            type="button"
+            role="tab"
+            id={`culto-tab-${tabId}`}
+            aria-selected={tab === tabId}
+            aria-controls={`culto-panel-${tabId}`}
+            className={tab === tabId ? 'member-tab member-tab-active' : 'member-tab'}
+            onClick={() => updateParams({ aba: tabId === 'repertorio' ? null : tabId })}
+          >
+            <Icon size={16} aria-hidden="true" />
+            {label}
+            {tabId === 'repertorio' && <span className="culto-tab-count">{service.repertoire.length}</span>}
+            {tabId === 'equipe' && <span className="culto-tab-count">{service.assignments.length}</span>}
+          </button>
+        ))}
       </div>
-      <div className="service-columns">
-        <section className="card service-repertoire">
-          <div className="service-section-heading">
-            <div>
-              <span className="service-section-icon">
-                <Music2 size={20} />
-              </span>
+      <div className="culto-panels">
+        <div className="culto-main">
+          <section
+            id="culto-panel-repertorio"
+            role="tabpanel"
+            aria-labelledby="culto-tab-repertorio"
+            className={`card culto-panel service-repertoire ${tab === 'repertorio' ? 'culto-panel-active' : ''} ${editing ? 'culto-editing' : ''}`}
+          >
+            <div className="culto-panel-heading">
               <h2>
                 Repertório <span>{service.repertoire.length}</span>
               </h2>
+              {canPlan && (service.repertoire.length > 0 || editing) && (
+                <button
+                  type="button"
+                  className={`button ${editing ? 'button-primary' : 'button-secondary'} culto-edit-toggle`}
+                  aria-pressed={editing}
+                  onClick={() => updateParams({ editar: editing ? null : 'repertorio' })}
+                >
+                  {editing ? <Check size={15} /> : <Pencil size={15} />} {editing ? 'Concluir' : 'Editar repertório'}
+                </button>
+              )}
             </div>
-            {canPlan && (
-              <button className="button button-secondary" onClick={() => open('song')} disabled={disabled}>
-                <Music2 size={16} /> <span>Selecionar músicas</span>
-              </button>
+            {editing && (
+              <div className="culto-edit-bar">
+                <p>Arraste ou use as setas para mudar a ordem. O lápis ajusta tom, observação e vídeo só deste culto.</p>
+                <button className="button button-secondary" onClick={() => open('song')} disabled={disabled}>
+                  <Plus size={16} /> <span>Selecionar músicas</span>
+                </button>
+              </div>
             )}
-          </div>
-          {service.repertoire.length ? (
-            <>
-              <p className="service-section-description">
-                {canPlan ? 'Organize a sequência e prepare o tom de cada música.' : 'Abra uma música para acompanhar a letra e a cifra.'}
-              </p>
-              <ol className="service-setlist">
+            {service.repertoire.length ? (
+              <ol className="service-setlist culto-setlist">
                 {service.repertoire.map((item, index) => {
                   const song = data.songs.find(candidate => candidate.id === item.songId);
+                  const serviceVideo = normalizeYouTubeUrl(item.youtubeUrl || '');
                   return (
                     <li
                       key={item.id}
-                      className={`service-setlist-item ${dragging === item.id ? 'service-dragging' : ''} ${dropTarget === item.id ? 'service-drop-target' : ''}`}
-                      draggable={canPlan && !disabled}
+                      className={`service-setlist-item culto-song ${dragging === item.id ? 'service-dragging' : ''} ${dropTarget === item.id ? 'service-drop-target' : ''}`}
+                      draggable={editing && !disabled}
                       onDragStart={event => {
-                        if (!canPlan || disabled) {
+                        if (!editing || disabled) {
                           event.preventDefault();
                           return;
                         }
@@ -553,7 +745,7 @@ export default function ServicePage() {
                         setDragging(item.id);
                       }}
                       onDragOver={event => {
-                        if (!canPlan || disabled || !dragging || dragging === item.id) return;
+                        if (!editing || disabled || !dragging || dragging === item.id) return;
                         event.preventDefault();
                         event.dataTransfer.dropEffect = 'move';
                         setDropTarget(item.id);
@@ -564,7 +756,7 @@ export default function ServicePage() {
                         const draggedId = event.dataTransfer.getData('text/plain');
                         setDropTarget(null);
                         setDragging(null);
-                        if (canPlan && draggedId && currentService.repertoire.some(candidate => candidate.id === draggedId))
+                        if (editing && draggedId && currentService.repertoire.some(candidate => candidate.id === draggedId))
                           void reorder(draggedId, index);
                       }}
                       onDragEnd={() => {
@@ -572,70 +764,72 @@ export default function ServicePage() {
                         setDropTarget(null);
                       }}
                     >
-                      <div className="service-item-position">
-                        {canPlan && <GripVertical size={16} className="service-drag-handle" aria-hidden="true" />}
-                        <span>{String(index + 1).padStart(2, '0')}</span>
-                      </div>
-                      <div className="service-item-main">
+                      <span className="culto-song-number">
+                        {editing && <GripVertical size={15} className="service-drag-handle" aria-hidden="true" />}
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                      <div className="culto-song-main">
                         <Link to={`/musicas/${item.songId}?service=${service.id}&item=${item.id}`} className="service-item-title">
-                          <span>{song?.title || 'Música indisponível'}</span> <ExternalLink size={13} />
+                          {song?.title || 'Música indisponível'}
                         </Link>
                         <p className="service-item-artist">{song?.artist || 'Consulte a biblioteca'}</p>
                         {item.notes && <p className="service-item-note">{item.notes}</p>}
-                        <div className="service-item-bottom">
-                          <span className="service-key">Tom {item.key}</span>
-                          {canPlan && (
-                            <div className="service-item-actions">
-                              <button
-                                className="icon-button"
-                                disabled={disabled || index === 0}
-                                aria-label={`Mover ${song?.title || 'música'} para cima`}
-                                onClick={() => void reorder(item.id, index - 1)}
-                              >
-                                <ArrowUp size={16} />
-                              </button>
-                              <button
-                                className="icon-button"
-                                disabled={disabled || index === service.repertoire.length - 1}
-                                aria-label={`Mover ${song?.title || 'música'} para baixo`}
-                                onClick={() => void reorder(item.id, index + 1)}
-                              >
-                                <ArrowDown size={16} />
-                              </button>
-                              <button
-                                className="icon-button"
-                                disabled={disabled}
-                                aria-label={`Editar tom e observação de ${song?.title || 'música'}`}
-                                title="Editar tom, observação e vídeo deste culto"
-                                onClick={() => {
-                                  setActionError(null);
-                                  setEditingItem({ ...item });
-                                }}
-                              >
-                                <Pencil size={15} />
-                              </button>
-                              <button
-                                className="icon-button"
-                                disabled={disabled}
-                                aria-label={`Remover ${song?.title || 'música'} do repertório`}
-                                onClick={() =>
-                                  void save({
-                                    ...currentService,
-                                    repertoire: currentService.repertoire.filter(candidate => candidate.id !== item.id),
-                                  })
-                                }
-                              >
-                                <X size={17} />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        <YoutubeVideoCard
-                          url={normalizeYouTubeUrl(item.youtubeUrl || '') || song?.youtubeUrl || ''}
-                          title={song?.title || 'Música do repertório'}
-                          caption={normalizeYouTubeUrl(item.youtubeUrl || '') ? 'Versão deste culto' : 'Vídeo da biblioteca'}
-                        />
-                        {canPlan && (
+                      </div>
+                      <span className="service-key">
+                        <span className="sr-only">Tom </span>
+                        {item.key}
+                      </span>
+                      <YoutubeVideoCard
+                        compact
+                        url={serviceVideo || song?.youtubeUrl || ''}
+                        title={song?.title || 'Música do repertório'}
+                        caption={serviceVideo ? 'Versão deste culto' : 'Vídeo da biblioteca'}
+                      />
+                      {editing && (
+                        <div className="culto-song-edit">
+                          <div className="service-item-actions">
+                            <button
+                              className="icon-button"
+                              disabled={disabled || index === 0}
+                              aria-label={`Mover ${song?.title || 'música'} para cima`}
+                              onClick={() => void reorder(item.id, index - 1)}
+                            >
+                              <ArrowUp size={16} />
+                            </button>
+                            <button
+                              className="icon-button"
+                              disabled={disabled || index === service.repertoire.length - 1}
+                              aria-label={`Mover ${song?.title || 'música'} para baixo`}
+                              onClick={() => void reorder(item.id, index + 1)}
+                            >
+                              <ArrowDown size={16} />
+                            </button>
+                            <button
+                              className="icon-button"
+                              disabled={disabled}
+                              aria-label={`Editar tom e observação de ${song?.title || 'música'}`}
+                              title="Editar tom, observação e vídeo deste culto"
+                              onClick={() => {
+                                setActionError(null);
+                                setEditingItem({ ...item });
+                              }}
+                            >
+                              <Pencil size={15} />
+                            </button>
+                            <button
+                              className="icon-button"
+                              disabled={disabled}
+                              aria-label={`Remover ${song?.title || 'música'} do repertório`}
+                              onClick={() =>
+                                void save({
+                                  ...currentService,
+                                  repertoire: currentService.repertoire.filter(candidate => candidate.id !== item.id),
+                                })
+                              }
+                            >
+                              <X size={17} />
+                            </button>
+                          </div>
                           <button
                             type="button"
                             className="text-button service-item-version"
@@ -646,110 +840,138 @@ export default function ServicePage() {
                             }}
                           >
                             <Search size={13} />
-                            {normalizeYouTubeUrl(item.youtubeUrl || '')
+                            {serviceVideo
                               ? 'Trocar a versão deste culto'
                               : normalizeYouTubeUrl(song?.youtubeUrl)
                                 ? 'Escolher outra versão para este culto'
                                 : 'Escolher um vídeo para este culto'}
                           </button>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-            </>
-          ) : (
-            <EmptyState
-              title="O repertório está em branco"
-              description={
-                canPlan
-                  ? 'Selecione todas as músicas que vão conduzir este encontro.'
-                  : 'As músicas aparecerão aqui quando o repertório estiver pronto.'
-              }
-            />
-          )}
-        </section>
-        <section className="card service-team">
-          <div className="service-section-heading">
-            <div>
-              <span className="service-section-icon">
-                <Users size={20} />
-              </span>
-              <h2>
-                Equipe <span>{service.assignments.length}</span>
-              </h2>
-            </div>
-          </div>
-          {presenceEnabled && <PresenceButtons assignments={service.assignments.filter(item => item.personId === profile?.personId)} />}
-          {service.assignments.length ? (
-            <>
-              <p className="service-section-description">
-                {presenceEnabled
-                  ? (() => {
-                      const summary = presenceSummary(service.assignments, personId =>
-                        Boolean(unavailableOn(data, personId, service.date)),
-                      );
-                      return `${summary.confirmed} confirmados · ${summary.declined} não poderão · ${summary.pending} aguardando`;
-                    })()
-                  : 'Juntos, servimos melhor.'}
-              </p>
-              <ul className="service-team-list">
-                {service.assignments.map(assignment => {
-                  const person = data.people.find(candidate => candidate.id === assignment.personId);
-                  return (
-                    <li key={assignment.id}>
-                      <ProfileAvatar
-                        name={person?.name || 'Pessoa indisponível'}
-                        photoUrl={getPersonPhoto(person)}
-                        size={39}
-                        className="service-avatar"
-                        decorative
-                      />
-                      <div>
-                        <strong>{person?.name || 'Pessoa indisponível'}</strong>
-                        <span>{assignment.function}</span>
-                        {presenceEnabled && (
-                          <StatusBadge
-                            assignment={assignment}
-                            unavailableNote={unavailableOn(data, assignment.personId, service.date)?.note}
-                          />
-                        )}
-                      </div>
-                      {canPlan && (
-                        <button
-                          className="icon-button"
-                          disabled={disabled}
-                          aria-label={`Remover ${person?.name || 'pessoa'} da função ${assignment.function}`}
-                          onClick={() =>
-                            void save({
-                              ...currentService,
-                              assignments: currentService.assignments.filter(candidate => candidate.id !== assignment.id),
-                            })
-                          }
-                        >
-                          <X size={17} />
-                        </button>
+                        </div>
                       )}
                     </li>
                   );
                 })}
-              </ul>
-            </>
-          ) : (
-            <EmptyState
-              title="Vamos reunir a equipe"
-              description={
-                canPlan ? 'Selecione todas as pessoas e suas funções para este culto.' : 'A escala aparecerá aqui quando estiver pronta.'
-              }
-            />
-          )}
-          {canPlan && (
-            <button className="button button-secondary service-team-batch" onClick={() => open('team')} disabled={disabled}>
-              <Users size={16} /> {service.assignments.length ? 'Editar equipe' : 'Selecionar equipe'}
-            </button>
-          )}
-        </section>
+              </ol>
+            ) : (
+              <EmptyState
+                title="O repertório está em branco"
+                description={
+                  canPlan
+                    ? 'Selecione todas as músicas que vão conduzir este encontro.'
+                    : 'As músicas aparecerão aqui quando o repertório estiver pronto.'
+                }
+                action={
+                  canPlan &&
+                  !editing && (
+                    <button className="button button-primary" onClick={() => open('song')} disabled={disabled}>
+                      <Plus size={16} /> Selecionar músicas
+                    </button>
+                  )
+                }
+              />
+            )}
+          </section>
+          <section
+            id="culto-panel-detalhes"
+            role="tabpanel"
+            aria-labelledby="culto-tab-detalhes"
+            className={`card culto-panel culto-details ${tab === 'detalhes' ? 'culto-panel-active' : ''} ${service.notes ? '' : 'culto-details-empty'}`}
+          >
+            <div className="culto-panel-heading">
+              <h2>Detalhes</h2>
+            </div>
+            <dl className="culto-facts">
+              <div>
+                <dt>
+                  <CalendarDays size={15} aria-hidden="true" /> Data
+                </dt>
+                <dd>{formatServiceDate(service.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</dd>
+              </div>
+              <div>
+                <dt>
+                  <Clock3 size={15} aria-hidden="true" /> Horário
+                </dt>
+                <dd>{service.time}</dd>
+              </div>
+              <div>
+                <dt>
+                  <Sparkles size={15} aria-hidden="true" /> Tipo
+                </dt>
+                <dd>{service.isEvent ? `${service.type} (evento)` : service.type}</dd>
+              </div>
+            </dl>
+            <div className="service-observations">
+              <h3>Observações do culto</h3>
+              {service.notes ? <p>{service.notes}</p> : <p className="muted">Nenhuma observação para este culto.</p>}
+            </div>
+          </section>
+        </div>
+        <div className="culto-side">
+          <section
+            id="culto-panel-equipe"
+            role="tabpanel"
+            aria-labelledby="culto-tab-equipe"
+            className={`card culto-panel service-team ${tab === 'equipe' ? 'culto-panel-active' : ''}`}
+          >
+            <div className="culto-panel-heading">
+              <h2>
+                Equipe <span>{service.assignments.length}</span>
+              </h2>
+              {canPlan && (
+                <button className="button button-secondary culto-edit-toggle" onClick={() => open('team')} disabled={disabled}>
+                  <Pencil size={15} /> {service.assignments.length ? 'Editar equipe' : 'Selecionar equipe'}
+                </button>
+              )}
+            </div>
+            {service.assignments.length ? (
+              <>
+                {summary && (
+                  <p className="service-section-description">
+                    {`${summary.confirmed} confirmados · ${summary.declined} não poderão · ${summary.pending} aguardando`}
+                  </p>
+                )}
+                {teamGroups.map(group => (
+                  <div key={group.id} className={`culto-team-group culto-team-${group.id}`}>
+                    {group.label && <h3>{group.label}</h3>}
+                    <ul className="service-team-list">
+                      {group.items.map(assignment => {
+                        const person = data.people.find(candidate => candidate.id === assignment.personId);
+                        return (
+                          <li key={assignment.id}>
+                            <ProfileAvatar
+                              name={person?.name || 'Pessoa indisponível'}
+                              photoUrl={getPersonPhoto(person)}
+                              size={36}
+                              className="service-avatar"
+                              decorative
+                            />
+                            <div>
+                              <strong>{person?.name || 'Pessoa indisponível'}</strong>
+                              <span>{assignment.function}</span>
+                            </div>
+                            {presenceEnabled && (
+                              <StatusBadge
+                                assignment={assignment}
+                                unavailableNote={unavailableOn(data, assignment.personId, service.date)?.note}
+                              />
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <EmptyState
+                title="Vamos reunir a equipe"
+                description={
+                  canPlan ? 'Selecione todas as pessoas e suas funções para este culto.' : 'A escala aparecerá aqui quando estiver pronta.'
+                }
+              />
+            )}
+          </section>
+        </div>
       </div>
       {dialog === 'edit' && (
         <Modal wide title="Editar culto" onClose={close}>
@@ -821,6 +1043,6 @@ export default function ServicePage() {
           </div>
         </Modal>
       )}
-    </>
+    </div>
   );
 }

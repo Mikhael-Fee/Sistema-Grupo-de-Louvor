@@ -1,11 +1,12 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowUpRight,
   CalendarDays,
+  Check,
+  ChevronRight,
   Clock3,
   Copy,
-  LayoutGrid,
+  List,
   Music2,
   Pencil,
   Plus,
@@ -789,11 +790,36 @@ export function ServiceForm({
   );
 }
 
+const VIEW_KEY = 'candeia.services.view';
+
+/** "Hoje", "Amanhã", "Em 5 dias" for the next two weeks; nothing after that. */
+export function relativeDay(date: string, today: string): string {
+  const days = Math.round((Date.parse(`${date}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86_400_000);
+  if (days === 0) return 'Hoje';
+  if (days === 1) return 'Amanhã';
+  if (days > 1 && days <= 14) return `Em ${days} dias`;
+  return '';
+}
+
 export default function ServicesPage() {
-  const { data, profile, canPlan, busy, error, saveService } = useMinistry();
-  const [view, setView] = useState<'calendar' | 'cards'>('calendar');
+  const { data, profile, canPlan, busy, error, saveService, presenceEnabled } = useMinistry();
+  const [view, setViewState] = useState<'list' | 'calendar'>(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === 'calendar' ? 'calendar' : 'list';
+    } catch {
+      return 'list';
+    }
+  });
+  function setView(next: 'list' | 'calendar') {
+    setViewState(next);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      /* only a convenience */
+    }
+  }
   const [month, setMonth] = useState(() => ministryToday().slice(0, 7));
-  const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('all');
+  const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -808,6 +834,10 @@ export default function ServicesPage() {
   const upcoming = data.services.filter(isUpcoming);
   const past = data.services.filter(service => !isUpcoming(service));
   const query = search.trim().toLocaleLowerCase('pt-BR');
+  const matchesSearch = (service: Service) =>
+    (!typeFilter || service.type === typeFilter) &&
+    (!query ||
+      `${service.type} ${service.notes} ${formatServiceDate(service.date)} ${service.date}`.toLocaleLowerCase('pt-BR').includes(query));
   const filtered = data.services
     .filter(
       service =>
@@ -822,7 +852,8 @@ export default function ServicesPage() {
         : `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`),
     );
   const types = serviceTypeSuggestions(data.services);
-  const activeFilters = (filter !== 'all' ? 1 : 0) + (query ? 1 : 0) + (typeFilter ? 1 : 0);
+  const activeFilters = (query ? 1 : 0) + (typeFilter ? 1 : 0);
+  const today = ministryToday();
   return (
     <>
       <PageHeader
@@ -841,19 +872,19 @@ export default function ServicesPage() {
       <div className="services-view-switch" aria-label="Visualização dos cultos">
         <button
           type="button"
+          className={`button ${view === 'list' ? 'button-primary' : 'button-secondary'}`}
+          aria-pressed={view === 'list'}
+          onClick={() => setView('list')}
+        >
+          <List size={17} /> Lista
+        </button>
+        <button
+          type="button"
           className={`button ${view === 'calendar' ? 'button-primary' : 'button-secondary'}`}
           aria-pressed={view === 'calendar'}
           onClick={() => setView('calendar')}
         >
           <CalendarDays size={17} /> Calendário
-        </button>
-        <button
-          type="button"
-          className={`button ${view === 'cards' ? 'button-primary' : 'button-secondary'}`}
-          aria-pressed={view === 'cards'}
-          onClick={() => setView('cards')}
-        >
-          <LayoutGrid size={17} /> Cards
         </button>
         <button
           type="button"
@@ -876,7 +907,21 @@ export default function ServicesPage() {
         </button>
       </div>
       <div id="services-filter-panel" className={`toolbar services-toolbar ${showFilters ? 'is-open' : ''}`}>
-        <div className="chips" aria-label="Período dos cultos">
+        <div className="services-filters">
+          <label className="services-search">
+            <Search size={18} />
+            <input aria-label="Buscar cultos" placeholder="Buscar culto…" value={search} onChange={e => setSearch(e.target.value)} />
+          </label>
+          <select aria-label="Filtrar por tipo de culto" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+            <option value="">Todos os tipos</option>
+            {types.map(type => (
+              <option key={type}>{type}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      {view === 'list' && (
+        <div className="chips services-period" aria-label="Período da lista">
           {(
             [
               { value: 'upcoming', label: `Próximos (${upcoming.length})` },
@@ -894,86 +939,104 @@ export default function ServicesPage() {
             </button>
           ))}
         </div>
-        <div className="services-filters">
-          <label className="services-search">
-            <Search size={18} />
-            <input aria-label="Buscar cultos" placeholder="Buscar culto…" value={search} onChange={e => setSearch(e.target.value)} />
-          </label>
-          <select aria-label="Filtrar por tipo de culto" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-            <option value="">Todos os tipos</option>
-            {types.map(type => (
-              <option key={type}>{type}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      )}
       {view === 'calendar' ? (
         <ServicesCalendar
           month={month}
           onMonthChange={setMonth}
           services={data.services}
-          visibleServices={filtered}
+          visibleServices={data.services.filter(matchesSearch)}
           canCreate={profile?.approved === true && profile.role === 'admin'}
           busy={busy}
           onCreate={createService}
         />
       ) : filtered.length ? (
         <div className="services-list">
-          {filtered.map(service => (
-            <article className="card services-card" key={service.id}>
-              <div className="services-date" aria-label={formatServiceDate(service.date)}>
-                <span>{formatServiceDate(service.date, { month: 'short' }).replace('.', '')}</span>
-                <strong>{service.date.slice(8, 10)}</strong>
-                <span>{formatServiceDate(service.date, { weekday: 'short' }).replace('.', '')}</span>
-              </div>
-              <div className="services-card-content">
-                <div className="services-card-title">
-                  <Link to={`/cultos/${service.id}`}>
-                    <h2>{service.type}</h2>
-                  </Link>
-                  <span className={`badge ${isUpcoming(service) ? 'service-badge-upcoming' : ''}`}>
-                    {isUpcoming(service) ? 'Programado' : 'Realizado'}
-                  </span>
-                  {service.isEvent && (
-                    <span className="badge service-event-badge">
-                      <Sparkles size={12} /> Evento
+          {filtered.map(service => {
+            const upcomingService = isUpcoming(service);
+            const people = service.assignments
+              .map(item => data.people.find(person => person.id === item.personId))
+              .filter((person, index, all): person is Person => Boolean(person) && all.indexOf(person) === index);
+            const confirmed = service.assignments.filter(item => item.status === 'confirmed').length;
+            const when = relativeDay(service.date, today);
+            return (
+              <article className={`card services-card ${upcomingService ? '' : 'services-card-past'}`} key={service.id}>
+                <div className="services-date" aria-label={formatServiceDate(service.date)}>
+                  <strong>{service.date.slice(8, 10)}</strong>
+                  <span>{formatServiceDate(service.date, { month: 'short' }).replace('.', '')}</span>
+                </div>
+                <div className="services-card-content">
+                  <div className="services-card-title">
+                    <Link to={`/cultos/${service.id}`} className="services-card-link">
+                      <h2>{service.type}</h2>
+                    </Link>
+                    {service.isEvent && (
+                      <span className="badge service-event-badge">
+                        <Sparkles size={12} /> Evento
+                      </span>
+                    )}
+                    {!upcomingService && <span className="badge">Realizado</span>}
+                  </div>
+                  <p className="services-when">
+                    <span className="services-weekday">{formatServiceDate(service.date, { weekday: 'long' })}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                      <Clock3 size={13} aria-hidden="true" /> {service.time}
                     </span>
+                    {upcomingService && when && <span className="services-soon">{when}</span>}
+                  </p>
+                  <div className="services-meta">
+                    {people.length > 0 && (
+                      <span className="services-avatars" aria-hidden="true">
+                        {people.slice(0, 4).map(person => (
+                          <ProfileAvatar
+                            key={person.id}
+                            name={person.name}
+                            photoUrl={getPersonPhoto(person)}
+                            size={26}
+                            className="services-avatar"
+                            decorative
+                          />
+                        ))}
+                        {people.length > 4 && <span className="services-avatar services-avatar-more">+{people.length - 4}</span>}
+                      </span>
+                    )}
+                    <span className="services-team-count">
+                      <Users size={14} aria-hidden="true" /> {service.assignments.length} na equipe
+                    </span>
+                    <span>
+                      <Music2 size={14} aria-hidden="true" /> {service.repertoire.length} músicas
+                    </span>
+                    {presenceEnabled && upcomingService && service.assignments.length > 0 && (
+                      <span className={`services-presence ${confirmed === service.assignments.length ? 'services-presence-full' : ''}`}>
+                        <Check size={13} aria-hidden="true" /> {confirmed} de {service.assignments.length} confirmados
+                      </span>
+                    )}
+                  </div>
+                  {service.notes && <p className="services-note">{service.notes}</p>}
+                </div>
+                <div className="services-card-actions">
+                  {canPlan && (
+                    <button
+                      className="icon-button"
+                      title="Editar culto"
+                      aria-label={`Editar ${service.type} de ${formatServiceDate(service.date)}`}
+                      onClick={() => {
+                        setDatePrefill(undefined);
+                        setEditing(service);
+                      }}
+                      disabled={busy}
+                    >
+                      <Pencil size={17} />
+                    </button>
                   )}
+                  <Link className="icon-button services-open" to={`/cultos/${service.id}`} aria-label="Ver culto" title="Ver culto">
+                    <ChevronRight size={20} />
+                  </Link>
                 </div>
-                <div className="services-meta">
-                  <span>
-                    <Clock3 size={15} /> {service.time}
-                  </span>
-                  <span>
-                    <Users size={15} /> {service.assignments.length} na equipe
-                  </span>
-                  <span>
-                    <Music2 size={15} /> {service.repertoire.length} músicas
-                  </span>
-                </div>
-                {service.notes && <p className="services-note">{service.notes}</p>}
-              </div>
-              <div className="services-card-actions">
-                {canPlan && (
-                  <button
-                    className="icon-button"
-                    title="Editar culto"
-                    aria-label={`Editar ${service.type} de ${formatServiceDate(service.date)}`}
-                    onClick={() => {
-                      setDatePrefill(undefined);
-                      setEditing(service);
-                    }}
-                    disabled={busy}
-                  >
-                    <Pencil size={17} />
-                  </button>
-                )}
-                <Link className="button button-secondary" to={`/cultos/${service.id}`}>
-                  Ver culto <ArrowUpRight size={16} />
-                </Link>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       ) : (
         <EmptyState
@@ -982,7 +1045,9 @@ export default function ServicesPage() {
               ? 'Nenhum culto encontrado'
               : filter === 'past'
                 ? 'Ainda não há cultos anteriores'
-                : 'Um novo encontro começa aqui'
+                : filter === 'upcoming' && past.length
+                  ? 'Nenhum culto marcado daqui para frente'
+                  : 'Um novo encontro começa aqui'
           }
           description={
             query || typeFilter
@@ -992,45 +1057,23 @@ export default function ServicesPage() {
                 : 'Prepare a equipe e o repertório do próximo culto.'
           }
           action={
-            canPlan &&
-            !query &&
-            !typeFilter && (
-              <button className="button button-primary" onClick={() => createService()} disabled={busy}>
-                <Plus size={18} /> Criar culto
-              </button>
-            )
+            !query && !typeFilter ? (
+              <div className="services-empty-actions">
+                {canPlan && filter !== 'past' && (
+                  <button className="button button-primary" onClick={() => createService()} disabled={busy}>
+                    <Plus size={18} /> Criar culto
+                  </button>
+                )}
+                {filter === 'upcoming' && past.length > 0 && (
+                  <button className="button button-secondary" onClick={() => setFilter('past')}>
+                    Ver cultos anteriores
+                  </button>
+                )}
+              </div>
+            ) : undefined
           }
         />
       )}
-      <div className="services-summary">
-        <div>
-          <span className="services-summary-icon">
-            <CalendarDays size={20} />
-          </span>
-          <p>
-            <strong>{upcoming.length}</strong>
-            <span>Cultos a caminho</span>
-          </p>
-        </div>
-        <div>
-          <span className="services-summary-icon">
-            <Users size={20} />
-          </span>
-          <p>
-            <strong>{new Set(upcoming.flatMap(service => service.assignments.map(item => item.personId))).size}</strong>
-            <span>Pessoas escaladas</span>
-          </p>
-        </div>
-        <div>
-          <span className="services-summary-icon">
-            <Music2 size={20} />
-          </span>
-          <p>
-            <strong>{upcoming.reduce((count, service) => count + service.repertoire.length, 0)}</strong>
-            <span>Músicas no repertório</span>
-          </p>
-        </div>
-      </div>
       {editing && (
         <Modal
           wide

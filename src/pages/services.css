@@ -58,3 +58,50 @@
 @media(max-width:700px){.services-view-switch{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}.services-filters-toggle{display:inline-flex!important;padding-inline:14px}.services-filters-toggle.has-filters{border-color:var(--flame,var(--l-ad4d0dff))}.services-toolbar:not(.is-open){display:none}.services-summary{margin-top:18px}}
 @media(min-width:761px){.services-calendar-day{min-height:88px;padding:8px 7px;gap:5px}.services-calendar-grid{gap:6px}}
 .service-batch-unavailable{display:block;color:var(--c-8a5a0bff);font-weight:600}
+/* Lista de próximos cultos (pacote 1): folhinha de data, avatares e presença. */
+.services-period{margin:0 0 14px}
+.services-list .services-card{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:16px;padding:16px 18px!important;border-radius:18px;transition:border-color .15s,box-shadow .15s}
+.services-list .services-card:hover{border-color:var(--flame)}
+.services-list .services-date{width:62px;min-height:66px;padding:0;border:1px solid var(--border);border-radius:14px;background:var(--surface);overflow:hidden;justify-content:flex-start;color:var(--text)}
+.services-list .services-date strong{order:2;font-family:'Manrope Variable',sans-serif;font-size:26px;font-weight:800;line-height:1.25;letter-spacing:-.8px;color:var(--text)}
+.services-list .services-date span{order:1;width:100%;text-align:center;font-size:11px;font-weight:750;letter-spacing:1.2px;padding:3px 0;background:var(--flame);color:var(--c-ffffffff)}
+.services-card-past{opacity:.78}
+.services-card-past .services-date span{background:var(--muted)}
+.services-card-link{position:static}
+.services-card-link::after{content:'';position:absolute;inset:0;border-radius:inherit}
+.services-card-title h2{font-size:16.5px;font-weight:700;letter-spacing:-.2px}
+.services-when{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin:3px 0 0;font-size:13px;color:var(--muted)}
+.services-when svg{vertical-align:-2px}
+.services-weekday::first-letter{text-transform:uppercase}
+.services-soon{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--flame-soft);color:var(--flame);margin-left:2px}
+.services-list .services-meta{align-items:center;gap:6px 14px;margin-top:9px}
+.services-avatars{display:inline-flex!important;gap:0!important}
+.services-avatars>*+*{margin-left:-7px}
+.services-meta .services-avatars .profile-avatar,.services-meta .services-avatar-more{display:inline-grid;place-items:center}
+.services-meta .services-avatars .profile-avatar>span{display:inline}
+.services-avatar{box-shadow:0 0 0 2px var(--surface);border-radius:50%;background:var(--green-light)!important;color:var(--text)!important;font-size:10px!important;letter-spacing:-.3px}
+.services-avatar-more{display:inline-grid;place-items:center;width:26px;height:26px;font-size:10.5px;font-weight:700;background:var(--green-light);color:var(--text)}
+.services-presence{font-weight:650;padding:3px 9px;border-radius:999px;background:var(--surface-soft,var(--c-eef2f6ff));color:var(--muted)}
+.services-presence-full{background:var(--c-edf5eaff);color:var(--c-39754aff)}
+.services-list .services-card-actions{position:relative;z-index:1;margin:0;flex:none}
+.services-open{color:var(--muted)}
+.services-empty-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+@media(max-width:760px){
+  .services-list .services-card{grid-template-columns:auto minmax(0,1fr) auto;gap:12px;padding:13px 12px!important;flex-wrap:nowrap}
+  .services-list .services-date{width:54px;min-height:60px}
+  .services-list .services-date strong{font-size:23px}
+  .services-list .services-card-content{flex-basis:auto}
+  .services-list .services-card-actions{margin-left:0;flex:none}
+  .services-list .services-card-actions .icon-button{width:40px;height:40px}
+  .services-list .services-meta span:not(.services-avatars):not(.services-presence) svg{display:none}
+  .services-list .services-avatars+.services-team-count{display:none!important}
+}
+/* Calendário mais leve: dias passados esmaecidos e, no celular, só um ponto no dia com culto. */
+.calendar-day-past:not(.calendar-day-service):not(.calendar-day-event) .calendar-day-number{opacity:.45}
+.calendar-day-past.calendar-day-service,.calendar-day-past.calendar-day-event{opacity:.72}
+@media(max-width:760px){
+  .services-calendar .calendar-day-mobile-count{font-size:0!important;width:8px;height:8px;border-radius:50%;background:var(--flame);gap:0}
+  .services-calendar .calendar-day-mobile-count>span{display:none}
+  .services-calendar .calendar-day-event .calendar-day-mobile-count{background:var(--c-74529cff)}
+  .services-calendar .calendar-day-filtered .calendar-day-mobile-count{background:var(--muted)}
+}

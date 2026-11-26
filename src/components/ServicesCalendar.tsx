@@ -107,7 +107,7 @@ export default function ServicesCalendar({ month, onMonthChange, services, visib
               type="button"
               key={day.date}
               data-date={day.date}
-              className={`services-calendar-day ${day.inMonth ? '' : 'calendar-day-outside'} ${day.date === today ? 'calendar-day-today' : ''} ${matching.length ? 'calendar-day-service' : ''} ${hasEvent ? 'calendar-day-event' : ''} ${entries.length && !matching.length ? 'calendar-day-filtered' : ''}`}
+              className={`services-calendar-day ${day.inMonth ? '' : 'calendar-day-outside'} ${day.date === today ? 'calendar-day-today' : ''} ${day.inMonth && day.date < today ? 'calendar-day-past' : ''} ${matching.length ? 'calendar-day-service' : ''} ${hasEvent ? 'calendar-day-event' : ''} ${entries.length && !matching.length ? 'calendar-day-filtered' : ''}`}
               aria-label={label}
               aria-current={day.date === today ? 'date' : undefined}
               disabled={!entries.length && (!canCreate || busy)}
