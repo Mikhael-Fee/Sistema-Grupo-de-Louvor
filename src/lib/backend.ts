@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { MinistryData, Person, Profile, Service, Song, Tag } from '../types';
+import type { MinistryData, Person, Profile, Service, Song, SongSuggestion, Tag } from '../types';
 
 /** What a member may change in the team record linked to their account. */
 export interface MyPersonUpdate {
@@ -71,10 +71,58 @@ function avatarPath(photoUrl: string): string {
   return path;
 }
 
-export type DataPart = 'songs' | 'tags' | 'people' | 'services' | 'unavailability' | 'songKeys';
-const ALL_PARTS: DataPart[] = ['songs', 'tags', 'people', 'services', 'unavailability', 'songKeys'];
+export type DataPart = 'songs' | 'tags' | 'people' | 'services' | 'unavailability' | 'songKeys' | 'suggestions';
+const ALL_PARTS: DataPart[] = ['songs', 'tags', 'people', 'services', 'unavailability', 'songKeys', 'suggestions'];
+
+/** What a member sends when suggesting a song (migration 011). */
+export interface NewSuggestion {
+  title: string;
+  artist: string;
+  videoId: string;
+  videoTitle: string;
+  channel: string;
+  tagIds: string[];
+}
 // Before migration 008 the table does not exist: the app works without these features.
-const featureMissing = (error: { code?: string } | null) => Boolean(error && ['42P01', 'PGRST205', 'PGRST200'].includes(error.code || ''));
+const featureMissing = (error: { code?: string } | null) =>
+  Boolean(error && ['42P01', '42883', 'PGRST205', 'PGRST200', 'PGRST202'].includes(error.code || ''));
+
+const text = (value: unknown, max = 500) => (typeof value === 'string' ? value.slice(0, max) : '');
+function suggestionFromRow(row: Record<string, unknown>): SongSuggestion {
+  const status = ['suggested', 'reviewing', 'approved', 'declined'].includes(String(row.status))
+    ? (row.status as SongSuggestion['status'])
+    : 'suggested';
+  return {
+    id: text(row.id, 64),
+    title: text(row.title, 160),
+    artist: text(row.artist, 160),
+    videoId: text(row.videoId, 11),
+    videoTitle: text(row.videoTitle, 200),
+    channel: text(row.channel, 200),
+    status,
+    statusNote: text(row.statusNote, 300),
+    ...(typeof row.songId === 'string' ? { songId: row.songId } : {}),
+    mine: row.mine === true,
+    ...(typeof row.authorPersonId === 'string' ? { authorPersonId: row.authorPersonId } : {}),
+    authorName: text(row.authorName, 160),
+    createdAt: text(row.createdAt, 40),
+    statusChangedAt: text(row.statusChangedAt, 40),
+    lastActivityAt: text(row.lastActivityAt, 40) || text(row.createdAt, 40),
+    tagIds: Array.isArray(row.tagIds) ? row.tagIds.filter((id): id is string => typeof id === 'string') : [],
+    votes: typeof row.votes === 'number' ? row.votes : 0,
+    votedByMe: row.votedByMe === true,
+    comments: Array.isArray(row.comments)
+      ? row.comments.map((comment: Record<string, unknown>) => ({
+          id: text(comment.id, 64),
+          ...(typeof comment.authorPersonId === 'string' ? { authorPersonId: comment.authorPersonId } : {}),
+          authorName: text(comment.authorName, 160),
+          body: text(comment.body, 500),
+          createdAt: text(comment.createdAt, 40),
+          mine: comment.mine === true,
+        }))
+      : [],
+  };
+}
 
 async function loadParts(db: SupabaseClient, parts: DataPart[]): Promise<Partial<MinistryData>> {
   const want = new Set(parts);
@@ -180,6 +228,13 @@ async function loadParts(db: SupabaseClient, parts: DataPart[]): Promise<Partial
       if (featureMissing(result.error)) return {};
       check(result.error);
       return { songKeys: (result.data ?? []).map(row => ({ personId: row.person_id, songId: row.song_id, key: row.key })) };
+    },
+    async suggestions() {
+      const result = await db.rpc('read_song_suggestions', {}, { get: true });
+      if (featureMissing(result.error)) return {};
+      check(result.error);
+      if (!Array.isArray(result.data)) throw new Error('Não foi possível consultar as sugestões.');
+      return { suggestions: (result.data as Record<string, unknown>[]).map(suggestionFromRow) };
     },
   };
   const results = await Promise.all(ALL_PARTS.filter(part => want.has(part)).map(part => loaders[part]()));
@@ -313,6 +368,37 @@ export const repository = {
   },
   async setSongKey(personId: string, songId: string, key: string): Promise<void> {
     const { error } = await client().rpc('set_song_key', { p_person_id: personId, p_song_id: songId, p_key: key });
+    check(error);
+  },
+  async createSuggestion(suggestion: NewSuggestion): Promise<void> {
+    const { error } = await client().rpc('create_song_suggestion', { p_suggestion: suggestion });
+    if (error?.code === '23505') throw new Error('Este vídeo já foi sugerido. Curta a sugestão que já existe.');
+    check(error);
+  },
+  async voteSuggestion(id: string, vote: boolean): Promise<void> {
+    const { error } = await client().rpc('set_song_suggestion_vote', { p_suggestion_id: id, p_vote: vote });
+    check(error);
+  },
+  async commentSuggestion(id: string, body: string): Promise<void> {
+    const { error } = await client().rpc('add_song_suggestion_comment', { p_suggestion_id: id, p_body: body });
+    check(error);
+  },
+  async deleteSuggestionComment(id: string): Promise<void> {
+    const { error } = await client().rpc('delete_song_suggestion_comment', { p_comment_id: id });
+    check(error);
+  },
+  async setSuggestionStatus(id: string, status: 'suggested' | 'reviewing' | 'declined', note: string): Promise<void> {
+    const { error } = await client().rpc('set_song_suggestion_status', { p_suggestion_id: id, p_status: status, p_note: note });
+    check(error);
+  },
+  async approveSuggestion(id: string, key: string | null, songId: string | null): Promise<string> {
+    const { data, error } = await client().rpc('approve_song_suggestion', { p_suggestion_id: id, p_key: key, p_song_id: songId });
+    if (error?.code === '23505') throw new Error('Esta sugestão já foi aprovada.');
+    check(error);
+    return String(data);
+  },
+  async deleteSuggestion(id: string): Promise<void> {
+    const { error } = await client().rpc('delete_song_suggestion', { p_suggestion_id: id });
     check(error);
   },
   async listProfiles(): Promise<Profile[]> {

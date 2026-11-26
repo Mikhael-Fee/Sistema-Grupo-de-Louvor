@@ -75,6 +75,37 @@ export interface Service {
   assignments: Assignment[];
   repertoire: SetlistItem[];
 }
+export type SuggestionStatus = 'suggested' | 'reviewing' | 'approved' | 'declined';
+export interface SuggestionComment {
+  id: string;
+  authorPersonId?: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
+  mine: boolean;
+}
+/** A song someone wants the team to learn (migration 011). Not tied to a service. */
+export interface SongSuggestion {
+  id: string;
+  title: string;
+  artist: string;
+  videoId: string;
+  videoTitle: string;
+  channel: string;
+  status: SuggestionStatus;
+  statusNote: string;
+  songId?: string;
+  mine: boolean;
+  authorPersonId?: string;
+  authorName: string;
+  createdAt: string;
+  statusChangedAt: string;
+  lastActivityAt: string;
+  tagIds: string[];
+  votes: number;
+  votedByMe: boolean;
+  comments: SuggestionComment[];
+}
 export interface MinistryData {
   songs: Song[];
   tags: Tag[];
@@ -82,6 +113,7 @@ export interface MinistryData {
   services: Service[];
   /** Absent until the database update is applied. */ unavailability?: Unavailability[];
   /** Absent until migration 010 is applied. */ songKeys?: PersonSongKey[];
+  /** Absent until migration 011 is applied. */ suggestions?: SongSuggestion[];
 }
 export const ROLE_LABELS: Record<Role, string> = { admin: 'Administrador', leader: 'Líder', musician: 'Músico / vocalista' };
 export const FUNCTIONS = ['Voz', 'Teclado', 'Violão', 'Guitarra', 'Baixo', 'Bateria', 'Percussão'];

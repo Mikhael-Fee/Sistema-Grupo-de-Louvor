@@ -47,6 +47,7 @@ import {
 import { normalizeYouTubeUrl } from '../lib/youtube';
 import type { Song } from '../types';
 import { findLyricsMatch, type LyricsMatch } from '../lib/lyrics-search';
+import { isPendingChords } from '../lib/suggestions';
 import './songs.css';
 
 function blankSong(): Song {
@@ -1163,6 +1164,7 @@ export default function SongsPage() {
                 <span>
                   <strong>{song.title}</strong>
                   <small>{song.artist}</small>
+                  {isPendingChords(song) && <small className="songs-pending">Cifra pendente</small>}
                   {lyricHits.has(song.id) && (
                     <small className="songs-lyric-hit" aria-label="Trecho da letra encontrado">
                       “{lyricHits.get(song.id)!.before}

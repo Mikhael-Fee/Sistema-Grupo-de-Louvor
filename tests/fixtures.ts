@@ -2,8 +2,31 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { createDemoData } from './seed';
 import type { MinistryData, Person, Profile, Role, Service, Song, Tag } from '../src/types';
 
+/** A suggestion as the simulated database keeps it (migration 011). */
+export interface MockSuggestion {
+  id: string;
+  title: string;
+  artist: string;
+  videoId: string;
+  videoTitle: string;
+  channel: string;
+  status: 'suggested' | 'reviewing' | 'approved' | 'declined';
+  statusNote: string;
+  songId?: string;
+  createdBy: string;
+  authorPersonId?: string;
+  authorName: string;
+  createdAt: string;
+  statusChangedAt: string;
+  tagIds: string[];
+  voters: { userId: string; at: string }[];
+  comments: { id: string; userId: string; authorPersonId?: string; authorName: string; body: string; createdAt: string }[];
+}
+
 export interface MockMinistry {
   data: MinistryData;
+  /** Migration 011 rows; set to null to simulate a database without it. */
+  suggestions: MockSuggestion[] | null;
   profiles: Profile[];
   publicAccess: boolean;
   calls: { method: string; path: string }[];
@@ -35,6 +58,7 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
       { id: '20000000-0000-4000-8000-000000000004', name: 'Novo membro', role: 'musician', approved: false },
     ],
     publicAccess: false,
+    suggestions: [],
     calls: [],
     storage: { objects: new Map() },
     setRole(nextRole) {
@@ -374,6 +398,114 @@ export async function setupMockMinistry(page: Page, role: Role = 'admin', initia
         });
         actor().name = next.name.trim();
         return respond(route, null);
+      }
+      if (rpc.endsWith('song_suggestions') || rpc.includes('song_suggestion')) {
+        if (!mock.suggestions) return error(route, 'PGRST202', `Função ausente: ${rpc}`, 404);
+        if (!authorized('read')) return denied(route);
+        const me = actor();
+        const leader = ['admin', 'leader'].includes(me.role);
+        const find = (id: unknown) => mock.suggestions!.find(item => item.id === id);
+        const now = new Date().toISOString();
+        if (rpc === 'read_song_suggestions') {
+          return respond(
+            route,
+            [...mock.suggestions]
+              .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+              .map(({ createdBy, voters, comments, ...item }) => ({
+                ...item,
+                songId: item.songId ?? null,
+                authorPersonId: item.authorPersonId ?? null,
+                mine: createdBy === me.id,
+                votes: voters.length,
+                votedByMe: voters.some(vote => vote.userId === me.id),
+                lastActivityAt: [item.createdAt, item.statusChangedAt, ...voters.map(v => v.at), ...comments.map(c => c.createdAt)]
+                  .sort()
+                  .at(-1),
+                comments: comments.map(({ userId, ...comment }) => ({ ...comment, mine: userId === me.id })),
+              })),
+          );
+        }
+        if (rpc === 'create_song_suggestion') {
+          const next = body.p_suggestion as Record<string, unknown>;
+          if (mock.suggestions.some(item => item.videoId === next.videoId && ['suggested', 'reviewing'].includes(item.status)))
+            return error(route, '23505', 'Este vídeo já foi sugerido.', 409);
+          mock.suggestions.push({
+            id: crypto.randomUUID(),
+            title: String(next.title).trim(),
+            artist: String(next.artist).trim(),
+            videoId: String(next.videoId),
+            videoTitle: String(next.videoTitle ?? ''),
+            channel: String(next.channel ?? ''),
+            status: 'suggested',
+            statusNote: '',
+            createdBy: me.id,
+            authorPersonId: me.personId,
+            authorName: me.name,
+            createdAt: now,
+            statusChangedAt: now,
+            tagIds: (next.tagIds as string[]) ?? [],
+            voters: [],
+            comments: [],
+          });
+          return respond(route, null);
+        }
+        if (rpc === 'set_song_suggestion_vote') {
+          const item = find(body.p_suggestion_id);
+          if (!item) return error(route, 'P0002', 'Sugestão não encontrada.');
+          item.voters = item.voters.filter(vote => vote.userId !== me.id);
+          if (body.p_vote) item.voters.push({ userId: me.id, at: now });
+          return respond(route, null);
+        }
+        if (rpc === 'add_song_suggestion_comment') {
+          const item = find(body.p_suggestion_id);
+          if (!item) return error(route, 'P0002', 'Sugestão não encontrada.');
+          item.comments.push({
+            id: crypto.randomUUID(),
+            userId: me.id,
+            authorPersonId: me.personId,
+            authorName: me.name,
+            body: String(body.p_body).trim(),
+            createdAt: now,
+          });
+          return respond(route, null);
+        }
+        if (rpc === 'delete_song_suggestion_comment') {
+          for (const item of mock.suggestions)
+            item.comments = item.comments.filter(comment => !(comment.id === body.p_comment_id && (leader || comment.userId === me.id)));
+          return respond(route, null);
+        }
+        if (!leader && rpc !== 'delete_song_suggestion') return denied(route);
+        const item = find(body.p_suggestion_id);
+        if (!item) return error(route, 'P0002', 'Sugestão não encontrada.');
+        if (rpc === 'set_song_suggestion_status') {
+          if (item.status === 'approved') return error(route, 'P0002', 'Já aprovada.');
+          Object.assign(item, { status: body.p_status, statusNote: String(body.p_note ?? ''), statusChangedAt: now });
+          return respond(route, null);
+        }
+        if (rpc === 'approve_song_suggestion') {
+          let songId = body.p_song_id ? String(body.p_song_id) : '';
+          if (!songId) {
+            songId = crypto.randomUUID();
+            mock.data.songs.push({
+              id: songId,
+              title: item.title,
+              artist: item.artist,
+              originalKey: String(body.p_key),
+              churchKey: String(body.p_key),
+              content: 'Cifra pendente. Edite esta música para adicionar a letra e os acordes.',
+              youtubeUrl: `https://www.youtube.com/watch?v=${item.videoId}`,
+              notes: `Sugerida por ${item.authorName}.`,
+              tagIds: [...item.tagIds],
+            });
+          }
+          Object.assign(item, { status: 'approved', songId, statusNote: '', statusChangedAt: now });
+          return respond(route, songId);
+        }
+        if (rpc === 'delete_song_suggestion') {
+          if (!leader && !(item.createdBy === me.id && item.status === 'suggested')) return denied(route);
+          mock.suggestions = mock.suggestions.filter(entry => entry.id !== item.id);
+          return respond(route, null);
+        }
       }
       if (rpc === 'set_song_key') {
         if (!authorized('read')) return denied(route);
