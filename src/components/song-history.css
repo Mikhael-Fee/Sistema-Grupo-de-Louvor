@@ -1,0 +1,38 @@
+.song-history{margin-top:22px;padding:24px!important;min-width:0}
+.song-history>h2{display:flex;align-items:center;gap:9px;font-size:18px;line-height:1.5}
+.song-history>h2 svg{color:var(--flame)}
+.song-history>.muted{margin-top:10px;font-size:14px;color:var(--muted)}
+.song-history-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:18px 0 6px}
+.song-history-stats>div{min-width:0;padding:14px 16px;border-radius:12px;background:var(--surface-soft,var(--cream));}
+.song-history-stats dt{font-size:12px;font-weight:600;color:var(--muted);line-height:1.5}
+.song-history-stats dd{margin:4px 0 2px;font-family:'Manrope Variable',system-ui,sans-serif;font-size:24px;font-weight:700;line-height:1.3;color:var(--text);overflow-wrap:anywhere}
+.song-history-stats small{display:block;font-size:12px;color:var(--muted);line-height:1.5;overflow-wrap:anywhere}
+.song-history-group{margin-top:20px}
+.song-history-group h3{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:650;margin-bottom:8px;color:var(--text)}
+.song-history-group h3 svg{color:var(--flame)}
+.song-history-list{list-style:none;margin:0;padding:0;border-top:1px solid var(--border)}
+.song-history-list>li{border-bottom:1px solid var(--border)}
+.song-history-entry{display:grid;grid-template-columns:120px minmax(0,1fr) auto 16px;align-items:center;gap:12px;min-height:48px;padding:8px 6px;color:var(--text);text-decoration:none;border-radius:8px}
+.song-history-entry:hover{background:var(--surface-soft,var(--cream))}
+.song-history-entry:focus-visible{outline:2px solid var(--flame);outline-offset:2px}
+.song-history-entry>svg{color:var(--muted)}
+.song-history-date{font-size:13px;font-weight:650;font-variant-numeric:tabular-nums}
+.song-history-type{font-size:13px;color:var(--text);overflow-wrap:anywhere}
+.song-history-type small{color:var(--muted);font-size:12px}
+.song-history-key{min-width:38px;text-align:center;padding:3px 9px;border-radius:999px;font-size:13px;font-weight:700;background:var(--flame-soft);color:var(--flame)}
+.song-history-key-default{background:var(--surface-soft,var(--cream));color:var(--muted)}
+.song-history-more{margin-top:10px}
+.song-history-hint{margin-top:12px;font-size:12px;color:var(--muted);line-height:1.6}
+@media(max-width:760px){
+.song-history{padding:18px!important;margin-top:17px}
+.song-history>h2{font-size:16px}
+.song-history-stats{gap:8px}
+.song-history-stats>div{padding:11px 10px}
+.song-history-stats dd{font-size:19px}
+.song-history-entry{grid-template-columns:minmax(0,1fr) auto 16px;grid-template-areas:"date key icon" "type key icon";row-gap:1px;column-gap:10px}
+.song-history-date{grid-area:date}
+.song-history-type{grid-area:type;font-size:12px;color:var(--muted)}
+.song-history-key{grid-area:key}
+.song-history-entry>svg{grid-area:icon}
+}
+@media(max-width:400px){.song-history-stats{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.song-history-stats>div:last-child{grid-column:1/-1}}

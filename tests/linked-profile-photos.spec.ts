@@ -68,7 +68,8 @@ test('foto cadastrada na pessoa aparece no painel, escala, seleção de equipe e
   );
   await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await page.goto('/perfil');
-  await expectPhoto(page.locator('.profile-page-identity'), personPhoto);
+  await expectPhoto(page.locator('.member-hero'), personPhoto);
+  await page.getByRole('tab', { name: 'Meus dados' }).click();
   await expect(page.getByRole('button', { name: 'Remover foto', exact: true })).toHaveCount(0);
   expect(mock.profiles[0].photoUrl).toBeUndefined();
   expect(
@@ -136,7 +137,7 @@ test('foto própria da pessoa tem prioridade na equipe; remover selfie usa cadas
   await expectPhoto(homeTeamRow(page, person.name), personPhoto);
   await page.goto('/pessoas');
   await expectPhoto(personCard(page, person.name), personPhoto);
-  await page.goto('/perfil');
+  await page.goto('/perfil?aba=dados');
   await page.getByRole('button', { name: 'Remover foto', exact: true }).click();
   await expectPhoto(page.locator('.photo-picker'), personPhoto);
   expect(mock.profiles[0].photoUrl).toBe(selfie);

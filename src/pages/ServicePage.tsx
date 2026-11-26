@@ -32,6 +32,8 @@ import { validateService } from '../lib/validation';
 import { buildServiceShareText, whatsappShareUrl } from '../lib/service-share';
 import PresenceButtons, { StatusBadge } from '../components/PresenceButtons';
 import { presenceSummary, unavailableOn } from '../lib/presence';
+import { singerKeys } from '../lib/member-profile';
+import '../components/member-profile.css';
 import type { Assignment, Person, Service, SetlistItem, Song } from '../types';
 import {
   formatServiceDate,
@@ -153,6 +155,9 @@ function RepertoireItemForm({
   onCancel: () => void;
 }) {
   const { draft, setDraft, discardDraft, hasDraft } = useDraft<SetlistItem>(`service:${serviceId}:item:${initial.id}`, initial);
+  const { data } = useMinistry();
+  const service = data.services.find(item => item.id === serviceId);
+  const singers = service ? singerKeys(data, service, initial.songId) : [];
   const [videoError, setVideoError] = useState<string | null>(null);
   const videoUrl = (draft.youtubeUrl || '').trim();
   async function submit(event: FormEvent) {
@@ -183,6 +188,29 @@ function RepertoireItemForm({
             ))}
           </select>
         </label>
+        {singers.length > 0 && (
+          <div className="singer-keys service-form-full" aria-label="Tons de quem canta neste culto">
+            {singers.map(item => (
+              <p key={item.person.id}>
+                <span>
+                  <strong>{item.person.name}</strong> (voz neste culto) canta em <strong>{item.key}</strong>.
+                </span>
+                {draft.key === item.key ? (
+                  <span className="muted">Já está neste tom</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    disabled={busy}
+                    onClick={() => setDraft({ ...draft, key: item.key })}
+                  >
+                    Usar {item.key}
+                  </button>
+                )}
+              </p>
+            ))}
+          </div>
+        )}
         <label className="field service-form-full">
           <span>
             Observação <span className="muted">(opcional)</span>
@@ -659,7 +687,9 @@ export default function ServicePage() {
               <p className="service-section-description">
                 {presenceEnabled
                   ? (() => {
-                      const summary = presenceSummary(service.assignments);
+                      const summary = presenceSummary(service.assignments, personId =>
+                        Boolean(unavailableOn(data, personId, service.date)),
+                      );
                       return `${summary.confirmed} confirmados · ${summary.declined} não poderão · ${summary.pending} aguardando`;
                     })()
                   : 'Juntos, servimos melhor.'}

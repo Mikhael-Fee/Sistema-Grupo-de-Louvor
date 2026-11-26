@@ -1,0 +1,32 @@
+/* Início: hero first, then repertoire + team side by side, then the next services in one list. */
+.next-service{border-radius:22px}
+.next-service .presence{margin-top:14px;margin-bottom:16px;max-width:460px}
+.next-service .presence-actions .button-primary{background:var(--flame-bright);color:#142538;border-color:transparent}
+.next-service .presence-actions .button-primary:hover{filter:brightness(1.05)}
+.next-service .presence-actions .button-secondary{background:#ffffff14;color:#f3f6ed;border-color:#ffffff33}
+.home-columns{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);align-items:start}
+.home-columns>.card,.home-side>.card{border-radius:18px}
+.home-side{display:flex;flex-direction:column;gap:16px;min-width:0}
+.home-side .member-birthdays{margin:0;padding:20px 22px}
+.home-side .member-birthdays ul{flex-direction:column;gap:12px}
+.home-upcoming{border-radius:18px;padding:22px 24px;margin-bottom:26px}
+.home-upcoming .card-heading{margin-bottom:6px}
+.home-upcoming h2{font-size:19px}
+.home-upcoming-list{list-style:none;margin:0;padding:0}
+.home-upcoming-list li+li{border-top:1px solid var(--border)}
+.home-upcoming-row{display:flex;align-items:center;gap:14px;padding:13px 0;min-width:0}
+.home-upcoming-row .date-tile{min-width:46px;height:50px}
+.home-upcoming-row .date-tile strong{font-size:18px}
+.home-upcoming-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.home-upcoming-text strong{font-size:14px;font-weight:650}
+.home-upcoming-text small{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.home-upcoming-you{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.home-you-chip{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--flame-soft);color:var(--flame)}
+.home-upcoming-arrow{color:var(--muted)}
+.home-upcoming-row:hover .home-upcoming-text strong{text-decoration:underline}
+@media(max-width:800px){.home-columns{grid-template-columns:1fr}.home-upcoming{padding:18px}}
+@media(max-width:540px){.home-upcoming-row{flex-wrap:wrap;gap:10px 12px}.home-upcoming-you{order:3;flex-basis:100%;justify-content:flex-start;padding-left:58px}.home-upcoming-arrow{order:2}.next-service .presence-actions{display:grid;grid-template-columns:1fr 1fr}.next-service .presence-actions .button{padding:10px 8px;font-size:12px}}
+.home-birthdays-top{display:flex;align-items:center;flex-wrap:wrap;gap:10px 28px;border-radius:18px;padding:16px 22px;margin-bottom:20px}
+.home-birthdays-top ul{margin:0}
+.next-service .button-light{background:#fff;color:#142538}
+.next-service .button-light:hover{background:#f3f6ed}

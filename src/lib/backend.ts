@@ -1,6 +1,15 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { MinistryData, Person, Profile, Service, Song, Tag } from '../types';
 
+/** What a member may change in the team record linked to their account. */
+export interface MyPersonUpdate {
+  name: string;
+  functions: string[];
+  birthMonth: number | null;
+  birthDay: number | null;
+  whatsapp: string;
+}
+
 const url = import.meta.env.VITE_SUPABASE_URL?.trim();
 const anonymousKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
@@ -62,8 +71,8 @@ function avatarPath(photoUrl: string): string {
   return path;
 }
 
-export type DataPart = 'songs' | 'tags' | 'people' | 'services' | 'unavailability';
-const ALL_PARTS: DataPart[] = ['songs', 'tags', 'people', 'services', 'unavailability'];
+export type DataPart = 'songs' | 'tags' | 'people' | 'services' | 'unavailability' | 'songKeys';
+const ALL_PARTS: DataPart[] = ['songs', 'tags', 'people', 'services', 'unavailability', 'songKeys'];
 // Before migration 008 the table does not exist: the app works without these features.
 const featureMissing = (error: { code?: string } | null) => Boolean(error && ['42P01', 'PGRST205', 'PGRST200'].includes(error.code || ''));
 
@@ -95,6 +104,10 @@ async function loadParts(db: SupabaseClient, parts: DataPart[]): Promise<Partial
           active: row.active !== false,
           photoUrl: row.photo_url || undefined,
           accountPhotoUrl: accountPhotos.get(row.id) || undefined,
+          ...(typeof row.birth_month === 'number' && typeof row.birth_day === 'number'
+            ? { birthMonth: row.birth_month, birthDay: row.birth_day }
+            : {}),
+          ...(row.whatsapp ? { whatsapp: row.whatsapp } : {}),
         })),
       };
     },
@@ -161,6 +174,12 @@ async function loadParts(db: SupabaseClient, parts: DataPart[]): Promise<Partial
       if (featureMissing(result.error)) return {};
       check(result.error);
       return { unavailability: (result.data ?? []).map(row => ({ id: row.id, personId: row.person_id, date: row.date, note: row.note })) };
+    },
+    async songKeys() {
+      const result = await db.from('person_song_keys').select('person_id, song_id, key');
+      if (featureMissing(result.error)) return {};
+      check(result.error);
+      return { songKeys: (result.data ?? []).map(row => ({ personId: row.person_id, songId: row.song_id, key: row.key })) };
     },
   };
   const results = await Promise.all(ALL_PARTS.filter(part => want.has(part)).map(part => loaders[part]()));
@@ -286,6 +305,14 @@ export const repository = {
       p_unavailable: unavailable,
       p_note: note,
     });
+    check(error);
+  },
+  async updateMyPerson(person: MyPersonUpdate): Promise<void> {
+    const { error } = await client().rpc('update_my_person', { p_person: person });
+    check(error);
+  },
+  async setSongKey(personId: string, songId: string, key: string): Promise<void> {
+    const { error } = await client().rpc('set_song_key', { p_person_id: personId, p_song_id: songId, p_key: key });
     check(error);
   },
   async listProfiles(): Promise<Profile[]> {

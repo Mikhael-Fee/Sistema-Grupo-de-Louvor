@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
-import { Archive, Pencil, Plus, RotateCcw, Search, Users } from 'lucide-react';
+import { Archive, Cake, MessageCircle, Pencil, Plus, RotateCcw, Search } from 'lucide-react';
 import { useMinistry } from '../context/MinistryContext';
 import { useDraft } from '../hooks/useDraft';
 import { EmptyState, FormError, Modal, PageHeader } from '../components/ui';
@@ -9,6 +9,9 @@ import { validatePerson } from '../lib/validation';
 import { normalizeSearch } from '../lib/music';
 import { getPersonPhoto } from '../lib/avatars';
 import { FUNCTIONS, type Person } from '../types';
+import { PersonSummary } from '../components/MemberProfile';
+import { ministryToday } from '../lib/service-calendar';
+import { servicesInMonth, whatsappLink } from '../lib/member-profile';
 import './people.css';
 
 const readableError = (error: unknown) =>
@@ -144,12 +147,17 @@ export default function PeoplePage() {
   const [functionFilter, setFunctionFilter] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   const [editing, setEditing] = useState<Person | null>(null);
+  const [viewing, setViewing] = useState<Person | null>(null);
   const [removing, setRemoving] = useState<Person | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const lock = useRef(false);
   const archived = canEditLibrary && showArchived;
   const activeCount = data.people.filter(person => person.active !== false).length;
+  const today = ministryToday();
+  const servingThisMonth = data.people.filter(
+    person => person.active !== false && servicesInMonth(data.services, person.id, today) > 0,
+  ).length;
   const people = useMemo(
     () =>
       data.people
@@ -189,6 +197,9 @@ export default function PeoplePage() {
     <>
       <PageHeader
         title="Nossa equipe"
+        description={`${activeCount} ${activeCount === 1 ? 'pessoa' : 'pessoas'} na equipe ativa · ${servingThisMonth} ${
+          servingThisMonth === 1 ? 'serve' : 'servem'
+        } neste mês`}
         action={
           canEditLibrary && (
             <button className="button button-primary" onClick={() => openEditor()}>
@@ -197,14 +208,6 @@ export default function PeoplePage() {
           )
         }
       />
-      <div className="people-summary card">
-        <span className="people-summary-icon">
-          <Users size={23} />
-        </span>
-        <strong>
-          {activeCount} {activeCount === 1 ? 'pessoa na equipe ativa' : 'pessoas na equipe ativa'}
-        </strong>
-      </div>
       <div className="toolbar people-toolbar">
         <label className="people-search">
           <Search size={18} aria-hidden="true" />
@@ -215,15 +218,6 @@ export default function PeoplePage() {
             placeholder={mode === 'public' ? 'Buscar nome…' : 'Buscar nome ou e-mail…'}
             type="search"
           />
-        </label>
-        <label className="people-function-filter">
-          <span className="people-sr-only">Filtrar por função</span>
-          <select value={functionFilter} onChange={event => setFunctionFilter(event.target.value)}>
-            <option value="">Todas as funções</option>
-            {FUNCTIONS.map(fn => (
-              <option key={fn}>{fn}</option>
-            ))}
-          </select>
         </label>
         {canEditLibrary && (
           <label className="people-function-filter">
@@ -241,64 +235,119 @@ export default function PeoplePage() {
           </label>
         )}
       </div>
+      <div className="people-chips" role="group" aria-label="Filtrar por função">
+        {['', ...FUNCTIONS].map(fn => (
+          <button
+            key={fn || 'todas'}
+            type="button"
+            className={functionFilter === fn ? 'chip active' : 'chip'}
+            aria-pressed={functionFilter === fn}
+            onClick={() => setFunctionFilter(fn)}
+          >
+            {fn || 'Todas'}
+            <span className="people-chip-count">
+              {
+                data.people.filter(
+                  person => (archived ? person.active === false : person.active !== false) && (!fn || person.functions.includes(fn)),
+                ).length
+              }
+            </span>
+          </button>
+        ))}
+      </div>
       {!removing && <FormError error={error} />}
       {people.length ? (
         <div className="people-grid">
           {people.map((person, index) => {
             return (
               <article className="people-person card" key={person.id}>
-                <div className="people-person-heading">
-                  <ProfileAvatar
-                    name={person.name}
-                    photoUrl={getPersonPhoto(person)}
-                    size={40}
-                    className={`people-avatar people-avatar-${index % 4}`}
-                    decorative
-                  />
+                <ProfileAvatar
+                  name={person.name}
+                  photoUrl={getPersonPhoto(person)}
+                  size={52}
+                  className={`people-avatar people-avatar-${index % 4}`}
+                  decorative
+                />
+                <div className="people-person-body">
+                  <h2>
+                    <button type="button" className="people-person-open" title="Ver perfil" onClick={() => setViewing(person)}>
+                      {person.name}
+                    </button>
+                  </h2>
+                  <div className="people-functions">
+                    {person.functions.map(fn => (
+                      <span className="badge people-function" key={fn}>
+                        {fn}
+                      </span>
+                    ))}
+                  </div>
+                  {(() => {
+                    const count = servicesInMonth(data.services, person.id, today);
+                    const birthday =
+                      person.birthMonth && person.birthDay
+                        ? `${String(person.birthDay).padStart(2, '0')}/${String(person.birthMonth).padStart(2, '0')}`
+                        : '';
+                    return (
+                      <p className="people-person-meta">
+                        <span className={count ? undefined : 'people-person-idle'}>
+                          {count ? `${count}× neste mês` : 'Nenhuma escala neste mês'}
+                        </span>
+                        {birthday && (
+                          <span>
+                            <Cake size={12} aria-hidden="true" /> {birthday}
+                          </span>
+                        )}
+                      </p>
+                    );
+                  })()}
+                </div>
+                <div className="people-person-actions">
+                  {person.whatsapp && (
+                    <a
+                      className="icon-button people-whatsapp"
+                      href={whatsappLink(person.whatsapp)}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`WhatsApp de ${person.name}`}
+                    >
+                      <MessageCircle size={16} />
+                    </a>
+                  )}
                   {canEditLibrary && (
-                    <div className="people-person-actions">
+                    <button
+                      className="icon-button"
+                      disabled={saving || busy}
+                      aria-label={`Editar ${person.name}`}
+                      onClick={() => openEditor(person)}
+                    >
+                      <Pencil size={16} />
+                    </button>
+                  )}
+                  {canEditLibrary &&
+                    (person.active === false ? (
                       <button
                         className="icon-button"
                         disabled={saving || busy}
-                        aria-label={`Editar ${person.name}`}
-                        onClick={() => openEditor(person)}
+                        aria-label={`Reativar ${person.name}`}
+                        title="Reativar na equipe"
+                        onClick={() => changeActive(person, true)}
                       >
-                        <Pencil size={16} />
+                        <RotateCcw size={16} />
                       </button>
-                      {person.active === false ? (
-                        <button
-                          className="icon-button"
-                          disabled={saving || busy}
-                          aria-label={`Reativar ${person.name}`}
-                          title="Reativar na equipe"
-                          onClick={() => changeActive(person, true)}
-                        >
-                          <RotateCcw size={16} />
-                        </button>
-                      ) : (
-                        <button
-                          className="icon-button"
-                          disabled={saving || busy}
-                          aria-label={`Retirar ${person.name} da equipe`}
-                          title="Retirar da equipe ativa"
-                          onClick={() => {
-                            setError(null);
-                            setRemoving(person);
-                          }}
-                        >
-                          <Archive size={16} />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <h2>{person.name}</h2>
-                <div className="people-functions">
-                  {person.functions.map(fn => (
-                    <span className="badge people-function" key={fn}>
-                      {fn}
-                    </span>
-                  ))}
+                    ) : (
+                      <button
+                        className="icon-button"
+                        disabled={saving || busy}
+                        aria-label={`Retirar ${person.name} da equipe`}
+                        title="Retirar da equipe ativa"
+                        onClick={() => {
+                          setError(null);
+                          setRemoving(person);
+                        }}
+                      >
+                        <Archive size={16} />
+                      </button>
+                    ))}
                 </div>
               </article>
             );
@@ -318,6 +367,11 @@ export default function PeoplePage() {
             )
           }
         />
+      )}
+      {viewing && (
+        <Modal title={`Perfil de ${viewing.name}`} onClose={() => setViewing(null)}>
+          <PersonSummary person={data.people.find(person => person.id === viewing.id) ?? viewing} today={today} />
+        </Modal>
       )}
       {editing && (
         <Modal

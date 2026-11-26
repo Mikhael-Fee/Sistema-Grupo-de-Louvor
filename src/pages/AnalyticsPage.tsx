@@ -9,9 +9,11 @@ import {
   buildMinistryAnalytics,
   ministryToday,
   type AnalyticsCount,
+  type AnalyticsKey,
   type AnalyticsPeriod,
   type AnalyticsTimeline,
 } from '../lib/analytics';
+import { KEYS } from '../lib/music';
 import './analytics.css';
 
 const number = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
@@ -75,6 +77,54 @@ function BarList<T extends AnalyticsCount>({
         );
       })}
     </ol>
+  );
+}
+
+/** All twelve keys in musical order, so gaps (keys never used) are visible too. */
+function KeyChart({ rows, total }: { rows: AnalyticsKey[]; total: number }) {
+  if (!rows.length) return <p className="analytics-empty">Nenhuma música no repertório deste período.</p>;
+  const byKey = new Map(rows.map(row => [row.label, row]));
+  const columns = [...KEYS, ...rows.map(row => row.label).filter(key => !KEYS.includes(key))].map(
+    key => byKey.get(key) || { id: key, label: key, count: 0, percentage: 0, songs: 0 },
+  );
+  const max = Math.max(...rows.map(row => row.count));
+  const top = rows[0];
+  return (
+    <>
+      <p className="analytics-keys-top">
+        Tom mais tocado: <strong>{top.label}</strong>, em {number(top.count)} de {number(total)} músicas dos repertórios ({top.percentage}
+        %).
+      </p>
+      <ol className="analytics-keys" aria-label="Quantas vezes cada tom foi tocado">
+        {columns.map(column => (
+          <li
+            key={column.id}
+            className={column.count ? '' : 'analytics-key-empty'}
+            aria-label={`${column.label}: ${column.count} ${column.count === 1 ? 'vez' : 'vezes'}`}
+            title={column.count ? `${column.count}× · ${column.songs} ${column.songs === 1 ? 'música' : 'músicas'}` : 'Não tocado'}
+          >
+            <span className="analytics-key-value" aria-hidden="true">
+              {column.count || ''}
+            </span>
+            <span className="analytics-key-track" aria-hidden="true">
+              <span style={{ height: `${max ? (column.count / max) * 100 : 0}%` }} />
+            </span>
+            <span className="analytics-key-label" aria-hidden="true">
+              {column.label}
+            </span>
+          </li>
+        ))}
+      </ol>
+      <details className="analytics-data-table">
+        <summary>Ver tons em lista</summary>
+        <BarList
+          rows={rows}
+          percentageLabel="das músicas"
+          empty=""
+          detail={row => `${row.songs} ${row.songs === 1 ? 'música diferente' : 'músicas diferentes'}`}
+        />
+      </details>
+    </>
   );
 }
 
@@ -462,6 +512,11 @@ export default function AnalyticsPage() {
                     percentageLabel="dos usos de músicas"
                     empty="Nenhuma música para classificar neste período."
                   />
+                </section>
+                <section className="card analytics-chart-card analytics-keys-card" aria-labelledby="analytics-keys-heading">
+                  <h2 id="analytics-keys-heading">Tons mais tocados</h2>
+                  <p>O tom em que cada música foi tocada no culto. Quando o culto não tem tom salvo, conta o tom na igreja da música.</p>
+                  <KeyChart rows={report.keys} total={report.songUses} />
                 </section>
               </div>
             )}

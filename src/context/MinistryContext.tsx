@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { repository, supabase, type DataPart } from '../lib/backend';
+import { repository, supabase, type DataPart, type MyPersonUpdate } from '../lib/backend';
+import { normalizeWhatsapp, validBirthday } from '../lib/member-profile';
+import { KEYS } from '../lib/music';
 import { validatePerson, validateService, validateSong, validateTag } from '../lib/validation';
 import { clearSnapshot, isConnectionFailure, readSnapshot, saveSnapshot } from '../lib/offline-snapshot';
 import { ministryToday } from '../lib/service-calendar';
@@ -37,6 +39,12 @@ interface MinistryContextValue {
   presenceEnabled: boolean;
   respondAssignment(assignmentId: string, status: AssignmentStatus, note?: string): Promise<void>;
   setUnavailability(personId: string, date: string, unavailable: boolean, note?: string): Promise<void>;
+  /** True once the database has birthdays, WhatsApp and keys per singer (migration 010). */
+  profilesEnabled: boolean;
+  /** A member updates the team record linked to their own account. */
+  updateMyPerson(update: MyPersonUpdate): Promise<void>;
+  /** Saves the key a person sings a song in; an empty key removes it. */
+  setSongKey(personId: string, songId: string, key: string): Promise<void>;
 }
 const Context = createContext<MinistryContextValue | null>(null);
 const check = (message: string | null) => {
@@ -358,6 +366,28 @@ export function MinistryProvider({ children }: { children: ReactNode }) {
       await mutate('member', ['unavailability'], () =>
         repository.setUnavailability(personId, date, unavailable, note.trim().slice(0, 200)),
       );
+    },
+    profilesEnabled: Array.isArray(data.songKeys),
+    async updateMyPerson(update) {
+      const personId = profile?.personId;
+      if (!personId) throw new Error('Peça a um administrador para vincular sua conta a uma pessoa da equipe.');
+      const person = data.people.find(item => item.id === personId);
+      if (!person) throw new Error('Pessoa da equipe não encontrada.');
+      check(validatePerson({ ...person, name: update.name, functions: update.functions }));
+      if (data.services.some(s => s.assignments.some(a => a.personId === personId && !update.functions.includes(a.function))))
+        throw new Error('Uma função que você tirou está numa escala. Peça ao líder para ajustar a escala primeiro.');
+      if (!validBirthday(update.birthMonth, update.birthDay)) throw new Error('Escolha um dia e mês de aniversário válidos.');
+      const whatsapp = normalizeWhatsapp(update.whatsapp);
+      if (whatsapp === null) throw new Error('Informe o WhatsApp com DDD, por exemplo (11) 98765-4321.');
+      await mutate('member', ['people'], () => repository.updateMyPerson({ ...update, name: update.name.trim(), whatsapp }));
+      if (profile && sessionUser.current === profile.id)
+        setProfile(current => (current ? { ...current, name: update.name.trim() } : current));
+    },
+    async setSongKey(personId, songId, key) {
+      if (!canPlanNow() && personId !== profile?.personId) throw new Error('Você só pode salvar os seus próprios tons.');
+      if (key && !KEYS.includes(key)) throw new Error('Escolha um tom válido.');
+      if (!data.songs.some(song => song.id === songId)) throw new Error('Música não encontrada.');
+      await mutate('member', ['songKeys'], () => repository.setSongKey(personId, songId, key));
     },
     async updateProfile(nextProfile) {
       authorize('admin');
