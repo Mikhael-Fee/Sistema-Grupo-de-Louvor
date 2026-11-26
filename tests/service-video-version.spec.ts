@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { setupMockMinistry, type MockMinistry } from './fixtures';
+import { editRepertoire, setupMockMinistry, type MockMinistry } from './fixtures';
 
 const LIBRARY_ID = 'dQw4w9WgXcQ';
 const LIVE_ID = '9bZkp7q19f0';
@@ -38,6 +38,7 @@ for (const width of [1200, 360]) {
     const originalSong = structuredClone(song);
     await mock.login();
     await page.goto(`/cultos/${service.id}`);
+    await editRepertoire(page);
     const row = page.locator('.service-setlist-item').filter({ hasText: song.title });
     await row.getByRole('button', { name: 'Escolher outra versão para este culto', exact: true }).click();
 

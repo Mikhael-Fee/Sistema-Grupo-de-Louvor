@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { setupMockMinistry, type MockMinistry } from './fixtures';
+import { setupMockMinistry, showServiceTab, type MockMinistry } from './fixtures';
 
 const personCard = (page: Page, name: string) =>
   page.locator('.people-person').filter({ has: page.getByRole('heading', { name, exact: true }) });
@@ -66,6 +66,8 @@ test('admin retira e reativa pessoa escalada sem apagar histórico, fotos ou con
   expect(changes(mock)).toEqual([{ method: 'POST', path: '/rest/v1/rpc/set_person_active' }]);
 
   await page.goto(`/cultos/${service.id}`);
+
+  await showServiceTab(page, 'Equipe');
   const historicalRow = teamRow(page, person.name);
   await expect(historicalRow).toBeVisible();
   await expect(historicalRow.getByText(person.name, { exact: true })).toBeVisible();
@@ -119,6 +121,7 @@ test('músico vê equipe ativa e escala histórica sem ações de retirar ou rea
   await expect(page.getByRole('button', { name: /Retirar .+ da equipe|Reativar .+|Nova pessoa/ })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: 'Situação na equipe', exact: true })).toHaveCount(0);
   await page.goto(`/cultos/${service.id}`);
+  await showServiceTab(page, 'Equipe');
   await expect(teamRow(page, person.name)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Editar equipe', exact: true })).toHaveCount(0);
   expect(mock.data.services[0].assignments.some(assignment => assignment.personId === person.id)).toBe(true);

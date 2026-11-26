@@ -209,7 +209,9 @@ describe('avisos de escala por e-mail e notificação', () => {
         calls.push({ url, init });
         if (url.endsWith('/rpc/claim_suggestion_approval_notification'))
           return new Response(
-            JSON.stringify([{ suggestion_id: SUGGESTION, title: 'Bondade de Deus', author_name: 'Ana', song_id: SONG, subscriptions: [subscription] }]),
+            JSON.stringify([
+              { suggestion_id: SUGGESTION, title: 'Bondade de Deus', author_name: 'Ana', song_id: SONG, subscriptions: [subscription] },
+            ]),
             { status: 200 },
           );
         return new Response('{}', { status: 201 });

@@ -239,7 +239,8 @@ async function notifySuggestionApproved(token, suggestionId, keys) {
   let rows;
   try {
     const response = await rpc(config, token, 'claim_suggestion_approval_notification', { p_suggestion_id: suggestionId });
-    if (response.status === 401 || response.status === 403) return reply(403, { error: 'Apenas líderes e administradores enviam este aviso.' });
+    if (response.status === 401 || response.status === 403)
+      return reply(403, { error: 'Apenas líderes e administradores enviam este aviso.' });
     if (!response.ok) {
       const failure = await response.json().catch(() => null);
       if (failure?.code === '42501') return reply(403, { error: 'Apenas líderes e administradores enviam este aviso.' });

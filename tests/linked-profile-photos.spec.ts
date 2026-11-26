@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { setupMockMinistry, type MockMinistry } from './fixtures';
+import { setupMockMinistry, showServiceTab, type MockMinistry } from './fixtures';
 
 test.use({ trace: 'off', screenshot: 'off' });
 
@@ -59,6 +59,7 @@ test('foto cadastrada na pessoa aparece no painel, escala, seleção de equipe e
   await expectNextService(page, mock);
   await expectPhoto(homeTeamRow(page, person.name), personPhoto);
   await page.goto(`/cultos/${mock.data.services[0].id}`);
+  await showServiceTab(page, 'Equipe');
   await expectPhoto(teamRow(page, person.name), personPhoto);
   await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
   const dialog = page.getByRole('dialog');
@@ -101,6 +102,7 @@ test('administrador vincula selfie à pessoa; desvincular ou suspender acesso re
   await expectNextService(page, mock);
   await expectPhoto(homeTeamRow(page, target.name), selfie);
   await page.goto(`/cultos/${mock.data.services[0].id}`);
+  await showServiceTab(page, 'Equipe');
   await expectPhoto(teamRow(page, target.name), selfie);
   dialog = await openAccess(page, account.name);
   await dialog.getByRole('combobox', { name: /^Pessoa vinculada/ }).selectOption('');
@@ -117,6 +119,7 @@ test('administrador vincula selfie à pessoa; desvincular ou suspender acesso re
   await dialog.getByRole('button', { name: 'Salvar acesso', exact: true }).click();
   await expect(dialog).toBeHidden();
   await page.goto(`/cultos/${mock.data.services[0].id}`);
+  await showServiceTab(page, 'Equipe');
   await expect(teamRow(page, target.name).locator('img')).toHaveCount(0);
   await page.goto('/');
   await expectNextService(page, mock);
@@ -139,6 +142,7 @@ test('foto do perfil do membro aparece na equipe; remover a foto volta para a fo
   await page.goto('/pessoas');
   await expectPhoto(personCard(page, person.name), selfie);
   await page.goto(`/cultos/${mock.data.services[0].id}`);
+  await showServiceTab(page, 'Equipe');
   await expectPhoto(teamRow(page, person.name), selfie);
   await page.goto('/perfil');
   await expectPhoto(page.locator('.member-hero'), selfie);
@@ -155,6 +159,7 @@ test('foto do perfil do membro aparece na equipe; remover a foto volta para a fo
   await expectNextService(page, mock);
   await expectPhoto(homeTeamRow(page, person.name), personPhoto);
   await page.goto(`/cultos/${mock.data.services[0].id}`);
+  await showServiceTab(page, 'Equipe');
   await expectPhoto(teamRow(page, person.name), personPhoto);
 });
 
@@ -213,6 +218,7 @@ test('remover foto do cadastro revela selfie vinculada ao músico aprovado, sem 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expectPhoto(page.locator('.topbar-profile-link'), selfie);
   await page.goto(`/cultos/${mock.data.services[0].id}`);
+  await showServiceTab(page, 'Equipe');
   await expectPhoto(teamRow(page, person.name), selfie);
   await expect(page.getByRole('button', { name: 'Editar equipe', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Editar culto|Editar repertório|Excluir culto/ })).toHaveCount(0);

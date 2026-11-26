@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { setupMockMinistry, type MockMinistry } from './fixtures';
+import { editRepertoire, setupMockMinistry, type MockMinistry } from './fixtures';
 
 const saves = (mock: MockMinistry) => mock.calls.filter(call => call.path === '/rest/v1/rpc/save_service');
 
@@ -15,6 +15,11 @@ test('seleciona várias músicas, mantém a busca e grava uma vez sem duplicar o
   await mock.login();
   await page.goto(`/cultos/${initial.id}`);
   await expect(page.getByRole('button', { name: 'Adicionar música', exact: true })).toHaveCount(0);
+  // Reading first: reorder, adjust and remove only show up in the edit mode.
+  await expect(page.getByRole('button', { name: /^Mover |^Remover |^Editar tom/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Selecionar músicas', exact: true })).toHaveCount(0);
+  await editRepertoire(page);
+  await expect(page.getByRole('button', { name: /^Mover / }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Selecionar músicas', exact: true }).click();
   let dialog = page.getByRole('dialog');
   const existingSong = mock.data.songs.find(song => song.id === previous[0].songId)!;
@@ -96,6 +101,7 @@ test('no celular seleciona e limpa músicas visíveis sem perder outras seleçõ
   const initial = mock.data.services[0];
   await mock.login();
   await page.goto(`/cultos/${initial.id}`);
+  await editRepertoire(page);
   await page.getByRole('button', { name: 'Selecionar músicas', exact: true }).click();
   const dialog = page.getByRole('dialog');
   const search = dialog.getByLabel('Buscar músicas', { exact: true });

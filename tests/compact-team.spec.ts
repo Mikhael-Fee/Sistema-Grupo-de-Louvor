@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { setupMockMinistry } from './fixtures';
+import { setupMockMinistry, showServiceTab } from './fixtures';
 
 for (const width of [320, 390]) {
   test(`equipe em lista e seleção em duas colunas com nomes longos em ${width}px`, async ({ page }) => {
@@ -40,6 +40,7 @@ for (const width of [320, 390]) {
 
     const service = mock.data.services[0];
     await page.goto(`/cultos/${service.id}`);
+    await showServiceTab(page, 'Equipe');
     await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).not.toContainText('Marque quem vai participar');
@@ -74,6 +75,7 @@ test('seleção preserva inativo na escala existente e não o oferece em novo cu
   const originalAssignments = structuredClone(service.assignments);
   await mock.login();
   await page.goto(`/cultos/${service.id}`);
+  await showServiceTab(page, 'Equipe');
   await page.getByRole('button', { name: 'Editar equipe', exact: true }).click();
   let dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('checkbox', { name: `Selecionar ${archived.name}`, exact: true })).toBeChecked();

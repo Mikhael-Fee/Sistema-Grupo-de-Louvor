@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { setupMockMinistry } from './fixtures';
+import { editRepertoire, setupMockMinistry } from './fixtures';
 
 test.use({ trace: 'off', screenshot: 'off' });
 const SHOTS = process.env.MEMBER_PROFILE_SHOTS;
@@ -126,6 +126,7 @@ test('líder vê tom de quem canta, contagem no mês, mini perfil e indisponíve
   await expect(lucasRow.getByText('Aguardando')).toHaveCount(0);
   await shot(page, 'culto-equipe-indisponivel', false);
 
+  await editRepertoire(page);
   await page
     .getByRole('button', { name: `Editar tom e observação de ${firstSong.title}` })
     .first()
